@@ -14,7 +14,7 @@ retained in
 Slice 3 is complete. Its implementation and acceptance plan is retained in
 [`docs/archive/slice-3-plan.md`](archive/slice-3-plan.md).
 
-Slice 4 is defined. Its detailed implementation plan is in
+Slice 4 is complete. Its implementation and acceptance record is in
 [`docs/slice-4-plan.md`](slice-4-plan.md).
 
 ## Proposed repository tree
@@ -630,12 +630,12 @@ Archived implementation and acceptance record:
 
 Acceptance: the validated example lowers to an IR containing reference, sweep, measurement, derived error, named calibration, and `over frequency` meaning without concrete device dependencies.
 
-### Slice 4 — Device execution
+### Slice 4 — Device execution (complete)
 
 Implement `RfDevice`, `SimulatedRfDevice`, device-bound single-point IR
 execution, and runtime tests.
 
-Detailed implementation plan: [`docs/slice-4-plan.md`](slice-4-plan.md).
+Implementation and acceptance record: [`docs/slice-4-plan.md`](slice-4-plan.md).
 
 Acceptance: valid IR executes at one supplied frequency through the device
 interface; simulator behavior is deterministic and hidden error state remains

@@ -25,6 +25,21 @@ target_include_directories(horusrf_domain PUBLIC
 )
 horusrf_enable_warnings(horusrf_domain)
 
+add_library(horusrf_device INTERFACE)
+target_compile_features(horusrf_device INTERFACE cxx_std_20)
+target_include_directories(horusrf_device INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_device INTERFACE horusrf_domain)
+
+add_library(horusrf_simulator STATIC src/device/simulated_rf_device.cpp)
+target_compile_features(horusrf_simulator PUBLIC cxx_std_20)
+target_include_directories(horusrf_simulator PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_simulator PUBLIC horusrf_device horusrf_domain)
+horusrf_enable_warnings(horusrf_simulator)
+
 add_library(horusrf_semantic STATIC
     src/semantic/analyzer.cpp
 )
@@ -44,6 +59,14 @@ target_include_directories(horusrf_ir PUBLIC
 )
 target_link_libraries(horusrf_ir PUBLIC horusrf_domain PRIVATE horusrf_semantic)
 horusrf_enable_warnings(horusrf_ir)
+
+add_library(horusrf_runtime STATIC src/runtime/executor.cpp)
+target_compile_features(horusrf_runtime PUBLIC cxx_std_20)
+target_include_directories(horusrf_runtime PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_runtime PUBLIC horusrf_ir horusrf_device horusrf_domain)
+horusrf_enable_warnings(horusrf_runtime)
 
 if(BUILD_TESTING)
     if(CMAKE_CONFIGURATION_TYPES)
@@ -93,4 +116,25 @@ if(BUILD_TESTING)
     )
     horusrf_enable_warnings(horusrf_ir_tests)
     add_test(NAME horusrf_ir_tests COMMAND horusrf_ir_tests)
+
+    add_executable(horusrf_simulator_tests
+        tests/device/simulated_rf_device_tests.cpp
+    )
+    target_compile_features(horusrf_simulator_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_simulator_tests PRIVATE tests)
+    target_link_libraries(horusrf_simulator_tests PRIVATE horusrf_simulator)
+    horusrf_enable_warnings(horusrf_simulator_tests)
+    add_test(NAME horusrf_simulator_tests COMMAND horusrf_simulator_tests)
+
+    add_executable(horusrf_runtime_tests tests/runtime/executor_tests.cpp)
+    target_compile_features(horusrf_runtime_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_runtime_tests PRIVATE tests)
+    target_link_libraries(horusrf_runtime_tests PRIVATE
+        horusrf_runtime horusrf_simulator horusrf_parser horusrf_semantic horusrf_ir
+    )
+    target_compile_definitions(horusrf_runtime_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    horusrf_enable_warnings(horusrf_runtime_tests)
+    add_test(NAME horusrf_runtime_tests COMMAND horusrf_runtime_tests)
 endif()

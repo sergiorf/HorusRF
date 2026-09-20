@@ -2,7 +2,7 @@
 
 ## Status and objective
 
-**Status:** defined; implementation not started.
+**Status:** complete; implemented and accepted.
 
 Slice 4 binds the typed, device-independent IR from Slice 3 to the smallest
 physical execution boundary needed by M0. It adds the RF device abstraction, a
@@ -445,26 +445,26 @@ completion.
 
 ## Acceptance checklist
 
-- [ ] Existing Slice 1–3 behavior remains green.
-- [ ] CMake configure and C++20 build succeed using only `build/`.
-- [ ] CTest discovers and passes simulator and runtime tests with all earlier
+- [x] Existing Slice 1–3 behavior remains green.
+- [x] CMake configure and C++20 build succeed using only `build/`.
+- [x] CTest discovers and passes simulator and runtime tests with all earlier
       tests.
-- [ ] `RfDevice` exposes only the three required M0 operations and has a
+- [x] `RfDevice` exposes only the three required M0 operations and has a
       virtual destructor.
-- [ ] Runtime depends on the abstract device interface, never the simulator.
-- [ ] Simulator depends on neither IR nor runtime.
-- [ ] Simulator requires both settings, is deterministic, and exposes no
+- [x] Runtime depends on the abstract device interface, never the simulator.
+- [x] Simulator depends on neither IR nor runtime.
+- [x] Simulator requires both settings, is deterministic, and exposes no
       hidden-error accessor.
-- [ ] The documented private TX-error model produces expected measurements.
-- [ ] All IR definition alternatives evaluate through strong domain types.
-- [ ] One point binds the supplied frequency and embedded reference correctly.
-- [ ] `MeasurePower` makes exactly three device calls in the required order.
-- [ ] Point evaluation owns a dense value for every IR `ValueId`.
-- [ ] The canonical fixture executes at one selected frequency and produces
+- [x] The documented private TX-error model produces expected measurements.
+- [x] All IR definition alternatives evaluate through strong domain types.
+- [x] One point binds the supplied frequency and embedded reference correctly.
+- [x] `MeasurePower` makes exactly three device calls in the required order.
+- [x] Point evaluation owns a dense value for every IR `ValueId`.
+- [x] The canonical fixture executes at one selected frequency and produces
       the expected error and correction.
-- [ ] Malformed IR returns structured diagnostics and causes no device calls.
-- [ ] Device exceptions propagate without being misclassified.
-- [ ] No sweep iteration, characterization aggregation, calibration
+- [x] Malformed IR returns structured diagnostics and causes no device calls.
+- [x] Device exceptions propagate without being misclassified.
+- [x] No sweep iteration, characterization aggregation, calibration
       application, metrics, procedural path, CSV, or CLI is added.
 
 ## Slice boundary and handoff
