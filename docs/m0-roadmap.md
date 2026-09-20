@@ -12,7 +12,10 @@ retained in
 [`docs/archive/slice-2-plan.md`](archive/slice-2-plan.md).
 
 Slice 3 is complete. Its implementation and acceptance plan is retained in
-[`docs/slice-3-plan.md`](slice-3-plan.md).
+[`docs/archive/slice-3-plan.md`](archive/slice-3-plan.md).
+
+Slice 4 is defined. Its detailed implementation plan is in
+[`docs/slice-4-plan.md`](slice-4-plan.md).
 
 ## Proposed repository tree
 
@@ -618,19 +621,25 @@ Archived implementation and acceptance record:
 
 Acceptance: supported units normalize correctly; valid dBm/dB expressions pass; calibration corrections have `PowerDelta` type; `over frequency` resolves to the active frequency sweep; and invalid dimensions, references, and calibration indexes fail with structured diagnostics.
 
-### Slice 3 — IR lowering
+### Slice 3 — IR lowering (complete)
 
 Implement typed IR and AST-to-IR lowering.
 
-Detailed implementation plan: [`docs/slice-3-plan.md`](slice-3-plan.md).
+Archived implementation and acceptance record:
+[`docs/archive/slice-3-plan.md`](archive/slice-3-plan.md).
 
 Acceptance: the validated example lowers to an IR containing reference, sweep, measurement, derived error, named calibration, and `over frequency` meaning without concrete device dependencies.
 
 ### Slice 4 — Device execution
 
-Implement `RfDevice`, `SimulatedRfDevice`, runtime execution, and runtime tests.
+Implement `RfDevice`, `SimulatedRfDevice`, device-bound single-point IR
+execution, and runtime tests.
 
-Acceptance: valid IR executes through the device interface; simulator behavior is deterministic and hidden error state remains private.
+Detailed implementation plan: [`docs/slice-4-plan.md`](slice-4-plan.md).
+
+Acceptance: valid IR executes at one supplied frequency through the device
+interface; simulator behavior is deterministic and hidden error state remains
+private. Sweep generation and result aggregation remain Slice 5 work.
 
 ### Slice 5 — Complete characterization
 
