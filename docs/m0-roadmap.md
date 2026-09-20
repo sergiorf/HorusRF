@@ -14,8 +14,11 @@ retained in
 Slice 3 is complete. Its implementation and acceptance plan is retained in
 [`docs/archive/slice-3-plan.md`](archive/slice-3-plan.md).
 
-Slice 4 is complete. Its implementation and acceptance record is in
-[`docs/slice-4-plan.md`](slice-4-plan.md).
+Slice 4 is complete. Its implementation and acceptance record is retained in
+[`docs/archive/slice-4-plan.md`](archive/slice-4-plan.md).
+
+Slice 5 is defined. Its detailed implementation plan is in
+[`docs/slice-5-plan.md`](slice-5-plan.md).
 
 ## Proposed repository tree
 
@@ -635,7 +638,8 @@ Acceptance: the validated example lowers to an IR containing reference, sweep, m
 Implement `RfDevice`, `SimulatedRfDevice`, device-bound single-point IR
 execution, and runtime tests.
 
-Implementation and acceptance record: [`docs/slice-4-plan.md`](slice-4-plan.md).
+Archived implementation and acceptance record:
+[`docs/archive/slice-4-plan.md`](archive/slice-4-plan.md).
 
 Acceptance: valid IR executes at one supplied frequency through the device
 interface; simulator behavior is deterministic and hidden error state remains
@@ -644,6 +648,8 @@ private. Sweep generation and result aggregation remain Slice 5 work.
 ### Slice 5 — Complete characterization
 
 Implement sweep execution, error calculation, calibration-artifact generation, correction application within verification, corrected measurements, residuals, and metrics.
+
+Detailed implementation plan: [`docs/slice-5-plan.md`](slice-5-plan.md).
 
 Acceptance: the actual `.hrf` program completes the experiment, produces `tx_power : Frequency -> PowerDelta`, and materially reduces RMS error when that artifact is applied to the measured samples.
 
