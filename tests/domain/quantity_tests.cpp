@@ -7,6 +7,8 @@
 
 #include "horusrf/domain/units.hpp"
 
+void run_results_tests();
+
 namespace {
 using namespace horusrf::domain;
 
@@ -76,6 +78,7 @@ int main() {
     try {
         conversion_tests();
         arithmetic_tests();
+        run_results_tests();
         std::cout << "All HorusRF domain tests passed\n";
         return 0;
     } catch (const std::exception& error) {

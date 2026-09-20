@@ -2,7 +2,7 @@
 
 ## Status and objective
 
-**Status:** defined; implementation not started.
+**Status:** complete; implemented and accepted.
 
 Slice 5 turns the device-bound point evaluator from Slice 4 into the complete
 M0 characterization runtime. It generates the program's frequency sweep,

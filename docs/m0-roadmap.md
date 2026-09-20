@@ -17,7 +17,7 @@ Slice 3 is complete. Its implementation and acceptance plan is retained in
 Slice 4 is complete. Its implementation and acceptance record is retained in
 [`docs/archive/slice-4-plan.md`](archive/slice-4-plan.md).
 
-Slice 5 is defined. Its detailed implementation plan is in
+Slice 5 is complete. Its implementation and acceptance record is in
 [`docs/slice-5-plan.md`](slice-5-plan.md).
 
 ## Proposed repository tree

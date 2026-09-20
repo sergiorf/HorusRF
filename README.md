@@ -16,8 +16,8 @@ the [M0 roadmap](docs/m0-roadmap.md).
   [archived implementation and acceptance record](docs/archive/slice-3-plan.md).
 - Slice 4, device-bound point execution: complete. See the
   [archived implementation and acceptance record](docs/archive/slice-4-plan.md).
-- Slice 5, complete characterization: planned. See the
-  [detailed implementation plan](docs/slice-5-plan.md).
+- Slice 5, complete characterization: complete. See the
+  [implementation and acceptance record](docs/slice-5-plan.md).
 
 ## Running the tests
 

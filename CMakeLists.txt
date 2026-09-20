@@ -17,6 +17,7 @@ horusrf_enable_warnings(horusrf_parser)
 
 add_library(horusrf_domain STATIC
     src/domain/quantity.cpp
+    src/domain/results.cpp
     src/domain/units.cpp
 )
 target_compile_features(horusrf_domain PUBLIC cxx_std_20)
@@ -60,7 +61,10 @@ target_include_directories(horusrf_ir PUBLIC
 target_link_libraries(horusrf_ir PUBLIC horusrf_domain PRIVATE horusrf_semantic)
 horusrf_enable_warnings(horusrf_ir)
 
-add_library(horusrf_runtime STATIC src/runtime/executor.cpp)
+add_library(horusrf_runtime STATIC
+    src/runtime/characterization.cpp
+    src/runtime/executor.cpp
+)
 target_compile_features(horusrf_runtime PUBLIC cxx_std_20)
 target_include_directories(horusrf_runtime PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -88,7 +92,10 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_parser_tests)
     add_test(NAME horusrf_parser_tests COMMAND horusrf_parser_tests)
 
-    add_executable(horusrf_domain_tests tests/domain/quantity_tests.cpp)
+    add_executable(horusrf_domain_tests
+        tests/domain/quantity_tests.cpp
+        tests/domain/results_tests.cpp
+    )
     target_compile_features(horusrf_domain_tests PRIVATE cxx_std_20)
     target_include_directories(horusrf_domain_tests PRIVATE tests)
     target_link_libraries(horusrf_domain_tests PRIVATE horusrf_domain)
@@ -137,4 +144,18 @@ if(BUILD_TESTING)
     )
     horusrf_enable_warnings(horusrf_runtime_tests)
     add_test(NAME horusrf_runtime_tests COMMAND horusrf_runtime_tests)
+
+    add_executable(horusrf_characterization_tests
+        tests/runtime/characterization_tests.cpp
+    )
+    target_compile_features(horusrf_characterization_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_characterization_tests PRIVATE tests)
+    target_link_libraries(horusrf_characterization_tests PRIVATE
+        horusrf_runtime horusrf_simulator horusrf_parser horusrf_semantic horusrf_ir
+    )
+    target_compile_definitions(horusrf_characterization_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    horusrf_enable_warnings(horusrf_characterization_tests)
+    add_test(NAME horusrf_characterization_tests COMMAND horusrf_characterization_tests)
 endif()

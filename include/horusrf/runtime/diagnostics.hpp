@@ -12,6 +12,9 @@ enum class DiagnosticCode {
     TypeMismatch,
     InvalidProgramBinding,
     InvalidOperation,
+    InvalidSweep,
+    SweepTooLarge,
+    InvalidCalibrationBinding,
 };
 
 struct Diagnostic {

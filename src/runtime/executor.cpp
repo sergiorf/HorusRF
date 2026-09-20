@@ -1,5 +1,7 @@
 #include "horusrf/runtime/executor.hpp"
 
+#include "executor_internal.hpp"
+
 #include <cstddef>
 #include <stdexcept>
 #include <string>
@@ -278,15 +280,13 @@ RuntimeValue evaluate_definition(const ir::Definition& definition,
 
 } // namespace
 
-const RuntimeValue& PointEvaluation::at(ir::ValueId id) const {
-    return values.at(id.value);
+std::vector<Diagnostic> detail::validate_program(const ir::Program& program) {
+    return Validator{program}.run();
 }
 
-ExecutionResult execute_point(const ir::Program& program, domain::Frequency frequency,
-                              device::RfDevice& device) {
-    auto diagnostics = Validator{program}.run();
-    if (!diagnostics.empty()) return ExecutionResult{std::nullopt, std::move(diagnostics)};
-
+PointEvaluation detail::evaluate_validated_point(const ir::Program& program,
+                                                 domain::Frequency frequency,
+                                                 device::RfDevice& device) {
     PointEvaluation evaluation{frequency, {}};
     evaluation.values.reserve(program.values.size());
     for (const auto& value : program.values) {
@@ -294,7 +294,20 @@ ExecutionResult execute_point(const ir::Program& program, domain::Frequency freq
             evaluate_definition(value.definition, program, frequency, device,
                                 evaluation.values));
     }
-    return ExecutionResult{std::move(evaluation), {}};
+    return evaluation;
+}
+
+const RuntimeValue& PointEvaluation::at(ir::ValueId id) const {
+    return values.at(id.value);
+}
+
+ExecutionResult execute_point(const ir::Program& program, domain::Frequency frequency,
+                              device::RfDevice& device) {
+    auto diagnostics = detail::validate_program(program);
+    if (!diagnostics.empty()) return ExecutionResult{std::nullopt, std::move(diagnostics)};
+
+    return ExecutionResult{
+        detail::evaluate_validated_point(program, frequency, device), {}};
 }
 
 } // namespace horusrf::runtime
