@@ -1,0 +1,21 @@
+program = characterization , end_of_file ;
+characterization = "characterize" , identifier , "{" , statement* , "}" ;
+statement = reference_statement | sweep_statement | measurement_statement
+          | derive_statement | calibration_statement ;
+reference_statement = "reference" , "power" , "=" , signed_quantity ;
+sweep_statement = "sweep" , "frequency" , frequency_range , "step" , quantity ;
+frequency_range = quantity , ".." , quantity ;
+measurement_statement = "measure" , "power" ;
+derive_statement = "derive" , identifier , "=" , expression ;
+calibration_statement = "derive" , "calibration" , identifier , "{"
+          , "correction" , "=" , expression
+          , "over" , identifier , { "," , identifier } , "}" ;
+expression = additive_expression ;
+additive_expression = unary_expression , { ("+" | "-") , unary_expression } ;
+unary_expression = [ "-" ] , primary_expression ;
+primary_expression = quantity | reference | identifier
+          | "(" , expression , ")" ;
+reference = "reference" , "." , identifier ;
+signed_quantity = [ "-" ] , number , unit ;
+quantity = number , unit ;
+unit = "Hz" | "kHz" | "MHz" | "GHz" | "dBm" | "dB" ;
