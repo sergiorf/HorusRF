@@ -10,10 +10,10 @@ the [M0 roadmap](docs/m0-roadmap.md).
 
 - Slice 1, build and parsing: complete. See the
   [archived specification and acceptance record](docs/archive/slice-1-spec.md).
-- Slice 2, domain semantics: ready for implementation. See the
+- Slice 2, domain semantics: complete. See the
   [detailed implementation plan](docs/slice-2-plan.md).
 
-## Running the parser tests
+## Running the tests
 
 Configure and build the C++20 project, then run the tests through CTest:
 

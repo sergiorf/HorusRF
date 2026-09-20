@@ -7,8 +7,8 @@ integration, grammar, syntax AST, handwritten lexer and parser, canonical
 TX-path fixture, and dependency-free parser tests. Its accepted specification
 is retained in [`docs/archive/slice-1-spec.md`](archive/slice-1-spec.md).
 
-Slice 2 is the next implementation slice. Its detailed, implementation-ready
-plan is [`docs/slice-2-plan.md`](slice-2-plan.md).
+Slice 2 is complete. Its implementation and acceptance plan is
+[`docs/slice-2-plan.md`](slice-2-plan.md).
 
 ## Proposed repository tree
 
@@ -605,7 +605,7 @@ Archived specification and acceptance record:
 
 Acceptance: the complete canonical example parses, including `derive calibration ... over frequency`; AST structure is verified for the calibration body and indexing clause; malformed syntax yields source locations; and no runtime/device code is involved.
 
-### Slice 2 — Domain semantics (ready)
+### Slice 2 — Domain semantics (complete)
 
 Implement units, conversions, `Power`, `PowerDelta`, explicit arithmetic, semantic analysis, calibration artifact typing, and diagnostics.
 

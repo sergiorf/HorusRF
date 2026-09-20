@@ -2,7 +2,7 @@
 
 ## Status and objective
 
-**Status:** ready for implementation after completion of Slice 1.
+**Status:** implemented and accepted.
 
 Slice 2 turns the syntax AST into a validated, typed semantic model. It adds
 canonical RF quantities, resolves the names introduced by the M0 language,
@@ -561,21 +561,21 @@ runtime scaffolding into this slice.
 
 ## Acceptance checklist
 
-- [ ] Existing lexer/parser behavior and tests remain green.
-- [ ] Clean CMake configure and C++20 build succeeds using `build/`.
-- [ ] CTest discovers and passes parser, domain, and semantic tests.
-- [ ] Domain types have no AST/parser/semantic/runtime/device dependencies.
-- [ ] All six units normalize to the specified canonical representations.
-- [ ] Only the explicit M0 `Power`/`PowerDelta` operations are exposed.
-- [ ] The canonical fixture analyzes successfully without special-case code.
-- [ ] Every semantic expression has an inferred type and resolved symbol IDs.
-- [ ] Canonical error and correction expressions infer `PowerDelta`.
-- [ ] Calibration correction and ordered indexes remain distinct.
-- [ ] `over frequency` resolves to the active sweep symbol.
-- [ ] Invalid dimensions, references, declarations, sweeps, and indexes produce
+- [x] Existing lexer/parser behavior and tests remain green.
+- [x] Clean CMake configure and C++20 build succeeds using `build/`.
+- [x] CTest discovers and passes parser, domain, and semantic tests.
+- [x] Domain types have no AST/parser/semantic/runtime/device dependencies.
+- [x] All six units normalize to the specified canonical representations.
+- [x] Only the explicit M0 `Power`/`PowerDelta` operations are exposed.
+- [x] The canonical fixture analyzes successfully without special-case code.
+- [x] Every semantic expression has an inferred type and resolved symbol IDs.
+- [x] Canonical error and correction expressions infer `PowerDelta`.
+- [x] Calibration correction and ordered indexes remain distinct.
+- [x] `over frequency` resolves to the active sweep symbol.
+- [x] Invalid dimensions, references, declarations, sweeps, and indexes produce
       structured source-located diagnostics.
-- [ ] Failed analysis exposes no partial successful model.
-- [ ] No IR, runtime, device, simulator, CLI, or third-party dependency is added.
+- [x] Failed analysis exposes no partial successful model.
+- [x] No IR, runtime, device, simulator, CLI, or third-party dependency is added.
 
 ## Slice boundary and handoff
 
