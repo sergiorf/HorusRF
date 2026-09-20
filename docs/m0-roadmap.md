@@ -2,11 +2,13 @@
 
 ## Repository inspection
 
-The repository is currently an almost-empty Git repository containing:
+The repository is currently at the specification stage and contains:
 
 - `README.md`
 - `LICENSE`
 - `.gitignore`
+- this M0 roadmap and the Slice 1 specification;
+- the canonical TX-path `.hrf` fixture.
 
 There is no existing build system, source tree, test framework, grammar, or implementation to preserve. M0 will start with CMake, C++20, and CTest using a small dependency-free test harness.
 
@@ -59,9 +61,9 @@ There is no existing build system, source tree, test framework, grammar, or impl
 ├── simulator/
 │   └── simulated_rf_device.cpp
 ├── examples/
-│   ├── rx_path_characterization.hrf
+│   ├── tx_path_characterization.hrf
 │   └── cpp/
-│       └── rx_path_characterization.cpp
+│       └── tx_path_characterization.cpp
 ├── tools/
 │   └── horusrf_run.cpp
 └── tests/
@@ -114,9 +116,16 @@ public:
     virtual ~RfDevice() = default;
 
     virtual void setFrequency(Frequency frequency) = 0;
+    virtual void setOutputPower(Power power) = 0;
     virtual Power measurePower() = 0;
 };
 ```
+
+For M0, this deliberately small interface represents the complete physical setup: an
+RF tester generates a signal through its TX path, and calibrated external equipment
+measures the actual output. `measurePower()` returns that external observation. The
+measurement equipment is part of the simulated setup rather than a separately
+programmable DSL device, so M0 does not need an instrument hierarchy.
 
 Results:
 
@@ -133,7 +142,7 @@ struct CharacterizationSample {
 
 struct CharacterizationResult {
     std::vector<CharacterizationSample> samples;
-    CalibrationArtifact rxPowerCalibration;
+    CalibrationArtifact txPowerCalibration;
     double uncorrectedRmsErrorDb;
     double correctedRmsErrorDb;
     double maximumAbsoluteErrorDb;
@@ -160,7 +169,7 @@ M0 supports one `characterize` block, one reference power, one frequency sweep, 
 Canonical program:
 
 ```hrf
-characterize rx_path {
+characterize tx_path {
 
     reference power = -10 dBm
 
@@ -173,7 +182,7 @@ characterize rx_path {
     derive error =
         power - reference.power
 
-    derive calibration rx_power {
+    derive calibration tx_power {
         correction = reference.power - power
         over frequency
     }
@@ -187,7 +196,47 @@ The example is the canonical M0 language example and test fixture. It intentiona
 - `derive calibration`: produces a named reusable artifact;
 - `over`: identifies the independent dimensions indexing that artifact.
 
-M0 does not include conditionals, loops, user-defined functions, arrays, interpolation, phase, gain, temperature, external devices, calibration application syntax, or procedural statements. Calibration application is documented as a future extension; M0 derives and exports the calibration artifact.
+M0 does not include conditionals, loops, user-defined functions, arrays, interpolation, phase, gain, temperature, DSL declarations for external instruments, calibration application syntax, or procedural statements. Calibration application is documented as a future extension; M0 derives and exports the calibration artifact.
+
+## M0 physical experiment
+
+M0 characterizes the RF tester's TX path. The tester generates its own RF signal;
+there is no external RF signal generator. Calibrated external measurement equipment
+observes the tester's actual TX output:
+
+```text
+RF tester: nominal output configuration
+        -> imperfect TX RF path
+        -> calibrated external measurement equipment
+        -> measured power
+        -> comparison with reference
+        -> frequency-dependent calibration
+```
+
+In this experiment, `reference power` is the nominal output power that the tester is
+intended to produce and against which the externally measured output is compared. It
+remains a general `reference` language concept because future characterization
+scenarios may interpret references differently.
+
+At each sweep point the physical model is:
+
+```text
+P_measured(f) = P_reference + TX_error(f)
+error(f)      = P_measured(f) - P_reference
+C(f)          = P_reference - P_measured(f) = -error(f)
+```
+
+For example, a reference of `-10.0 dBm` and a measurement of `-9.6 dBm`
+produce an error of `+0.4 dB` and a correction of `-0.4 dB`. Applying the
+calibration is verification behavior in M0:
+
+```text
+P_corrected(f) = P_uncorrected(f) + C(f)
+```
+
+The quantity rules therefore remain `dBm - dBm -> dB` and
+`dBm + dB -> dBm`; the scenario change does not introduce special-case TX
+dimensions.
 
 ## Initial formal grammar
 
@@ -297,13 +346,14 @@ The semantic model also distinguishes the kind of object created by each constru
 | `sweep frequency ...` | `Sweep<Frequency>` |
 | `measure power` | `Measurement<Power>` associated with the active sweep |
 | `derive error = ...` | `DerivedQuantity<PowerDelta>` |
-| `derive calibration rx_power ... over frequency` | `Calibration<Frequency, PowerDelta>` |
+| `derive calibration tx_power ... over frequency` | `Calibration<Frequency, PowerDelta>` |
 
 This semantic model is defined before execution or syntax expansion. New syntax must identify the object it creates or modifies.
 
 The semantic distinction is intentional:
 
-- `reference` declares an externally known value;
+- `reference` declares a comparison baseline; in this experiment it is the nominal
+  tester output power;
 - `sweep` creates an independent variable and its domain;
 - `measure` requests a physical acquisition;
 - `derive` computes a value without hardware side effects;
@@ -313,7 +363,7 @@ The semantic distinction is intentional:
 The calibration declaration does not modify the device or mutate subsequent measurements. It derives a function/table equivalent to:
 
 ```text
-rx_power : Frequency -> PowerDelta
+tx_power : Frequency -> PowerDelta
 ```
 
 The M0 runtime may apply that artifact during result verification so it can calculate corrected measurements and residuals, but application syntax is deliberately deferred to a later milestone.
@@ -382,7 +432,7 @@ Conceptual operations are `ConfigureReference`, `Sweep`, `MeasurePower`, `Comput
 The calibration plan explicitly contains:
 
 ```text
-artifact name: rx_power
+artifact name: tx_power
 index dimensions: frequency
 correction expression: reference.power - power
 ```
@@ -390,13 +440,13 @@ correction expression: reference.power - power
 At runtime this produces a calibration artifact equivalent to:
 
 ```text
-rx_power : Frequency -> PowerDelta
+tx_power : Frequency -> PowerDelta
 ```
 
 The runtime's verification-only application is mathematically:
 
 ```text
-corrected_power(f) = measured_power(f) + rx_power.correction(f)
+corrected_power(f) = measured_power(f) + tx_power.correction(f)
 ```
 
 The IR earns its existence by separating validated semantic meaning from syntax and by giving the runtime a device-independent execution plan. It prevents the runtime from depending directly on AST shape and creates a future boundary between device operations and computational operations.
@@ -408,12 +458,13 @@ M0 will not include SSA, registers, control-flow graphs, optimization passes, by
 The runtime receives validated IR and an `RfDevice`. For each generated frequency it:
 
 1. calls `setFrequency`;
-2. calls `measurePower`;
-3. calculates measured minus reference;
-4. derives the error and calibration correction;
-5. records the raw and derived sample data;
-6. builds the named calibration artifact;
-7. calculates aggregate metrics and verifies the correction against the known reference.
+2. calls `setOutputPower` with the reference power;
+3. calls `measurePower` to obtain the calibrated external measurement;
+4. calculates measured minus reference;
+5. derives the error and calibration correction;
+6. records the raw and derived sample data;
+7. builds the named calibration artifact;
+8. calculates aggregate metrics and verifies the correction against the known reference.
 
 Conceptual API:
 
@@ -430,20 +481,24 @@ The runtime never accesses simulator internals.
 The simulator will use a fixed private model such as:
 
 ```text
-error(f) = 0.35 dB + 0.20 dB * sin(2π * normalized_frequency)
+TX_error(f) = 0.35 dB + 0.20 dB * sin(2π * normalized_frequency)
 ```
 
 where 2.40 GHz maps to zero and 2.50 GHz maps to one.
 
 ```text
-measured_power(f) = reference_power + hidden_error(f)
+measured_power(f) = configured_output_power + hidden_TX_error(f)
 ```
 
-The simulator will have no random noise in M0, will require frequency configuration before measurement, and will expose no method returning its hidden error.
+The simulator models the imperfect TX path, will have no random noise in M0,
+and will require both frequency and output power configuration before measurement.
+Its frequency-dependent TX error remains private: HorusRF discovers it only through
+the externally observed measurements. Identical fresh simulator instances produce
+identical results.
 
 ## Procedural C++ architecture
 
-`examples/cpp/rx_path_characterization.cpp` will independently orchestrate the same experiment using:
+`examples/cpp/tx_path_characterization.cpp` will independently orchestrate the same experiment using:
 
 - `Frequency`, `Power`, and `PowerDelta`;
 - `RfDevice`;
@@ -452,15 +507,36 @@ The simulator will have no random noise in M0, will require frequency configurat
 
 It will not include or call the lexer, parser, AST, semantic analyzer, IR, or HorusRF runtime. It must not call a shared complete-characterization function, because the comparison must retain independent orchestration.
 
+Its orchestration is conceptually:
+
+```cpp
+for (auto frequency = start; frequency <= stop; frequency += step) {
+    device.setFrequency(frequency);
+    device.setOutputPower(referencePower);
+    const auto measured = device.measurePower();
+    const auto error = measured - referencePower;
+    const auto correction = referencePower - measured;
+    results.add(frequency, referencePower, measured, error, correction);
+}
+```
+
+This illustrates physical intent rather than prescribing an additional interface.
+The procedural path may share low-level quantities, the device and simulator, result
+value types, and metric helpers, but not the sweep/characterization orchestration.
+
 ## Integration tests
 
 ### HorusRF end-to-end
 
-The test will load the actual `examples/rx_path_characterization.hrf`, then run lexer, parser, semantic analysis, IR lowering, runtime, device API, simulator, derivation, calibration-artifact construction, and verification. It will not manually construct AST or IR and will not access hidden simulator state.
+The test will load the actual `examples/tx_path_characterization.hrf`, then run lexer, parser, semantic analysis, IR lowering, runtime, device API, simulator, derivation, calibration-artifact construction, and verification. It will not manually construct AST or IR and will not access hidden simulator state.
 
-Assertions include 101 samples, the expected frequency range and spacing, nonzero uncorrected error, and materially lower corrected RMS error.
+Assertions include 101 samples, the expected frequency range and spacing, the
+`-10 dBm` reference at every point, measured values containing the deterministic TX
+path error, `error = measured - reference`,
+`correction = reference - measured`, corrected power and residual error, and
+materially lower corrected RMS and maximum absolute errors.
 
-It will also assert that the semantic model and IR contain a named `rx_power` calibration indexed over `frequency`, with one correction value per sweep point.
+It will also assert that the semantic model and IR contain a named `tx_power` calibration indexed over `frequency`, with one correction value per sweep point.
 
 ### Procedural/HorusRF equivalence
 
@@ -471,7 +547,10 @@ simulator A -> procedural C++ experiment
 simulator B -> HorusRF pipeline
 ```
 
-The test compares frequencies, measurements, errors, corrections, corrected values, residuals, RMS metrics, and maximum-error metrics within documented floating-point tolerance.
+The test compares frequencies, reference powers, measurements, errors, corrections,
+corrected values, residuals, RMS metrics, and maximum-error metrics within documented
+floating-point tolerance. Each path receives a fresh equivalent simulator instance;
+the HorusRF path must start by reading the real canonical `.hrf` fixture.
 
 ## Metrics
 
@@ -499,8 +578,8 @@ with a small absolute numerical tolerance.
 The executable will support:
 
 ```text
-horusrf-run examples/rx_path_characterization.hrf
-horusrf-run examples/rx_path_characterization.hrf --csv output.csv
+horusrf-run examples/tx_path_characterization.hrf
+horusrf-run examples/tx_path_characterization.hrf --csv output.csv
 ```
 
 CSV columns:
@@ -522,6 +601,8 @@ CSV and console metrics will be generated from the same `CharacterizationResult`
 ### Slice 1 — Build and parsing
 
 Implement CMake, targets, grammar, tokens, lexer, parser, AST, canonical example program, and parser tests.
+
+Detailed specification: [`docs/slice-1-spec.md`](slice-1-spec.md).
 
 Acceptance: the complete canonical example parses, including `derive calibration ... over frequency`; AST structure is verified for the calibration body and indexing clause; malformed syntax yields source locations; and no runtime/device code is involved.
 
@@ -547,7 +628,7 @@ Acceptance: valid IR executes through the device interface; simulator behavior i
 
 Implement sweep execution, error calculation, calibration-artifact generation, correction application within verification, corrected measurements, residuals, and metrics.
 
-Acceptance: the actual `.hrf` program completes the experiment, produces `rx_power : Frequency -> PowerDelta`, and materially reduces RMS error when that artifact is applied to the measured samples.
+Acceptance: the actual `.hrf` program completes the experiment, produces `tx_power : Frequency -> PowerDelta`, and materially reduces RMS error when that artifact is applied to the measured samples.
 
 ### Slice 6 — Procedural reference
 

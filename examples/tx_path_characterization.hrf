@@ -1,0 +1,18 @@
+characterize tx_path {
+
+    reference power = -10 dBm
+
+    sweep frequency
+        2.40 GHz .. 2.50 GHz
+        step 1 MHz
+
+    measure power
+
+    derive error =
+        power - reference.power
+
+    derive calibration tx_power {
+        correction = reference.power - power
+        over frequency
+    }
+}
