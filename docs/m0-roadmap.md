@@ -1,16 +1,14 @@
 # HorusRF M0 Roadmap
 
-## Repository inspection
+## Repository status
 
-The repository is currently at the specification stage and contains:
+Slice 1 is complete. The repository now contains the CMake/C++20 build, CTest
+integration, grammar, syntax AST, handwritten lexer and parser, canonical
+TX-path fixture, and dependency-free parser tests. Its accepted specification
+is retained in [`docs/archive/slice-1-spec.md`](archive/slice-1-spec.md).
 
-- `README.md`
-- `LICENSE`
-- `.gitignore`
-- this M0 roadmap and the Slice 1 specification;
-- the canonical TX-path `.hrf` fixture.
-
-There is no existing build system, source tree, test framework, grammar, or implementation to preserve. M0 will start with CMake, C++20, and CTest using a small dependency-free test harness.
+Slice 2 is the next implementation slice. Its detailed, implementation-ready
+plan is [`docs/slice-2-plan.md`](slice-2-plan.md).
 
 ## Proposed repository tree
 
@@ -598,17 +596,20 @@ CSV and console metrics will be generated from the same `CharacterizationResult`
 
 ## Vertical implementation slices
 
-### Slice 1 — Build and parsing
+### Slice 1 — Build and parsing (complete)
 
 Implement CMake, targets, grammar, tokens, lexer, parser, AST, canonical example program, and parser tests.
 
-Detailed specification: [`docs/slice-1-spec.md`](slice-1-spec.md).
+Archived specification and acceptance record:
+[`docs/archive/slice-1-spec.md`](archive/slice-1-spec.md).
 
 Acceptance: the complete canonical example parses, including `derive calibration ... over frequency`; AST structure is verified for the calibration body and indexing clause; malformed syntax yields source locations; and no runtime/device code is involved.
 
-### Slice 2 — Domain semantics
+### Slice 2 — Domain semantics (ready)
 
 Implement units, conversions, `Power`, `PowerDelta`, explicit arithmetic, semantic analysis, calibration artifact typing, and diagnostics.
+
+Detailed implementation plan: [`docs/slice-2-plan.md`](slice-2-plan.md).
 
 Acceptance: supported units normalize correctly; valid dBm/dB expressions pass; calibration corrections have `PowerDelta` type; `over frequency` resolves to the active frequency sweep; and invalid dimensions, references, and calibration indexes fail with structured diagnostics.
 
@@ -686,9 +687,7 @@ flowchart TD
 
 `AGENTS.md` will encode the project constraints around grammar synchronization, semantic analysis, physical types, AST/IR boundaries, runtime/device separation, simulator secrecy, deterministic tests, and avoiding speculative infrastructure.
 
-## Decisions required before Slice 1
-
-None. The specification provides enough direction to begin Slice 1.
+## Project assumptions
 
 Implementation assumptions:
 

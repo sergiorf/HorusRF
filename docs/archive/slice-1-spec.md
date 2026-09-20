@@ -1,5 +1,9 @@
 # Slice 1 Specification — Build and Parsing
 
+> **Archived as complete on 2026-09-20.** The required CMake configure and
+> build succeeded, and CTest passed `horusrf_parser_tests` (1/1). This document
+> is retained as the acceptance record for the implemented parser front end.
+
 ## Purpose
 
 Slice 1 establishes HorusRF's syntax-only front end. A clean checkout must
@@ -272,14 +276,14 @@ normalization, semantic types, name resolution, and dimensional diagnostics.
 
 ## Acceptance checklist
 
-- [ ] Clean CMake configure and C++20 build succeeds.
-- [ ] CTest discovers and passes parser tests.
-- [ ] Grammar file matches implemented syntax.
-- [ ] Canonical example parses without special-case code.
-- [ ] AST retains all five statement forms.
-- [ ] Calibration correction and index dimensions are retained separately.
-- [ ] Unary minus, precedence, references, and parentheses parse.
-- [ ] Tokens and AST nodes have correct spans.
-- [ ] Malformed syntax produces structured, source-located diagnostics.
-- [ ] Parser tests require no runtime, device, simulator, semantic, or IR code.
-- [ ] No third-party parser or test framework is required.
+- [x] Clean CMake configure and C++20 build succeeds.
+- [x] CTest discovers and passes parser tests.
+- [x] Grammar file matches implemented syntax.
+- [x] Canonical example parses without special-case code.
+- [x] AST retains all five statement forms.
+- [x] Calibration correction and index dimensions are retained separately.
+- [x] Unary minus, precedence, references, and parentheses parse.
+- [x] Tokens and AST nodes have correct spans.
+- [x] Malformed syntax produces structured, source-located diagnostics.
+- [x] Parser tests require no runtime, device, simulator, semantic, or IR code.
+- [x] No third-party parser or test framework is required.
