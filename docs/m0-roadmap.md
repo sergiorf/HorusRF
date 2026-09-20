@@ -8,7 +8,11 @@ TX-path fixture, and dependency-free parser tests. Its accepted specification
 is retained in [`docs/archive/slice-1-spec.md`](archive/slice-1-spec.md).
 
 Slice 2 is complete. Its implementation and acceptance plan is
-[`docs/slice-2-plan.md`](slice-2-plan.md).
+retained in
+[`docs/archive/slice-2-plan.md`](archive/slice-2-plan.md).
+
+Slice 3 is the active implementation slice. Its detailed implementation plan
+is [`docs/slice-3-plan.md`](slice-3-plan.md).
 
 ## Proposed repository tree
 
@@ -609,13 +613,16 @@ Acceptance: the complete canonical example parses, including `derive calibration
 
 Implement units, conversions, `Power`, `PowerDelta`, explicit arithmetic, semantic analysis, calibration artifact typing, and diagnostics.
 
-Detailed implementation plan: [`docs/slice-2-plan.md`](slice-2-plan.md).
+Archived implementation and acceptance record:
+[`docs/archive/slice-2-plan.md`](archive/slice-2-plan.md).
 
 Acceptance: supported units normalize correctly; valid dBm/dB expressions pass; calibration corrections have `PowerDelta` type; `over frequency` resolves to the active frequency sweep; and invalid dimensions, references, and calibration indexes fail with structured diagnostics.
 
 ### Slice 3 — IR lowering
 
 Implement typed IR and AST-to-IR lowering.
+
+Detailed implementation plan: [`docs/slice-3-plan.md`](slice-3-plan.md).
 
 Acceptance: the validated example lowers to an IR containing reference, sweep, measurement, derived error, named calibration, and `over frequency` meaning without concrete device dependencies.
 
