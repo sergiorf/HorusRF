@@ -2,7 +2,7 @@
 
 ## Status and objective
 
-**Status:** planned; not yet implemented.
+**Status:** complete; implemented and accepted.
 
 Slice 3 converts the validated, owning semantic model from Slice 2 into a
 minimal, typed, device-independent intermediate representation (IR). The IR
@@ -566,26 +566,26 @@ device, simulator, or CLI scaffolding to make the tests appear end-to-end.
 
 ## Acceptance checklist
 
-- [ ] Existing parser, domain, and semantic behavior remains green.
-- [ ] CMake configure and C++20 build succeed using only `build/`.
-- [ ] CTest discovers and passes `horusrf_ir_tests` with all earlier tests.
-- [ ] IR model headers contain no AST, runtime, device, or simulator dependency.
-- [ ] Lowering accepts `semantic::AnalyzedProgram`, not raw syntax AST.
-- [ ] The produced program owns all values, names, operations, and spans.
-- [ ] Every IR value has one stable ID, one type, and one definition.
-- [ ] Definitions are deterministic and ordered after their operands.
-- [ ] Canonical quantities remain strong domain values, never untyped doubles.
-- [ ] Every supported semantic expression maps to the explicit typed IR
+- [x] Existing parser, domain, and semantic behavior remains green.
+- [x] CMake configure and C++20 build succeed using only `build/`.
+- [x] CTest discovers and passes `horusrf_ir_tests` with all earlier tests.
+- [x] IR model headers contain no AST, runtime, device, or simulator dependency.
+- [x] Lowering accepts `semantic::AnalyzedProgram`, not raw syntax AST.
+- [x] The produced program owns all values, names, operations, and spans.
+- [x] Every IR value has one stable ID, one type, and one definition.
+- [x] Definitions are deterministic and ordered after their operands.
+- [x] Canonical quantities remain strong domain values, never untyped doubles.
+- [x] Every supported semantic expression maps to the explicit typed IR
       operation.
-- [ ] The canonical fixture lowers without special-case names or values.
-- [ ] Its IR contains reference, sweep, one measurement, derived error, named
+- [x] The canonical fixture lowers without special-case names or values.
+- [x] Its IR contains reference, sweep, one measurement, derived error, named
       calibration, correction, and `over frequency` meaning.
-- [ ] Calibration correction and ordered indexes remain distinct.
-- [ ] The IR has no concrete device, simulator, execution, or point-generation
+- [x] Calibration correction and ordered indexes remain distinct.
+- [x] The IR has no concrete device, simulator, execution, or point-generation
       dependency.
-- [ ] Broken semantic-model invariants produce structured source-located
+- [x] Broken semantic-model invariants produce structured source-located
       lowering diagnostics and no partial program.
-- [ ] No optimization, runtime, calibration application, CLI, or third-party
+- [x] No optimization, runtime, calibration application, CLI, or third-party
       dependency is added.
 
 ## Slice boundary and handoff

@@ -11,8 +11,8 @@ Slice 2 is complete. Its implementation and acceptance plan is
 retained in
 [`docs/archive/slice-2-plan.md`](archive/slice-2-plan.md).
 
-Slice 3 is the active implementation slice. Its detailed implementation plan
-is [`docs/slice-3-plan.md`](slice-3-plan.md).
+Slice 3 is complete. Its implementation and acceptance plan is retained in
+[`docs/slice-3-plan.md`](slice-3-plan.md).
 
 ## Proposed repository tree
 

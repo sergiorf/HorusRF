@@ -12,8 +12,8 @@ the [M0 roadmap](docs/m0-roadmap.md).
   [archived specification and acceptance record](docs/archive/slice-1-spec.md).
 - Slice 2, domain semantics: complete. See the
   [archived implementation and acceptance record](docs/archive/slice-2-plan.md).
-- Slice 3, IR lowering: planned. See the
-  [detailed implementation plan](docs/slice-3-plan.md).
+- Slice 3, IR lowering: complete. See the
+  [implementation and acceptance plan](docs/slice-3-plan.md).
 
 ## Running the tests
 
