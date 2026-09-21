@@ -2,7 +2,7 @@
 
 ## Status and objective
 
-**Status:** planned; not yet implemented.
+**Status:** complete; implemented and accepted on 2026-09-21.
 
 Slice 7 turns the completed M0 compiler, runtime, simulator, and procedural
 reference into one user-visible proof. It adds a `horusrf-run` executable that
@@ -458,30 +458,30 @@ build outputs.
 
 ## Acceptance checklist
 
-- [ ] `horusrf-run <source.hrf>` executes the complete production pipeline.
-- [ ] `horusrf-run <source.hrf> --csv <path>` writes the documented CSV.
-- [ ] `--help`, usage errors, I/O failures, structured diagnostics, and
+- [x] `horusrf-run <source.hrf>` executes the complete production pipeline.
+- [x] `horusrf-run <source.hrf> --csv <path>` writes the documented CSV.
+- [x] `--help`, usage errors, I/O failures, structured diagnostics, and
       unexpected exceptions follow the stated stream and exit-code contract.
-- [ ] The CLI uses a fresh simulator and does not inspect hidden simulator state.
-- [ ] The CLI constructs no AST, semantic, or IR objects by hand.
-- [ ] Console metrics come from the returned `CharacterizationResult`.
-- [ ] CSV serialization is reusable, stream-based, and domain-only.
-- [ ] The CSV header and seven-column ordering exactly match the contract.
-- [ ] CSV contains canonical units, classic-locale numbers, round-trip
+- [x] The CLI uses a fresh simulator and does not inspect hidden simulator state.
+- [x] The CLI constructs no AST, semantic, or IR objects by hand.
+- [x] Console metrics come from the returned `CharacterizationResult`.
+- [x] CSV serialization is reusable, stream-based, and domain-only.
+- [x] The CSV header and seven-column ordering exactly match the contract.
+- [x] CSV contains canonical units, classic-locale numbers, round-trip
       precision, ordered rows, and a final newline.
-- [ ] Stream formatting state is restored and write failures are observable.
-- [ ] The end-to-end test starts from the actual canonical `.hrf` file.
-- [ ] It proves semantic/IR calibration indexing and all 101 runtime samples.
-- [ ] The equivalence test uses two separate fresh simulator instances.
-- [ ] It compares every sample, artifact entry, and metric with named tolerances.
-- [ ] Production declarative and procedural orchestration remain independent.
-- [ ] The actual CLI process is tested with and without CSV output.
-- [ ] The process test verifies 101 real data rows and failure exit codes.
-- [ ] No generated CSV is committed or left in the source tree.
-- [ ] No new grammar, domain, device, simulator, or procedural behavior is added.
-- [ ] No third-party dependency or alternate build directory is introduced.
-- [ ] Existing Slice 1–6 tests remain green.
-- [ ] CMake configuration, compilation, and the full CTest suite pass using only
+- [x] Stream formatting state is restored and write failures are observable.
+- [x] The end-to-end test starts from the actual canonical `.hrf` file.
+- [x] It proves semantic/IR calibration indexing and all 101 runtime samples.
+- [x] The equivalence test uses two separate fresh simulator instances.
+- [x] It compares every sample, artifact entry, and metric with named tolerances.
+- [x] Production declarative and procedural orchestration remain independent.
+- [x] The actual CLI process is tested with and without CSV output.
+- [x] The process test verifies 101 real data rows and failure exit codes.
+- [x] No generated CSV is committed or left in the source tree.
+- [x] No new grammar, domain, device, simulator, or procedural behavior is added.
+- [x] No third-party dependency or alternate build directory is introduced.
+- [x] Existing Slice 1–6 tests remain green.
+- [x] CMake configuration, compilation, and the full CTest suite pass using only
       the repository's existing `build/` directory.
 
 ## Slice boundary and handoff

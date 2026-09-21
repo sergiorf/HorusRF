@@ -84,6 +84,22 @@ target_include_directories(horusrf_runtime PUBLIC
 target_link_libraries(horusrf_runtime PUBLIC horusrf_ir horusrf_device horusrf_domain)
 horusrf_enable_warnings(horusrf_runtime)
 
+add_library(horusrf_output STATIC src/output/csv.cpp)
+target_compile_features(horusrf_output PUBLIC cxx_std_20)
+target_include_directories(horusrf_output PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_output PUBLIC horusrf_domain)
+horusrf_enable_warnings(horusrf_output)
+
+add_executable(horusrf-run src/cli/main.cpp)
+target_compile_features(horusrf-run PRIVATE cxx_std_20)
+target_link_libraries(horusrf-run PRIVATE
+    horusrf_output horusrf_runtime horusrf_simulator horusrf_parser
+    horusrf_semantic horusrf_ir
+)
+horusrf_enable_warnings(horusrf-run)
+
 if(BUILD_TESTING)
     if(CMAKE_CONFIGURATION_TYPES)
         set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES
@@ -182,5 +198,50 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_procedural_example_tests)
     add_test(NAME horusrf_procedural_example_tests
         COMMAND horusrf_procedural_example_tests
+    )
+
+    add_executable(horusrf_csv_tests tests/output/csv_tests.cpp)
+    target_compile_features(horusrf_csv_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_csv_tests PRIVATE tests)
+    target_link_libraries(horusrf_csv_tests PRIVATE horusrf_output horusrf_domain)
+    horusrf_enable_warnings(horusrf_csv_tests)
+    add_test(NAME horusrf_csv_tests COMMAND horusrf_csv_tests)
+
+    add_executable(horusrf_end_to_end_tests
+        tests/integration/end_to_end_tests.cpp
+    )
+    target_compile_features(horusrf_end_to_end_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_end_to_end_tests PRIVATE tests)
+    target_link_libraries(horusrf_end_to_end_tests PRIVATE
+        horusrf_output horusrf_runtime horusrf_simulator horusrf_parser
+        horusrf_semantic horusrf_ir
+    )
+    target_compile_definitions(horusrf_end_to_end_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    horusrf_enable_warnings(horusrf_end_to_end_tests)
+    add_test(NAME horusrf_end_to_end_tests COMMAND horusrf_end_to_end_tests)
+
+    add_executable(horusrf_equivalence_tests
+        tests/integration/equivalence_tests.cpp
+    )
+    target_compile_features(horusrf_equivalence_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_equivalence_tests PRIVATE tests examples/cpp)
+    target_link_libraries(horusrf_equivalence_tests PRIVATE
+        horusrf_procedural_example horusrf_runtime horusrf_simulator
+        horusrf_parser horusrf_semantic horusrf_ir
+    )
+    target_compile_definitions(horusrf_equivalence_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    horusrf_enable_warnings(horusrf_equivalence_tests)
+    add_test(NAME horusrf_equivalence_tests COMMAND horusrf_equivalence_tests)
+
+    add_test(NAME horusrf_cli_acceptance
+        COMMAND ${CMAKE_COMMAND}
+            -DHORUSRF_RUN=$<TARGET_FILE:horusrf-run>
+            -DSOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/tx_path_characterization.hrf
+            -DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/cli-acceptance-output.csv
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/cli_acceptance.cmake
     )
 endif()

@@ -20,8 +20,23 @@ the [M0 roadmap](docs/m0-roadmap.md).
   [archived implementation and acceptance record](docs/archive/slice-5-plan.md).
 - Slice 6, procedural reference: complete. See the
   [archived implementation and acceptance record](docs/archive/slice-6-plan.md).
-- Slice 7, end-to-end proof and CSV: planned. See the
-  [implementation plan](docs/slice-7-plan.md).
+- Slice 7, end-to-end proof and CSV: complete. See the
+  [archived implementation and acceptance record](docs/archive/slice-7-plan.md).
+
+## Running the reference experiment
+
+After building, run the canonical declarative experiment directly or write its
+101 samples to CSV:
+
+```sh
+build/Debug/horusrf-run examples/tx_path_characterization.hrf
+build/Debug/horusrf-run examples/tx_path_characterization.hrf --csv output.csv
+```
+
+Use `build/Release/horusrf-run` for a Release build, or
+`build/bin/horusrf-run` with a single-config generator. The CSV columns are
+frequency, reference and measured power, error, correction, corrected power,
+and residual error, expressed in canonical Hz, dBm, and dB units.
 
 ## Running the tests
 
