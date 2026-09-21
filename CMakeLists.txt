@@ -41,6 +41,18 @@ target_include_directories(horusrf_simulator PUBLIC
 target_link_libraries(horusrf_simulator PUBLIC horusrf_device horusrf_domain)
 horusrf_enable_warnings(horusrf_simulator)
 
+add_library(horusrf_procedural_example STATIC
+    examples/cpp/tx_path_characterization.cpp
+)
+target_compile_features(horusrf_procedural_example PUBLIC cxx_std_20)
+target_include_directories(horusrf_procedural_example PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/examples/cpp>
+)
+target_link_libraries(horusrf_procedural_example PUBLIC
+    horusrf_device horusrf_domain
+)
+horusrf_enable_warnings(horusrf_procedural_example)
+
 add_library(horusrf_semantic STATIC
     src/semantic/analyzer.cpp
 )
@@ -158,4 +170,17 @@ if(BUILD_TESTING)
     )
     horusrf_enable_warnings(horusrf_characterization_tests)
     add_test(NAME horusrf_characterization_tests COMMAND horusrf_characterization_tests)
+
+    add_executable(horusrf_procedural_example_tests
+        tests/examples/tx_path_characterization_tests.cpp
+    )
+    target_compile_features(horusrf_procedural_example_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_procedural_example_tests PRIVATE tests)
+    target_link_libraries(horusrf_procedural_example_tests PRIVATE
+        horusrf_procedural_example horusrf_simulator
+    )
+    horusrf_enable_warnings(horusrf_procedural_example_tests)
+    add_test(NAME horusrf_procedural_example_tests
+        COMMAND horusrf_procedural_example_tests
+    )
 endif()

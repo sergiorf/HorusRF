@@ -2,10 +2,12 @@
 
 ## Status and objective
 
-Slice 6 is the active planned slice. Slice 5 completed the declarative path
-from source text through whole-characterization execution and left reusable
-domain result and metric types. Slice 6 adds the independent procedural C++
-version of the same canonical TX-path experiment.
+**Status:** complete; implemented and accepted.
+
+Slice 6 completes the independent procedural C++ path. Slice 5 completed the
+declarative path from source text through whole-characterization execution and
+left reusable domain result and metric types. Slice 6 adds the independent
+procedural C++ version of the same canonical TX-path experiment.
 
 The procedural implementation must visibly perform the experiment itself. It
 configures an `RfDevice`, measures every frequency, derives each result field,
@@ -330,30 +332,30 @@ generic abstractions that make the physical procedure harder to see.
 
 ## Acceptance checklist
 
-- [ ] The procedural example has an experiment-specific reusable entry point.
-- [ ] Its target links only to domain/device infrastructure.
-- [ ] Its source includes no parser, AST, semantic, IR, or runtime headers.
-- [ ] It does not read or parse the `.hrf` example.
-- [ ] It does not call declarative runtime execution or share orchestration with
+- [x] The procedural example has an experiment-specific reusable entry point.
+- [x] Its target links only to domain/device infrastructure.
+- [x] Its source includes no parser, AST, semantic, IR, or runtime headers.
+- [x] It does not read or parse the `.hrf` example.
+- [x] It does not call declarative runtime execution or share orchestration with
       that path.
-- [ ] Canonical parameters are explicit and produce 101 inclusive points.
-- [ ] Frequency generation is index-based and has no accumulated step drift.
-- [ ] Every point makes exactly one frequency call, one output-power call, and
+- [x] Canonical parameters are explicit and produce 101 inclusive points.
+- [x] Frequency generation is index-based and has no accumulated step drift.
+- [x] Every point makes exactly one frequency call, one output-power call, and
       one measurement call in that order.
-- [ ] All sample calculations use strong domain quantity operators.
-- [ ] The result contains 101 complete, ordered, owning samples.
-- [ ] The `tx_power` artifact contains the same 101 ordered frequency/correction
+- [x] All sample calculations use strong domain quantity operators.
+- [x] The result contains 101 complete, ordered, owning samples.
+- [x] The `tx_power` artifact contains the same 101 ordered frequency/correction
       pairs as the samples.
-- [ ] Shared metrics are calculated once from the completed sample vector.
-- [ ] The recording fake proves call order, values, cardinality, and alignment.
-- [ ] A fresh simulator produces the established representative error values.
-- [ ] Correction materially reduces RMS error and yields near-zero residuals.
-- [ ] Equivalent fresh simulator runs are deterministic.
-- [ ] Device exceptions propagate and stop later calls without returning a
+- [x] Shared metrics are calculated once from the completed sample vector.
+- [x] The recording fake proves call order, values, cardinality, and alignment.
+- [x] A fresh simulator produces the established representative error values.
+- [x] Correction materially reduces RMS error and yields near-zero residuals.
+- [x] Equivalent fresh simulator runs are deterministic.
+- [x] Device exceptions propagate and stop later calls without returning a
       partial result.
-- [ ] No CLI, CSV writer, general sweep API, new DSL syntax, or third-party
+- [x] No CLI, CSV writer, general sweep API, new DSL syntax, or third-party
       dependency is introduced.
-- [ ] CMake configuration, compilation, and all CTest tests pass using only the
+- [x] CMake configuration, compilation, and all CTest tests pass using only the
       repository's existing `build/` directory.
 
 ## Slice boundary and handoff

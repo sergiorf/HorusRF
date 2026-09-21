@@ -20,7 +20,7 @@ Slice 4 is complete. Its implementation and acceptance record is retained in
 Slice 5 is complete. Its implementation and acceptance record is retained in
 [`docs/archive/slice-5-plan.md`](archive/slice-5-plan.md).
 
-Slice 6 is planned. Its detailed implementation plan is in
+Slice 6 is complete. Its implementation and acceptance record is in
 [`docs/slice-6-plan.md`](slice-6-plan.md).
 
 ## Proposed repository tree
@@ -657,11 +657,11 @@ Archived implementation and acceptance record:
 
 Acceptance: the actual `.hrf` program completes the experiment, produces `tx_power : Frequency -> PowerDelta`, and materially reduces RMS error when that artifact is applied to the measured samples.
 
-### Slice 6 — Procedural reference
+### Slice 6 — Procedural reference (complete)
 
 Implement the independent procedural C++ example.
 
-Detailed implementation plan: [`docs/slice-6-plan.md`](slice-6-plan.md).
+Implementation and acceptance record: [`docs/slice-6-plan.md`](slice-6-plan.md).
 
 Acceptance: the procedural path uses domain/device infrastructure only and produces equivalent results.
 
