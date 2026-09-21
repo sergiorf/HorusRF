@@ -19,7 +19,9 @@ the [M0 roadmap](docs/m0-roadmap.md).
 - Slice 5, complete characterization: complete. See the
   [archived implementation and acceptance record](docs/archive/slice-5-plan.md).
 - Slice 6, procedural reference: complete. See the
-  [implementation and acceptance record](docs/slice-6-plan.md).
+  [archived implementation and acceptance record](docs/archive/slice-6-plan.md).
+- Slice 7, end-to-end proof and CSV: planned. See the
+  [implementation plan](docs/slice-7-plan.md).
 
 ## Running the tests
 

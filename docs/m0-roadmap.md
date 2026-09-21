@@ -20,8 +20,9 @@ Slice 4 is complete. Its implementation and acceptance record is retained in
 Slice 5 is complete. Its implementation and acceptance record is retained in
 [`docs/archive/slice-5-plan.md`](archive/slice-5-plan.md).
 
-Slice 6 is complete. Its implementation and acceptance record is in
-[`docs/slice-6-plan.md`](slice-6-plan.md).
+Slice 6 is complete. Its archived implementation and acceptance record is in
+[`docs/archive/slice-6-plan.md`](archive/slice-6-plan.md). Slice 7 is planned in
+[`docs/slice-7-plan.md`](slice-7-plan.md).
 
 ## Proposed repository tree
 
@@ -661,13 +662,16 @@ Acceptance: the actual `.hrf` program completes the experiment, produces `tx_pow
 
 Implement the independent procedural C++ example.
 
-Implementation and acceptance record: [`docs/slice-6-plan.md`](slice-6-plan.md).
+Archived implementation and acceptance record:
+[`docs/archive/slice-6-plan.md`](archive/slice-6-plan.md).
 
 Acceptance: the procedural path uses domain/device infrastructure only and produces equivalent results.
 
 ### Slice 7 — End-to-end proof and CSV
 
 Implement integration tests, CLI, and CSV output.
+
+Implementation plan: [`docs/slice-7-plan.md`](slice-7-plan.md).
 
 Acceptance: documented commands execute the actual example, produce real CSV values, and pass both integration tests.
 
