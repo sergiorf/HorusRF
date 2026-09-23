@@ -36,6 +36,142 @@ and output layer. The procedural example independently orchestrates the experime
 and joins the declarative path only at domain quantities, `RfDevice`, the simulator,
 and result/metric types. It does not use compiler or runtime orchestration.
 
+## Component dependencies
+
+The execution flow above shows how data moves through the system. The following
+view instead shows allowed compile-time dependency direction. An arrow points from
+a component to a component it may depend on; it does not imply ownership or call
+order.
+
+```mermaid
+flowchart TB
+    subgraph Applications
+        CLI[horusrf-run]
+        Procedural[horusrf_procedural_example]
+    end
+
+    subgraph Compiler
+        Parser[horusrf_parser<br/>AST and parsing]
+        Semantic[horusrf_semantic]
+        IR[horusrf_ir<br/>typed plan and lowering]
+    end
+
+    subgraph Execution
+        Runtime[horusrf_runtime]
+        Device[horusrf_device<br/>RfDevice contract]
+        Simulator[horusrf_simulator]
+    end
+
+    Output[horusrf_output]
+    Domain[horusrf_domain<br/>quantities and results]
+
+    CLI --> Parser
+    CLI --> Semantic
+    CLI --> IR
+    CLI --> Runtime
+    CLI --> Simulator
+    CLI --> Output
+
+    Semantic --> Parser
+    Semantic --> Domain
+    IR --> Semantic
+    IR --> Domain
+    Runtime --> IR
+    Runtime --> Device
+    Runtime --> Domain
+    Device --> Domain
+    Simulator --> Device
+    Simulator --> Domain
+    Procedural --> Device
+    Procedural --> Domain
+    Output --> Domain
+```
+
+The CLI is the composition root, so its broad dependencies do not relax the
+dependencies of the components it assembles. In particular, runtime reaches a
+simulated or future hardware implementation only through `RfDevice`.
+
+## Public contracts and ownership
+
+This high-level class view intentionally omits AST nodes, semantic expressions,
+individual IR operations, diagnostics, and private simulator state. It shows the
+stable contracts that cross architectural boundaries. Filled diamonds denote
+owned result data; dashed arrows denote use through parameters or return values.
+
+```mermaid
+classDiagram
+    class Program {
+        <<IR>>
+    }
+
+    class RuntimeAPI {
+        <<module>>
+        +execute_characterization(Program, RfDevice) CharacterizationExecutionResult
+        +execute_point(Program, Frequency, RfDevice) ExecutionResult
+    }
+
+    class ProceduralAPI {
+        <<module>>
+        +run_tx_path_characterization(RfDevice) CharacterizationResult
+    }
+
+    class RfDevice {
+        <<interface>>
+        +setFrequency(Frequency)
+        +setOutputPower(Power)
+        +measurePower() Power
+    }
+
+    class SimulatedRfDevice
+
+    class CharacterizationExecutionResult {
+        +ok() bool
+    }
+
+    class CharacterizationResult
+    class CharacterizationSample
+    class CalibrationArtifact
+    class CharacterizationMetrics
+
+    class Frequency {
+        +from_hertz(double) Frequency
+        +hertz() double
+    }
+
+    class Power {
+        +from_dbm(double) Power
+        +dbm() double
+    }
+
+    class PowerDelta {
+        +from_db(double) PowerDelta
+        +db() double
+    }
+
+    SimulatedRfDevice --|> RfDevice
+    RuntimeAPI ..> Program
+    RuntimeAPI ..> RfDevice
+    RuntimeAPI ..> CharacterizationExecutionResult
+    ProceduralAPI ..> RfDevice
+    ProceduralAPI ..> CharacterizationResult
+
+    CharacterizationExecutionResult *-- "0..1" CharacterizationResult : result
+    CharacterizationResult *-- "0..*" CharacterizationSample : samples
+    CharacterizationResult *-- "1" CalibrationArtifact : calibration
+    CharacterizationResult *-- "1" CharacterizationMetrics : metrics
+
+    Program ..> Frequency
+    Program ..> Power
+    Program ..> PowerDelta
+    RfDevice ..> Frequency
+    RfDevice ..> Power
+    CharacterizationSample *-- Frequency
+    CharacterizationSample *-- Power
+    CharacterizationSample *-- PowerDelta
+    CalibrationArtifact *-- Frequency
+    CalibrationArtifact *-- PowerDelta
+```
+
 ## Representation and ownership boundaries
 
 - The AST preserves written statement/expression structure and source spans. It has
