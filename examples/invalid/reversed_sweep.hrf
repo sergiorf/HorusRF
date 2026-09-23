@@ -1,0 +1,5 @@
+characterize reversed_sweep {
+  reference power = -10 dBm
+  sweep frequency 2.50 GHz .. 2.40 GHz step 1 MHz
+  measure power
+}

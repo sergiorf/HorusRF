@@ -53,6 +53,43 @@ Source failures are written without color as
 usage, 3 for file I/O, 4 for source/compiler/runtime diagnostics, and 5 for an
 unexpected failure. `horusrf-run --help` prints the accepted command form.
 
+## Semantic failure showcase
+
+The files in [`examples/invalid`](examples/invalid) are deliberately invalid,
+but syntactically well-formed, characterization programs. They demonstrate checks
+that happen before the runtime touches a device or creates a requested CSV:
+
+| Fixture | Rejected condition | Diagnostic |
+|---|---|---|
+| [`reference_uses_db.hrf`](examples/invalid/reference_uses_db.hrf) | A power delta (`dB`) is used where absolute power (`dBm`) is required | `semantic.unexpected_quantity_type` |
+| [`reversed_sweep.hrf`](examples/invalid/reversed_sweep.hrf) | The sweep end precedes its start | `semantic.invalid_sweep_range` |
+| [`power_plus_power.hrf`](examples/invalid/power_plus_power.hrf) | Two absolute powers are added | `semantic.invalid_binary_operands` |
+| [`use_before_measurement.hrf`](examples/invalid/use_before_measurement.hrf) | Measured power is referenced before `measure power` | `semantic.reference_not_available` |
+| [`calibration_over_power.hrf`](examples/invalid/calibration_over_power.hrf) | A calibration is indexed by a measurement instead of a sweep | `semantic.non_sweep_calibration_dimension` |
+
+For example:
+
+```sh
+build/Debug/horusrf-run examples/invalid/power_plus_power.hrf
+```
+
+reports a source-localized error similar to:
+
+```text
+examples/invalid/power_plus_power.hrf:5:23: semantic.invalid_binary_operands: cannot add Power and Power
+```
+
+and exits with status 4. Supplying `--csv result.csv` still produces no CSV. The
+CLI test suite runs every showcase fixture and verifies its diagnostic, exit status,
+empty standard output, and lack of an output artifact.
+
+These examples highlight a distinction from ad hoc procedural orchestration. The
+C++ API also uses strong `Frequency`, `Power`, and `PowerDelta` types, but the DSL
+additionally validates the experiment as a whole: required declarations, statement
+availability, sweep validity, expression dimensions, and calibration index shape.
+Procedural code can implement the same checks, but must do so explicitly and invoke
+them consistently before operating a device.
+
 ## Reference documentation
 
 - [Language reference](docs/language.md)

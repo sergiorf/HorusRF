@@ -1,0 +1,6 @@
+characterize power_plus_power {
+  reference power = -10 dBm
+  sweep frequency 2.40 GHz .. 2.50 GHz step 1 MHz
+  measure power
+  derive impossible = power + reference.power
+}

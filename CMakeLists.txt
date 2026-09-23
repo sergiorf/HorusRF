@@ -245,6 +245,33 @@ if(BUILD_TESTING)
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/cli_acceptance.cmake
     )
 
+    function(horusrf_add_invalid_semantic_fixture name expected_code)
+        add_test(NAME horusrf_invalid_${name}
+            COMMAND ${CMAKE_COMMAND}
+                -DHORUSRF_RUN=$<TARGET_FILE:horusrf-run>
+                -DSOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/invalid/${name}.hrf
+                -DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/invalid-${name}.csv
+                -DEXPECTED_CODE=${expected_code}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/invalid_semantic_fixture.cmake
+        )
+    endfunction()
+
+    horusrf_add_invalid_semantic_fixture(
+        reference_uses_db semantic.unexpected_quantity_type
+    )
+    horusrf_add_invalid_semantic_fixture(
+        reversed_sweep semantic.invalid_sweep_range
+    )
+    horusrf_add_invalid_semantic_fixture(
+        power_plus_power semantic.invalid_binary_operands
+    )
+    horusrf_add_invalid_semantic_fixture(
+        use_before_measurement semantic.reference_not_available
+    )
+    horusrf_add_invalid_semantic_fixture(
+        calibration_over_power semantic.non_sweep_calibration_dimension
+    )
+
     set_tests_properties(
         horusrf_parser_tests
         horusrf_domain_tests
@@ -262,5 +289,13 @@ if(BUILD_TESTING)
         horusrf_equivalence_tests
         PROPERTIES LABELS integration
     )
-    set_tests_properties(horusrf_cli_acceptance PROPERTIES LABELS cli)
+    set_tests_properties(
+        horusrf_cli_acceptance
+        horusrf_invalid_reference_uses_db
+        horusrf_invalid_reversed_sweep
+        horusrf_invalid_power_plus_power
+        horusrf_invalid_use_before_measurement
+        horusrf_invalid_calibration_over_power
+        PROPERTIES LABELS cli
+    )
 endif()
