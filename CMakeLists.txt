@@ -244,4 +244,23 @@ if(BUILD_TESTING)
             -DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/cli-acceptance-output.csv
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/cli_acceptance.cmake
     )
+
+    set_tests_properties(
+        horusrf_parser_tests
+        horusrf_domain_tests
+        horusrf_semantic_tests
+        horusrf_ir_tests
+        horusrf_simulator_tests
+        horusrf_runtime_tests
+        horusrf_characterization_tests
+        horusrf_procedural_example_tests
+        horusrf_csv_tests
+        PROPERTIES LABELS unit
+    )
+    set_tests_properties(
+        horusrf_end_to_end_tests
+        horusrf_equivalence_tests
+        PROPERTIES LABELS integration
+    )
+    set_tests_properties(horusrf_cli_acceptance PROPERTIES LABELS cli)
 endif()

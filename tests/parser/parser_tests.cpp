@@ -1,5 +1,6 @@
 #include "test_support.hpp"
 
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -117,6 +118,21 @@ void multiple_dimensions_test() {
 }
 
 void diagnostic_tests() {
+    constexpr std::array mappings{
+        std::pair{parser::DiagnosticCode::UnexpectedToken, "parse.unexpected_token"},
+        std::pair{parser::DiagnosticCode::UnexpectedEndOfFile, "parse.unexpected_end_of_file"},
+        std::pair{parser::DiagnosticCode::InvalidToken, "parse.invalid_token"},
+        std::pair{parser::DiagnosticCode::ExpectedIdentifier, "parse.expected_identifier"},
+        std::pair{parser::DiagnosticCode::ExpectedQuantity, "parse.expected_quantity"},
+        std::pair{parser::DiagnosticCode::ExpectedUnit, "parse.expected_unit"},
+        std::pair{parser::DiagnosticCode::ExpectedExpression, "parse.expected_expression"},
+    };
+    for (const auto& [code, name] : mappings) {
+        CHECK_EQ(parser::diagnostic_code_name(code), name);
+    }
+    CHECK_EQ(parser::diagnostic_code_name(static_cast<parser::DiagnosticCode>(999)),
+             "parse.unknown");
+
     {
         const auto diagnostic = parse_failure("characterize c {");
         CHECK_EQ(diagnostic.code, parser::DiagnosticCode::UnexpectedEndOfFile);

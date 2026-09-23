@@ -4,6 +4,17 @@ endif()
 
 file(REMOVE "${OUTPUT_FILE}")
 
+get_filename_component(acceptance_directory "${OUTPUT_FILE}" DIRECTORY)
+set(parse_invalid "${acceptance_directory}/cli-parse-invalid.hrf")
+set(semantic_invalid "${acceptance_directory}/cli-semantic-invalid.hrf")
+file(WRITE "${parse_invalid}" "characterize broken {\n  measure @\n}\n")
+file(WRITE "${semantic_invalid}"
+    "characterize broken {\n"
+    "  reference power = 1 dB\n"
+    "  sweep frequency 1 Hz .. 2 Hz step 1 Hz\n"
+    "  measure power\n"
+    "}\n")
+
 execute_process(
     COMMAND "${HORUSRF_RUN}" "${SOURCE_FILE}"
     RESULT_VARIABLE no_csv_result OUTPUT_VARIABLE no_csv_output ERROR_VARIABLE no_csv_error
@@ -62,4 +73,35 @@ if(NOT missing_result EQUAL 3 OR missing_error STREQUAL "")
     message(FATAL_ERROR "missing-source contract failed: ${missing_result}")
 endif()
 
-file(REMOVE "${OUTPUT_FILE}")
+foreach(case IN ITEMS parse semantic)
+    if(case STREQUAL "parse")
+        set(invalid_source "${parse_invalid}")
+        set(expected_prefix "${parse_invalid}:2:11: parse.invalid_token:")
+    else()
+        set(invalid_source "${semantic_invalid}")
+        set(expected_prefix "${semantic_invalid}:2:21: semantic.unexpected_quantity_type:")
+    endif()
+    set(failure_csv "${acceptance_directory}/cli-${case}-failure.csv")
+    file(REMOVE "${failure_csv}")
+    execute_process(
+        COMMAND "${HORUSRF_RUN}" "${invalid_source}" --csv "${failure_csv}"
+        RESULT_VARIABLE failure_result
+        OUTPUT_VARIABLE failure_output
+        ERROR_VARIABLE failure_error
+    )
+    if(NOT failure_result EQUAL 4)
+        message(FATAL_ERROR "${case} failure returned ${failure_result}: ${failure_error}")
+    endif()
+    if(NOT failure_output STREQUAL "")
+        message(FATAL_ERROR "${case} failure wrote stdout: ${failure_output}")
+    endif()
+    string(FIND "${failure_error}" "${expected_prefix}" prefix_position)
+    if(NOT prefix_position EQUAL 0)
+        message(FATAL_ERROR "${case} diagnostic has wrong prefix: ${failure_error}")
+    endif()
+    if(EXISTS "${failure_csv}")
+        message(FATAL_ERROR "${case} failure created CSV: ${failure_csv}")
+    endif()
+endforeach()
+
+file(REMOVE "${OUTPUT_FILE}" "${parse_invalid}" "${semantic_invalid}")

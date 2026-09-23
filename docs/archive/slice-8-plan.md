@@ -2,7 +2,7 @@
 
 ## Status and objective
 
-**Status:** planned; implementation has not started.
+**Status:** complete; implemented and accepted on 2026-09-22.
 
 Slice 8 closes M0 by making the implemented system understandable, diagnosable,
 and reproducible from a clean checkout. It documents the language and architecture
@@ -350,31 +350,31 @@ CSV afterward and never replace the source fixture.
 
 ## Acceptance checklist
 
-- [ ] README prerequisites and build/test/run/CSV commands are accurate and copyable.
-- [ ] Executable guidance distinguishes single- and multi-config generators.
-- [ ] README links resolve to all active reference/status documents.
-- [ ] Architecture prose and diagrams match actual targets, dependencies,
+- [x] README prerequisites and build/test/run/CSV commands are accurate and copyable.
+- [x] Executable guidance distinguishes single- and multi-config generators.
+- [x] README links resolve to all active reference/status documents.
+- [x] Architecture prose and diagrams match actual targets, dependencies,
       ownership, runtime ordering, and failure behavior.
-- [ ] Procedural orchestration remains compiler/runtime independent.
-- [ ] Language reference agrees with EBNF, parser, semantics, and canonical units.
-- [ ] All supported/rejected arithmetic, ordering, indexing, and limitations are
+- [x] Procedural orchestration remains compiler/runtime independent.
+- [x] Language reference agrees with EBNF, parser, semantics, and canonical units.
+- [x] All supported/rejected arithmetic, ordering, indexing, and limitations are
       documented; future features are clearly marked.
-- [ ] Every diagnostic enumerator has one tested, stable, lowercase textual code.
-- [ ] Conversion is exhaustive, non-throwing, and allocation-free.
-- [ ] CLI diagnostics use `path:line:column: code: message`.
-- [ ] Parse/semantic failures return `4`, emit no success output, and leave no CSV.
-- [ ] Usage and I/O retain exit codes `2` and `3`.
-- [ ] AGENTS retains build rules and records all durable architecture/test rules.
-- [ ] Every CTest suite has an appropriate `unit`, `integration`, or `cli` label.
-- [ ] Each labeled command and the unfiltered suite pass.
-- [ ] `tests/README.md` accurately describes responsibilities and commands.
-- [ ] Tests remain deterministic, offline, and hardware-independent.
-- [ ] Canonical execution still produces 101 ordered deterministic samples and
+- [x] Every diagnostic enumerator has one tested, stable, lowercase textual code.
+- [x] Conversion is exhaustive, non-throwing, and allocation-free.
+- [x] CLI diagnostics use `path:line:column: code: message`.
+- [x] Parse/semantic failures return `4`, emit no success output, and leave no CSV.
+- [x] Usage and I/O retain exit codes `2` and `3`.
+- [x] AGENTS retains build rules and records all durable architecture/test rules.
+- [x] Every CTest suite has an appropriate `unit`, `integration`, or `cli` label.
+- [x] Each labeled command and the unfiltered suite pass.
+- [x] `tests/README.md` accurately describes responsibilities and commands.
+- [x] Tests remain deterministic, offline, and hardware-independent.
+- [x] Canonical execution still produces 101 ordered deterministic samples and
       established metrics.
-- [ ] CSV retains seven columns, 101 rows, classic locale, and round-trip precision.
-- [ ] No language feature, hardware backend, dependency, or shared orchestration is
+- [x] CSV retains seven columns, 101 rows, classic locale, and round-trip precision.
+- [x] No language feature, hardware backend, dependency, or shared orchestration is
       introduced.
-- [ ] All validation uses only `build/`, with no generated artifact left behind.
+- [x] All validation uses only `build/`, with no generated artifact left behind.
 
 ## M0 handoff
 

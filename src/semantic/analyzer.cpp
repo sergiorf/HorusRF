@@ -9,6 +9,34 @@
 #include <utility>
 
 namespace horusrf::semantic {
+
+std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
+    switch (code) {
+    case DiagnosticCode::InvalidNumericLiteral: return "semantic.invalid_numeric_literal";
+    case DiagnosticCode::UnexpectedQuantityType: return "semantic.unexpected_quantity_type";
+    case DiagnosticCode::DuplicateDeclaration: return "semantic.duplicate_declaration";
+    case DiagnosticCode::MissingReference: return "semantic.missing_reference";
+    case DiagnosticCode::MissingSweep: return "semantic.missing_sweep";
+    case DiagnosticCode::MissingMeasurement: return "semantic.missing_measurement";
+    case DiagnosticCode::UnknownIdentifier: return "semantic.unknown_identifier";
+    case DiagnosticCode::UnknownReferenceMember: return "semantic.unknown_reference_member";
+    case DiagnosticCode::ReferenceNotAvailable: return "semantic.reference_not_available";
+    case DiagnosticCode::InvalidUnaryOperand: return "semantic.invalid_unary_operand";
+    case DiagnosticCode::InvalidBinaryOperands: return "semantic.invalid_binary_operands";
+    case DiagnosticCode::InvalidSweepRange: return "semantic.invalid_sweep_range";
+    case DiagnosticCode::InvalidSweepStep: return "semantic.invalid_sweep_step";
+    case DiagnosticCode::UnknownCalibrationDimension:
+        return "semantic.unknown_calibration_dimension";
+    case DiagnosticCode::NonSweepCalibrationDimension:
+        return "semantic.non_sweep_calibration_dimension";
+    case DiagnosticCode::DuplicateCalibrationDimension:
+        return "semantic.duplicate_calibration_dimension";
+    case DiagnosticCode::InvalidCalibrationCorrection:
+        return "semantic.invalid_calibration_correction";
+    }
+    return "semantic.unknown";
+}
+
 namespace {
 
 struct Symbol {

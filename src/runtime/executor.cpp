@@ -9,6 +9,22 @@
 #include <utility>
 
 namespace horusrf::runtime {
+
+std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
+    switch (code) {
+    case DiagnosticCode::InvalidValueId: return "runtime.invalid_value_id";
+    case DiagnosticCode::InvalidDefinitionOrder: return "runtime.invalid_definition_order";
+    case DiagnosticCode::TypeMismatch: return "runtime.type_mismatch";
+    case DiagnosticCode::InvalidProgramBinding: return "runtime.invalid_program_binding";
+    case DiagnosticCode::InvalidOperation: return "runtime.invalid_operation";
+    case DiagnosticCode::InvalidSweep: return "runtime.invalid_sweep";
+    case DiagnosticCode::SweepTooLarge: return "runtime.sweep_too_large";
+    case DiagnosticCode::InvalidCalibrationBinding:
+        return "runtime.invalid_calibration_binding";
+    }
+    return "runtime.unknown";
+}
+
 namespace {
 
 template <typename... Visitors>

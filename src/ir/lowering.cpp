@@ -9,6 +9,19 @@
 #include "horusrf/semantic/model.hpp"
 
 namespace horusrf::ir {
+
+std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
+    switch (code) {
+    case DiagnosticCode::DuplicateSymbol: return "lowering.duplicate_symbol";
+    case DiagnosticCode::UnknownSymbol: return "lowering.unknown_symbol";
+    case DiagnosticCode::TypeMismatch: return "lowering.type_mismatch";
+    case DiagnosticCode::InvalidDefinitionOrder: return "lowering.invalid_definition_order";
+    case DiagnosticCode::InvalidCalibrationIndex: return "lowering.invalid_calibration_index";
+    case DiagnosticCode::UnsupportedExpression: return "lowering.unsupported_expression";
+    }
+    return "lowering.unknown";
+}
+
 namespace {
 
 struct Binding {

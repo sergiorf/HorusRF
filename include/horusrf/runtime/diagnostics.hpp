@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 
 #include "horusrf/parser/token.hpp"
 
@@ -16,6 +17,8 @@ enum class DiagnosticCode {
     SweepTooLarge,
     InvalidCalibrationBinding,
 };
+
+[[nodiscard]] std::string_view diagnostic_code_name(DiagnosticCode code) noexcept;
 
 struct Diagnostic {
     DiagnosticCode code{DiagnosticCode::InvalidOperation};

@@ -12,6 +12,19 @@ SourceSpan joined(SourcePosition begin, SourcePosition end) { return SourceSpan{
 
 } // namespace
 
+std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
+    switch (code) {
+    case DiagnosticCode::UnexpectedToken: return "parse.unexpected_token";
+    case DiagnosticCode::UnexpectedEndOfFile: return "parse.unexpected_end_of_file";
+    case DiagnosticCode::InvalidToken: return "parse.invalid_token";
+    case DiagnosticCode::ExpectedIdentifier: return "parse.expected_identifier";
+    case DiagnosticCode::ExpectedQuantity: return "parse.expected_quantity";
+    case DiagnosticCode::ExpectedUnit: return "parse.expected_unit";
+    case DiagnosticCode::ExpectedExpression: return "parse.expected_expression";
+    }
+    return "parse.unknown";
+}
+
 ParseError::ParseError(Diagnostic diagnostic)
     : std::runtime_error(diagnostic.message), diagnostic_(std::move(diagnostic)) {}
 

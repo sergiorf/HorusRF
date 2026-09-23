@@ -20,6 +20,8 @@ enum class DiagnosticCode {
     ExpectedExpression
 };
 
+[[nodiscard]] std::string_view diagnostic_code_name(DiagnosticCode code) noexcept;
+
 struct Diagnostic {
     DiagnosticCode code{DiagnosticCode::UnexpectedToken};
     std::string message;

@@ -2,6 +2,7 @@
 
 #include "test_support.hpp"
 
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -20,6 +21,20 @@
 
 namespace {
 using namespace horusrf;
+
+void diagnostic_code_name_tests() {
+    constexpr std::array mappings{
+        std::pair{ir::DiagnosticCode::DuplicateSymbol, "lowering.duplicate_symbol"},
+        std::pair{ir::DiagnosticCode::UnknownSymbol, "lowering.unknown_symbol"},
+        std::pair{ir::DiagnosticCode::TypeMismatch, "lowering.type_mismatch"},
+        std::pair{ir::DiagnosticCode::InvalidDefinitionOrder, "lowering.invalid_definition_order"},
+        std::pair{ir::DiagnosticCode::InvalidCalibrationIndex, "lowering.invalid_calibration_index"},
+        std::pair{ir::DiagnosticCode::UnsupportedExpression, "lowering.unsupported_expression"},
+    };
+    for (const auto& [code, name] : mappings) CHECK_EQ(ir::diagnostic_code_name(code), name);
+    CHECK_EQ(ir::diagnostic_code_name(static_cast<ir::DiagnosticCode>(999)),
+             "lowering.unknown");
+}
 
 std::string fixture() {
     std::ifstream input(std::string{HORUSRF_SOURCE_DIR} +
@@ -332,6 +347,7 @@ characterize unary_failure {
 
 int main() {
     try {
+        diagnostic_code_name_tests();
         model_test();
         canonical_pipeline_test();
         focused_lowering_test();

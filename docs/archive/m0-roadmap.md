@@ -5,31 +5,31 @@
 Slice 1 is complete. The repository now contains the CMake/C++20 build, CTest
 integration, grammar, syntax AST, handwritten lexer and parser, canonical
 TX-path fixture, and dependency-free parser tests. Its accepted specification
-is retained in [`docs/archive/slice-1-spec.md`](archive/slice-1-spec.md).
+is retained in [`docs/archive/slice-1-spec.md`](slice-1-spec.md).
 
 Slice 2 is complete. Its implementation and acceptance plan is
 retained in
-[`docs/archive/slice-2-plan.md`](archive/slice-2-plan.md).
+[`docs/archive/slice-2-plan.md`](slice-2-plan.md).
 
 Slice 3 is complete. Its implementation and acceptance plan is retained in
-[`docs/archive/slice-3-plan.md`](archive/slice-3-plan.md).
+[`docs/archive/slice-3-plan.md`](slice-3-plan.md).
 
 Slice 4 is complete. Its implementation and acceptance record is retained in
-[`docs/archive/slice-4-plan.md`](archive/slice-4-plan.md).
+[`docs/archive/slice-4-plan.md`](slice-4-plan.md).
 
 Slice 5 is complete. Its implementation and acceptance record is retained in
-[`docs/archive/slice-5-plan.md`](archive/slice-5-plan.md).
+[`docs/archive/slice-5-plan.md`](slice-5-plan.md).
 
 Slice 6 is complete. Its archived implementation and acceptance record is in
-[`docs/archive/slice-6-plan.md`](archive/slice-6-plan.md).
+[`docs/archive/slice-6-plan.md`](slice-6-plan.md).
 
 Slice 7 is complete. Its archived implementation and acceptance record is in
-[`docs/archive/slice-7-plan.md`](archive/slice-7-plan.md).
+[`docs/archive/slice-7-plan.md`](slice-7-plan.md).
 
-Slice 8 is planned. Its detailed implementation and acceptance plan is in
-[`docs/slice-8-plan.md`](slice-8-plan.md).
+Slice 8 is complete. Its archived implementation and acceptance record is in
+[`docs/archive/slice-8-plan.md`](slice-8-plan.md). M0 is complete.
 
-## Proposed repository tree
+## Implemented repository map
 
 ```text
 .
@@ -39,10 +39,7 @@ Slice 8 is planned. Its detailed implementation and acceptance plan is in
 ├── LICENSE
 ├── cmake/
 │   └── warnings.cmake
-├── docs/
-│   ├── architecture.md
-│   ├── language.md
-│   └── m0-roadmap.md
+├── docs/                 # architecture, language, roadmap, and slice archive
 ├── grammar/
 │   └── horusrf.ebnf
 ├── include/horusrf/
@@ -61,28 +58,16 @@ Slice 8 is planned. Its detailed implementation and acceptance plan is in
 │   │   ├── lexer.hpp
 │   │   ├── parser.hpp
 │   │   └── token.hpp
+│   ├── output/
 │   ├── runtime/
-│   │   ├── executor.hpp
-│   │   └── csv_writer.hpp
 │   └── semantic/
 │       ├── analyzer.hpp
 │       └── diagnostics.hpp
-├── src/
-│   ├── ast/
-│   ├── domain/
-│   ├── device/
-│   ├── ir/
-│   ├── parser/
-│   ├── runtime/
-│   └── semantic/
-├── simulator/
-│   └── simulated_rf_device.cpp
+├── src/                  # CLI, compiler, domain, device, output, and runtime
 ├── examples/
 │   ├── tx_path_characterization.hrf
 │   └── cpp/
 │       └── tx_path_characterization.cpp
-├── tools/
-│   └── horusrf_run.cpp
 └── tests/
     ├── test_support.hpp
     ├── parser/
@@ -90,7 +75,9 @@ Slice 8 is planned. Its detailed implementation and acceptance plan is in
     ├── semantic/
     ├── ir/
     ├── runtime/
-    ├── simulator/
+    ├── device/
+    ├── examples/
+    ├── output/
     └── integration/
 ```
 
@@ -419,6 +406,8 @@ Rejected in M0:
 |---|---|
 | unary `-Power` | not needed by the experiment |
 | `Power + Power` | invalid logarithmic quantity operation |
+| `PowerDelta + Power` | operand order is not supported |
+| `PowerDelta - PowerDelta` | subtraction is not part of M0 delta arithmetic |
 | `PowerDelta - Power` | incompatible dimensions |
 | `Power - PowerDelta` | not part of M0 semantics |
 
@@ -620,7 +609,7 @@ CSV and console metrics will be generated from the same `CharacterizationResult`
 Implement CMake, targets, grammar, tokens, lexer, parser, AST, canonical example program, and parser tests.
 
 Archived specification and acceptance record:
-[`docs/archive/slice-1-spec.md`](archive/slice-1-spec.md).
+[`docs/archive/slice-1-spec.md`](slice-1-spec.md).
 
 Acceptance: the complete canonical example parses, including `derive calibration ... over frequency`; AST structure is verified for the calibration body and indexing clause; malformed syntax yields source locations; and no runtime/device code is involved.
 
@@ -629,7 +618,7 @@ Acceptance: the complete canonical example parses, including `derive calibration
 Implement units, conversions, `Power`, `PowerDelta`, explicit arithmetic, semantic analysis, calibration artifact typing, and diagnostics.
 
 Archived implementation and acceptance record:
-[`docs/archive/slice-2-plan.md`](archive/slice-2-plan.md).
+[`docs/archive/slice-2-plan.md`](slice-2-plan.md).
 
 Acceptance: supported units normalize correctly; valid dBm/dB expressions pass; calibration corrections have `PowerDelta` type; `over frequency` resolves to the active frequency sweep; and invalid dimensions, references, and calibration indexes fail with structured diagnostics.
 
@@ -638,7 +627,7 @@ Acceptance: supported units normalize correctly; valid dBm/dB expressions pass; 
 Implement typed IR and AST-to-IR lowering.
 
 Archived implementation and acceptance record:
-[`docs/archive/slice-3-plan.md`](archive/slice-3-plan.md).
+[`docs/archive/slice-3-plan.md`](slice-3-plan.md).
 
 Acceptance: the validated example lowers to an IR containing reference, sweep, measurement, derived error, named calibration, and `over frequency` meaning without concrete device dependencies.
 
@@ -648,7 +637,7 @@ Implement `RfDevice`, `SimulatedRfDevice`, device-bound single-point IR
 execution, and runtime tests.
 
 Archived implementation and acceptance record:
-[`docs/archive/slice-4-plan.md`](archive/slice-4-plan.md).
+[`docs/archive/slice-4-plan.md`](slice-4-plan.md).
 
 Acceptance: valid IR executes at one supplied frequency through the device
 interface; simulator behavior is deterministic and hidden error state remains
@@ -659,7 +648,7 @@ private. Sweep generation and result aggregation remain Slice 5 work.
 Implement sweep execution, error calculation, calibration-artifact generation, correction application within verification, corrected measurements, residuals, and metrics.
 
 Archived implementation and acceptance record:
-[`docs/archive/slice-5-plan.md`](archive/slice-5-plan.md).
+[`docs/archive/slice-5-plan.md`](slice-5-plan.md).
 
 Acceptance: the actual `.hrf` program completes the experiment, produces `tx_power : Frequency -> PowerDelta`, and materially reduces RMS error when that artifact is applied to the measured samples.
 
@@ -668,7 +657,7 @@ Acceptance: the actual `.hrf` program completes the experiment, produces `tx_pow
 Implement the independent procedural C++ example.
 
 Archived implementation and acceptance record:
-[`docs/archive/slice-6-plan.md`](archive/slice-6-plan.md).
+[`docs/archive/slice-6-plan.md`](slice-6-plan.md).
 
 Acceptance: the procedural path uses domain/device infrastructure only and produces equivalent results.
 
@@ -677,16 +666,16 @@ Acceptance: the procedural path uses domain/device infrastructure only and produ
 Implement integration tests, CLI, and CSV output.
 
 Archived implementation and acceptance record:
-[`docs/archive/slice-7-plan.md`](archive/slice-7-plan.md).
+[`docs/archive/slice-7-plan.md`](slice-7-plan.md).
 
 Acceptance: documented commands execute the actual example, produce real CSV values, and pass both integration tests.
 
-### Slice 8 — Documentation and hardening (planned)
+### Slice 8 — Documentation and hardening (complete)
 
 Complete README, architecture documentation, language documentation, AGENTS.md, diagrams, diagnostics cleanup, and test organization.
 
-Detailed implementation and acceptance plan:
-[`docs/slice-8-plan.md`](slice-8-plan.md).
+Archived implementation and acceptance record:
+[`docs/archive/slice-8-plan.md`](slice-8-plan.md).
 
 Acceptance: clean-build commands work, documentation matches behavior, and the full deterministic test suite passes.
 

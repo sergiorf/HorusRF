@@ -1,5 +1,6 @@
 #include "test_support.hpp"
 
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -242,6 +243,33 @@ void calibration_rejection_tests() {
         "derive calibration cal { correction = d over frequency, frequency } }");
     CHECK(has_code(result, semantic::DiagnosticCode::DuplicateCalibrationDimension));
 }
+
+void diagnostic_code_name_tests() {
+    constexpr std::array mappings{
+        std::pair{semantic::DiagnosticCode::InvalidNumericLiteral, "semantic.invalid_numeric_literal"},
+        std::pair{semantic::DiagnosticCode::UnexpectedQuantityType, "semantic.unexpected_quantity_type"},
+        std::pair{semantic::DiagnosticCode::DuplicateDeclaration, "semantic.duplicate_declaration"},
+        std::pair{semantic::DiagnosticCode::MissingReference, "semantic.missing_reference"},
+        std::pair{semantic::DiagnosticCode::MissingSweep, "semantic.missing_sweep"},
+        std::pair{semantic::DiagnosticCode::MissingMeasurement, "semantic.missing_measurement"},
+        std::pair{semantic::DiagnosticCode::UnknownIdentifier, "semantic.unknown_identifier"},
+        std::pair{semantic::DiagnosticCode::UnknownReferenceMember, "semantic.unknown_reference_member"},
+        std::pair{semantic::DiagnosticCode::ReferenceNotAvailable, "semantic.reference_not_available"},
+        std::pair{semantic::DiagnosticCode::InvalidUnaryOperand, "semantic.invalid_unary_operand"},
+        std::pair{semantic::DiagnosticCode::InvalidBinaryOperands, "semantic.invalid_binary_operands"},
+        std::pair{semantic::DiagnosticCode::InvalidSweepRange, "semantic.invalid_sweep_range"},
+        std::pair{semantic::DiagnosticCode::InvalidSweepStep, "semantic.invalid_sweep_step"},
+        std::pair{semantic::DiagnosticCode::UnknownCalibrationDimension, "semantic.unknown_calibration_dimension"},
+        std::pair{semantic::DiagnosticCode::NonSweepCalibrationDimension, "semantic.non_sweep_calibration_dimension"},
+        std::pair{semantic::DiagnosticCode::DuplicateCalibrationDimension, "semantic.duplicate_calibration_dimension"},
+        std::pair{semantic::DiagnosticCode::InvalidCalibrationCorrection, "semantic.invalid_calibration_correction"},
+    };
+    for (const auto& [code, name] : mappings) {
+        CHECK_EQ(semantic::diagnostic_code_name(code), name);
+    }
+    CHECK_EQ(semantic::diagnostic_code_name(static_cast<semantic::DiagnosticCode>(999)),
+             "semantic.unknown");
+}
 } // namespace
 
 int main() {
@@ -251,6 +279,7 @@ int main() {
         frequency_unit_tests();
         rejection_tests();
         calibration_rejection_tests();
+        diagnostic_code_name_tests();
         std::cout << "All HorusRF semantic tests passed\n";
         return 0;
     } catch (const std::exception& error) {

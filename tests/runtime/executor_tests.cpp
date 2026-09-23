@@ -2,6 +2,7 @@
 
 #include "test_support.hpp"
 
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -18,6 +19,24 @@
 
 namespace {
 using namespace horusrf;
+
+void diagnostic_code_name_tests() {
+    constexpr std::array mappings{
+        std::pair{runtime::DiagnosticCode::InvalidValueId, "runtime.invalid_value_id"},
+        std::pair{runtime::DiagnosticCode::InvalidDefinitionOrder, "runtime.invalid_definition_order"},
+        std::pair{runtime::DiagnosticCode::TypeMismatch, "runtime.type_mismatch"},
+        std::pair{runtime::DiagnosticCode::InvalidProgramBinding, "runtime.invalid_program_binding"},
+        std::pair{runtime::DiagnosticCode::InvalidOperation, "runtime.invalid_operation"},
+        std::pair{runtime::DiagnosticCode::InvalidSweep, "runtime.invalid_sweep"},
+        std::pair{runtime::DiagnosticCode::SweepTooLarge, "runtime.sweep_too_large"},
+        std::pair{runtime::DiagnosticCode::InvalidCalibrationBinding, "runtime.invalid_calibration_binding"},
+    };
+    for (const auto& [code, name] : mappings) {
+        CHECK_EQ(runtime::diagnostic_code_name(code), name);
+    }
+    CHECK_EQ(runtime::diagnostic_code_name(static_cast<runtime::DiagnosticCode>(999)),
+             "runtime.unknown");
+}
 
 constexpr auto operation_source = R"(
 characterize operations {
@@ -234,6 +253,7 @@ void canonical_pipeline_test() {
 
 int main() {
     try {
+        diagnostic_code_name_tests();
         operation_matrix_and_device_order_test();
         defensive_validation_test();
         exception_propagation_test();

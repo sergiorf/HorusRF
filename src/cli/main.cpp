@@ -84,13 +84,14 @@ bool same_path(const fs::path& left, const fs::path& right) {
     return false;
 }
 
-template <typename Diagnostics>
-void print_diagnostics(const fs::path& source, std::string_view stage,
-                       const Diagnostics& diagnostics) {
+template <typename Diagnostics, typename CodeName>
+void print_diagnostics(const fs::path& source, const Diagnostics& diagnostics,
+                       CodeName code_name) {
     for (const auto& diagnostic : diagnostics) {
         const auto& position = diagnostic.span.begin;
         std::cerr << source.string() << ':' << position.line << ':' << position.column
-                  << ": " << stage << ": " << diagnostic.message << '\n';
+                  << ": " << code_name(diagnostic.code) << ": "
+                  << diagnostic.message << '\n';
     }
 }
 
@@ -153,25 +154,27 @@ int run(const Arguments& arguments) {
         syntax = parser::parse(*source);
     } catch (const parser::ParseError& error) {
         const std::vector<parser::Diagnostic> diagnostics{error.diagnostic()};
-        print_diagnostics(arguments.source, "parse", diagnostics);
+        print_diagnostics(arguments.source, diagnostics, parser::diagnostic_code_name);
         return diagnostic_error;
     }
 
     auto analyzed = semantic::analyze(syntax);
     if (!analyzed.ok()) {
-        print_diagnostics(arguments.source, "semantic", analyzed.diagnostics);
+        print_diagnostics(arguments.source, analyzed.diagnostics,
+                          semantic::diagnostic_code_name);
         return diagnostic_error;
     }
     auto lowered = ir::lower(*analyzed.program);
     if (!lowered.ok()) {
-        print_diagnostics(arguments.source, "lowering", lowered.diagnostics);
+        print_diagnostics(arguments.source, lowered.diagnostics, ir::diagnostic_code_name);
         return diagnostic_error;
     }
 
     device::SimulatedRfDevice simulator;
     auto execution = runtime::execute_characterization(*lowered.program, simulator);
     if (!execution.ok()) {
-        print_diagnostics(arguments.source, "runtime", execution.diagnostics);
+        print_diagnostics(arguments.source, execution.diagnostics,
+                          runtime::diagnostic_code_name);
         return diagnostic_error;
     }
 
