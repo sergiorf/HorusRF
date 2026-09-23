@@ -26,6 +26,9 @@ Slice 6 is complete. Its archived implementation and acceptance record is in
 Slice 7 is complete. Its archived implementation and acceptance record is in
 [`docs/archive/slice-7-plan.md`](archive/slice-7-plan.md).
 
+Slice 8 is planned. Its detailed implementation and acceptance plan is in
+[`docs/slice-8-plan.md`](slice-8-plan.md).
+
 ## Proposed repository tree
 
 ```text
@@ -678,9 +681,12 @@ Archived implementation and acceptance record:
 
 Acceptance: documented commands execute the actual example, produce real CSV values, and pass both integration tests.
 
-### Slice 8 — Documentation and hardening
+### Slice 8 — Documentation and hardening (planned)
 
 Complete README, architecture documentation, language documentation, AGENTS.md, diagrams, diagnostics cleanup, and test organization.
+
+Detailed implementation and acceptance plan:
+[`docs/slice-8-plan.md`](slice-8-plan.md).
 
 Acceptance: clean-build commands work, documentation matches behavior, and the full deterministic test suite passes.
 

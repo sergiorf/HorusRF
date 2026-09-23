@@ -22,6 +22,8 @@ the [M0 roadmap](docs/m0-roadmap.md).
   [archived implementation and acceptance record](docs/archive/slice-6-plan.md).
 - Slice 7, end-to-end proof and CSV: complete. See the
   [archived implementation and acceptance record](docs/archive/slice-7-plan.md).
+- Slice 8, documentation and hardening: planned. See the
+  [detailed implementation and acceptance plan](docs/slice-8-plan.md).
 
 ## Running the reference experiment
 
