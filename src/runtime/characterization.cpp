@@ -54,7 +54,7 @@ std::optional<SweepPlan> plan_sweep(const ir::Sweep& sweep,
     if (!std::isfinite(quotient) ||
         quotient > static_cast<long double>(maximum_sweep_points)) {
         diagnostics.push_back(diagnostic(DiagnosticCode::SweepTooLarge,
-                                         "sweep point count exceeds the M0 safety limit",
+                                         "sweep point count exceeds the safety limit",
                                          sweep.span));
         return std::nullopt;
     }

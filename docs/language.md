@@ -1,8 +1,9 @@
-# HorusRF M0 language reference
+# HorusRF language reference
 
-This document describes the implemented M0 language. The authoritative concrete
-syntax is [`grammar/horusrf.ebnf`](../grammar/horusrf.ebnf); syntax changes must keep
-the grammar, lexer, parser, this reference, and tests synchronized.
+This document describes the currently implemented demonstration language. The
+authoritative concrete syntax is
+[`grammar/horusrf.ebnf`](../grammar/horusrf.ebnf); syntax changes must keep the
+grammar, lexer, parser, this reference, and tests synchronized.
 
 ## Lexical rules and source positions
 
@@ -35,9 +36,9 @@ characterize tx_path {
 ```
 
 `reference power` declares the sole nominal comparison power. Its expression name
-is `reference.power`. M0 requires exactly one reference, frequency sweep, and power
-measurement. Duplicate required declarations are errors; a missing one is reported
-after statement analysis.
+is `reference.power`. A program requires exactly one reference, frequency sweep,
+and power measurement. Duplicate required declarations are errors; a missing one is
+reported after statement analysis.
 
 The sweep endpoints and step must be frequency quantities. The step is strictly
 positive and the end must not precede the start. Runtime generates points in
@@ -71,9 +72,9 @@ Only these arithmetic operations are supported:
 | `PowerDelta + PowerDelta` | `PowerDelta` |
 | unary `-PowerDelta` | `PowerDelta` |
 
-M0 rejects `Power + Power`, `PowerDelta + Power`, `PowerDelta - PowerDelta`,
-`PowerDelta - Power`, `Power - PowerDelta`, unary `-Power`, and arithmetic involving
-`Frequency`. Operand order is significant.
+The language rejects `Power + Power`, `PowerDelta + Power`,
+`PowerDelta - PowerDelta`, `PowerDelta - Power`, `Power - PowerDelta`, unary
+`-Power`, and arithmetic involving `Frequency`. Operand order is significant.
 
 ## Calibration artifacts
 
@@ -86,10 +87,11 @@ derive calibration tx_power {
 
 The correction must have `PowerDelta` type. `over` is mandatory and names explicit
 index dimensions. Every index must already name an active sweep, and unknown,
-non-sweep, or duplicate indexes are rejected. M0 has one frequency sweep, so the
-canonical result is `tx_power : Frequency -> PowerDelta`. Runtime stores one
-dimension and correction entry per sample and internally applies the correction
-only to calculate verification metrics; there is no application statement.
+non-sweep, or duplicate indexes are rejected. The implemented language has one
+frequency sweep, so the canonical result is
+`tx_power : Frequency -> PowerDelta`. Runtime stores one dimension and correction
+entry per sample and internally applies the correction only to calculate
+verification metrics; there is no application statement.
 
 ## Diagnostics
 
@@ -111,8 +113,8 @@ over `power` rather than `frequency`.
 
 ## Current limitations
 
-M0 has no conditionals, general loops, functions, arrays, strings, interpolation,
-multiple characterizations, multiple sweeps, phase/gain/temperature dimensions,
-instrument declarations, procedural DSL statements, calibration import or
-persistence, or explicit calibration application. Those are possible future
-features and are not accepted syntax today.
+The demonstration has no conditionals, general loops, functions, arrays, strings,
+interpolation, multiple characterizations, multiple sweeps, phase/gain/temperature
+dimensions, instrument declarations, procedural DSL statements, calibration import
+or persistence, or explicit calibration application. These omissions define the
+scope of the example; they do not imply a roadmap for adding those features.

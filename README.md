@@ -5,6 +5,8 @@ reference experiment configures a nominal tester TX output, sweeps 2.40–2.50 G
 steps, observes an imperfect path through a deterministic simulator, and derives a
 frequency-indexed power correction. The canonical program is
 [`examples/tx_path_characterization.hrf`](examples/tx_path_characterization.hrf).
+The repository is a focused, executable demonstration of how such a DSL could
+look; it is not a staged product roadmap.
 
 ## Prerequisites and build
 
