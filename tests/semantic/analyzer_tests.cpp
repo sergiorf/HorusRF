@@ -60,20 +60,17 @@ void canonical_fixture_test() {
     CHECK(program.reference.symbol != program.sweep.symbol);
     CHECK(program.measurement.symbol != program.sweep.symbol);
 
-    CHECK_EQ(program.derived_quantities.size(), std::size_t{1});
-    const auto& derived = program.derived_quantities.front();
-    CHECK_EQ(derived.type, semantic::SemanticType::PowerDelta);
-    const auto& difference = expression_as<semantic::BinaryValue>(derived.expression);
-    CHECK_EQ(difference.type, semantic::SemanticType::PowerDelta);
-    const auto& measured = expression_as<semantic::SymbolValue>(*difference.left);
-    const auto& reference = expression_as<semantic::ReferenceValue>(*difference.right);
-    CHECK_EQ(measured.symbol, program.measurement.symbol);
-    CHECK_EQ(reference.symbol, program.reference.symbol);
-    CHECK_EQ(derived.expression.span.begin.line, std::size_t{12});
+    CHECK(program.derived_quantities.empty());
 
     CHECK_EQ(program.calibrations.size(), std::size_t{1});
     const auto& calibration = program.calibrations.front();
     CHECK_EQ(calibration.correction.type, semantic::SemanticType::PowerDelta);
+    const auto& correction = expression_as<semantic::BinaryValue>(calibration.correction);
+    CHECK_EQ(correction.type, semantic::SemanticType::PowerDelta);
+    CHECK_EQ(expression_as<semantic::ReferenceValue>(*correction.left).symbol,
+             program.reference.symbol);
+    CHECK_EQ(expression_as<semantic::SymbolValue>(*correction.right).symbol,
+             program.measurement.symbol);
     CHECK_EQ(calibration.indexes.size(), std::size_t{1});
     CHECK_EQ(calibration.indexes.front(), program.sweep.symbol);
     CHECK_EQ(calibration.type.index_types.size(), std::size_t{1});

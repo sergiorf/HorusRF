@@ -8,9 +8,6 @@ characterize tx_path {
 
     measure power
 
-    derive error =
-        power - reference.power
-
     derive calibration tx_power {
         correction = reference.power - power
         over frequency

@@ -50,7 +50,7 @@ void canonical_program_test() {
     const auto program = parser::parse(read_fixture());
     const auto& characterization = program.characterization;
     CHECK_EQ(characterization.name, "tx_path");
-    CHECK_EQ(characterization.statements.size(), std::size_t{5});
+    CHECK_EQ(characterization.statements.size(), std::size_t{4});
     CHECK_EQ(program.span.begin.line, std::size_t{1});
     CHECK_EQ(program.span.begin.column, std::size_t{1});
 
@@ -69,17 +69,8 @@ void canonical_program_test() {
 
     (void)alternative<ast::MeasurementStatement>(characterization.statements[2]);
 
-    const auto& derive = alternative<ast::DeriveStatement>(characterization.statements[3]);
-    CHECK_EQ(derive.name, "error");
-    const auto& difference = expression_as<ast::BinaryExpression>(derive.expression);
-    CHECK_EQ(difference.op, ast::BinaryOperator::Subtract);
-    CHECK_EQ(expression_as<ast::IdentifierExpression>(*difference.left).name, "power");
-    const auto& reference_expression = expression_as<ast::ReferenceExpression>(*difference.right);
-    CHECK_EQ(reference_expression.object, "reference");
-    CHECK_EQ(reference_expression.member, "power");
-
     const auto& calibration =
-        alternative<ast::CalibrationStatement>(characterization.statements[4]);
+        alternative<ast::CalibrationStatement>(characterization.statements[3]);
     CHECK_EQ(calibration.name, "tx_power");
     const auto& correction = expression_as<ast::BinaryExpression>(calibration.correction);
     CHECK_EQ(correction.op, ast::BinaryOperator::Subtract);

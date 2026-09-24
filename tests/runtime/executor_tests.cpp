@@ -232,7 +232,7 @@ void canonical_pipeline_test() {
     const auto result = runtime::execute_point(
         program, domain::Frequency::from_hertz(2.425e9), simulator);
     CHECK(result.ok());
-    CHECK_EQ(result.evaluation->values.size(), std::size_t{5});
+    CHECK_EQ(result.evaluation->values.size(), std::size_t{4});
     CHECK_NEAR(result.evaluation->frequency.hertz(), 2.425e9, 1e-3);
     CHECK_NEAR(std::get<domain::Power>(result.evaluation->at(program.reference)).dbm(),
                -10.0, 1e-12);
@@ -241,8 +241,7 @@ void canonical_pipeline_test() {
                2.425e9, 1e-3);
     CHECK_NEAR(std::get<domain::Power>(result.evaluation->at(program.measurement)).dbm(),
                -9.45, 1e-12);
-    CHECK_NEAR(std::get<domain::PowerDelta>(named(program, *result.evaluation, "error")).db(),
-               0.55, 1e-12);
+    CHECK(program.named_values.empty());
     CHECK_EQ(program.calibrations.front().indexes.front(), program.sweep.frequency);
     CHECK_NEAR(std::get<domain::PowerDelta>(result.evaluation->at(
                    program.calibrations.front().correction)).db(),

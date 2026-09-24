@@ -121,7 +121,7 @@ void canonical_pipeline_test() {
 
     CHECK_EQ(program.characterization_name, "tx_path");
     CHECK_EQ(program.span, analyzed.program->span);
-    CHECK_EQ(program.values.size(), std::size_t{5});
+    CHECK_EQ(program.values.size(), std::size_t{4});
     CHECK_EQ(program.reference, ir::ValueId{0});
     CHECK_EQ(program.sweep.frequency, ir::ValueId{1});
     CHECK_EQ(program.measurement, ir::ValueId{2});
@@ -142,14 +142,7 @@ void canonical_pipeline_test() {
     }
     CHECK_EQ(measurements, std::size_t{1});
 
-    CHECK_EQ(program.named_values.size(), std::size_t{1});
-    const auto& error = program.named_values.front();
-    CHECK_EQ(error.name, "error");
-    CHECK_EQ(error.type, ir::ValueType::PowerDelta);
-    const auto& error_difference =
-        definition_as<ir::PowerDifference>(value_at(program, error.value));
-    CHECK_EQ(error_difference.left, program.measurement);
-    CHECK_EQ(error_difference.right, program.reference);
+    CHECK(program.named_values.empty());
 
     CHECK_EQ(program.calibrations.size(), std::size_t{1});
     const auto& calibration = program.calibrations.front();
