@@ -12,6 +12,10 @@ measured-minus-reference error produces an equal and opposite correction.
 
 The public result owns its samples, calibration dimensions and corrections. It does
 not alias source text, compiler storage, a device, or simulator state.
+`CharacterizationSample` is also the standard verification report for one point:
+domain code consistently calculates raw error, corrected power, and residual error
+from the reference, measurement, and calibration correction for both declarative
+and procedural execution.
 
 ## Compile and execution flow
 
@@ -197,6 +201,7 @@ sequenceDiagram
     R->>D: setOutputPower(reference)
     R->>D: measurePower()
     D-->>R: measured power
+    Note over R: build standard report fields
     Note over R: error = measured - reference
     Note over R: correction from calibration expression
     Note over R: corrected = measured + correction

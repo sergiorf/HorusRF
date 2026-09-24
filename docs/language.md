@@ -88,9 +88,15 @@ The correction must have `PowerDelta` type. `over` is mandatory and names explic
 index dimensions. Every index must already name an active sweep, and unknown,
 non-sweep, or duplicate indexes are rejected. The implemented language has one
 frequency sweep, so the canonical result is
-`tx_power : Frequency -> PowerDelta`. Runtime stores one dimension and correction
-entry per sample and internally applies the correction only to calculate
-verification metrics; there is no application statement.
+`tx_power : Frequency -> PowerDelta`.
+
+The runner produces a standard verification report for every characterization.
+For each point it calculates `error = measured - reference`, applies the declared
+calibration as `corrected = measured + correction`, and calculates
+`residual = corrected - reference`. These are runner-generated report fields, not
+named DSL values, and source expressions cannot reference them. Runtime stores one
+dimension and correction entry per sample; there is no calibration application
+statement in the language.
 
 ## Diagnostics
 

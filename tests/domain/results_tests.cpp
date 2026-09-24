@@ -14,14 +14,20 @@ using namespace horusrf::domain;
 CharacterizationSample sample(double error, double residual) {
     const auto reference = Power::from_dbm(-10.0);
     const auto measured = reference + PowerDelta::from_db(error);
-    const auto corrected = reference + PowerDelta::from_db(residual);
-    return {Frequency::from_hertz(1.0),
-            reference,
-            measured,
-            PowerDelta::from_db(error),
-            corrected - measured,
-            corrected,
-            PowerDelta::from_db(residual)};
+    const auto correction = PowerDelta::from_db(residual - error);
+    return make_characterization_sample(Frequency::from_hertz(1.0), reference,
+                                        measured, correction);
+}
+
+void standard_report_calculation_test() {
+    const auto result = make_characterization_sample(
+        Frequency::from_hertz(2.45e9), Power::from_dbm(-10.0),
+        Power::from_dbm(-9.5), PowerDelta::from_db(-0.25));
+
+    CHECK_NEAR(result.error.db(), 0.5, 1e-12);
+    CHECK_NEAR(result.correction.db(), -0.25, 1e-12);
+    CHECK_NEAR(result.corrected_power.dbm(), -9.75, 1e-12);
+    CHECK_NEAR(result.residual_error.db(), 0.25, 1e-12);
 }
 
 void hand_checked_metrics_test() {
@@ -68,6 +74,7 @@ void results_own_values_test() {
 } // namespace
 
 void run_results_tests() {
+    standard_report_calculation_test();
     hand_checked_metrics_test();
     ratio_edge_cases_test();
     results_own_values_test();

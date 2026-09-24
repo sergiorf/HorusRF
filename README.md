@@ -48,6 +48,11 @@ one header plus 101 ordered data rows with this schema:
 frequency_hz,reference_power_dbm,measured_power_dbm,error_db,correction_db,corrected_power_dbm,residual_error_db
 ```
 
+The correction comes from the program's calibration expression. The runner adds
+standard report fields at every point: error is measured minus reference,
+corrected power is measured plus correction, and residual error is corrected power
+minus reference. These report fields are not implicit DSL declarations.
+
 Source failures are written without color as
 `path:line:column: diagnostic.code: message`. Exit status is 0 for success, 2 for
 usage, 3 for file I/O, 4 for source/compiler/runtime diagnostics, and 5 for an

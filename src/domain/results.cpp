@@ -7,6 +7,16 @@
 
 namespace horusrf::domain {
 
+CharacterizationSample make_characterization_sample(
+    Frequency frequency, Power reference_power, Power measured_power,
+    PowerDelta correction) {
+    const auto error = measured_power - reference_power;
+    const auto corrected_power = measured_power + correction;
+    const auto residual_error = corrected_power - reference_power;
+    return CharacterizationSample{frequency, reference_power, measured_power, error,
+                                  correction, corrected_power, residual_error};
+}
+
 CharacterizationMetrics calculate_metrics(
     std::span<const CharacterizationSample> samples) {
     if (samples.empty()) {

@@ -134,14 +134,11 @@ CharacterizationExecutionResult execute_characterization(const ir::Program& prog
             detail::evaluate_validated_point(program, frequency, device);
         const auto reference = slot<domain::Power>(evaluation, program.reference);
         const auto measured = slot<domain::Power>(evaluation, program.measurement);
-        const auto error = measured - reference;
         const auto correction =
             slot<domain::PowerDelta>(evaluation, calibration.correction);
-        const auto corrected = measured + correction;
-        const auto residual = corrected - reference;
 
-        result.samples.push_back(domain::CharacterizationSample{
-            frequency, reference, measured, error, correction, corrected, residual});
+        result.samples.push_back(domain::make_characterization_sample(
+            frequency, reference, measured, correction));
         result.calibration.dimensions.push_back(frequency);
         result.calibration.corrections.push_back(correction);
     }

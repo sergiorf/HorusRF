@@ -36,19 +36,10 @@ run_tx_path_characterization(device::RfDevice& device) {
         const auto measured_power = device.measurePower();
 
         const auto error = measured_power - reference_power;
-        const auto correction = reference_power - measured_power;
-        const auto corrected_power = measured_power + correction;
-        const auto residual_error = corrected_power - reference_power;
+        const auto correction = -error;
 
-        result.samples.push_back(domain::CharacterizationSample{
-            frequency,
-            reference_power,
-            measured_power,
-            error,
-            correction,
-            corrected_power,
-            residual_error,
-        });
+        result.samples.push_back(domain::make_characterization_sample(
+            frequency, reference_power, measured_power, correction));
         result.calibration.dimensions.push_back(frequency);
         result.calibration.corrections.push_back(correction);
     }

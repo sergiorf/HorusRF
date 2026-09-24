@@ -38,6 +38,10 @@ struct CharacterizationResult {
     CharacterizationMetrics metrics;
 };
 
+[[nodiscard]] CharacterizationSample make_characterization_sample(
+    Frequency frequency, Power reference_power, Power measured_power,
+    PowerDelta correction);
+
 [[nodiscard]] CharacterizationMetrics calculate_metrics(
     std::span<const CharacterizationSample> samples);
 
