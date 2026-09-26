@@ -4,6 +4,7 @@
 #include <variant>
 #include <vector>
 
+#include "horusrf/device/measurement_device.hpp"
 #include "horusrf/device/rf_device.hpp"
 #include "horusrf/domain/quantity.hpp"
 #include "horusrf/ir/ir.hpp"
@@ -32,6 +33,7 @@ struct ExecutionResult {
 
 [[nodiscard]] ExecutionResult execute_point(const ir::Program& program,
                                             domain::Frequency frequency,
-                                            device::RfDevice& device);
+                                            device::RfDevice& tester,
+                                            device::MeasurementDevice& measurement);
 
 } // namespace horusrf::runtime

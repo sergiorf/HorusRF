@@ -5,9 +5,11 @@
 HorusRF is a focused demonstration of what a declarative DSL for RF
 characterization could look like. Its reference experiment characterizes an
 imperfect tester transmit path: the runtime sets a nominal output power and a
-frequency through `RfDevice`, then observes power from external measurement
-equipment represented by the deterministic simulator. That equipment is part of
-the physical setup; it is not a separately programmable DSL instrument. The
+frequency through the TX-only `RfDevice` contract, then obtains power through a
+separate `MeasurementDevice` contract. The deterministic simulator implements
+these as a simulated RF tester and calibrated measurement instrument connected by
+an opaque RF-output object. The measurement equipment is part of the physical
+setup; it is not a separately programmable DSL instrument. The
 measured-minus-reference error produces an equal and opposite correction.
 
 The public result owns its samples, calibration dimensions and corrections. It does
@@ -26,19 +28,23 @@ flowchart LR
     AST --> Semantic[semantic analysis<br/>horusrf_semantic]
     Semantic --> IR[typed IR<br/>horusrf_ir]
     IR --> Runtime[runtime<br/>horusrf_runtime]
-    Runtime --> Device[RfDevice<br/>horusrf_device]
-    Device --> Simulator[simulator<br/>horusrf_simulator]
+    Runtime --> Tester[RfDevice TX control<br/>horusrf_device]
+    Runtime --> Measurement[MeasurementDevice<br/>horusrf_device]
+    Tester --> Simulator[simulator<br/>horusrf_simulator]
+    Measurement --> Simulator
     Runtime --> Result[result<br/>horusrf_domain]
     Result --> Console[console<br/>horusrf-run]
     Result --> CSV[CSV<br/>horusrf_output]
-    Procedural[procedural C++<br/>horusrf_procedural_example] --> Device
+    Procedural[procedural C++<br/>horusrf_procedural_example] --> Tester
+    Procedural --> Measurement
     Procedural --> Result
 ```
 
 `horusrf-run` composes the parser, semantic analyzer, lowerer, runtime, simulator,
 and output layer. The procedural example independently orchestrates the experiment
-and joins the declarative path only at domain quantities, `RfDevice`, the simulator,
-and result/metric types. It does not use compiler or runtime orchestration.
+and joins the declarative path only at domain quantities, the `RfDevice` and
+`MeasurementDevice` contracts, the simulator, and result/metric types. It does not
+use compiler or runtime orchestration.
 
 ## Component dependencies
 
@@ -62,7 +68,7 @@ flowchart TB
 
     subgraph Execution
         Runtime[horusrf_runtime]
-        Device[horusrf_device<br/>RfDevice contract]
+        Device[horusrf_device<br/>RfDevice + MeasurementDevice contracts]
         Simulator[horusrf_simulator]
     end
 
@@ -92,8 +98,10 @@ flowchart TB
 ```
 
 The CLI is the composition root, so its broad dependencies do not relax the
-dependencies of the components it assembles. In particular, runtime reaches a
-simulated or future hardware implementation only through `RfDevice`.
+dependencies of the components it assembles. In particular, runtime reaches
+simulated or future hardware implementations only through `RfDevice` and
+`MeasurementDevice`. `RfDevice` is intentionally the tester TX-control boundary;
+it has no measurement operation.
 
 ## Public contracts and ownership
 
@@ -110,23 +118,29 @@ classDiagram
 
     class RuntimeAPI {
         <<module>>
-        +execute_characterization(Program, RfDevice) CharacterizationExecutionResult
-        +execute_point(Program, Frequency, RfDevice) ExecutionResult
+        +execute_characterization(Program, RfDevice, MeasurementDevice) CharacterizationExecutionResult
+        +execute_point(Program, Frequency, RfDevice, MeasurementDevice) ExecutionResult
     }
 
     class ProceduralAPI {
         <<module>>
-        +run_tx_path_characterization(RfDevice) CharacterizationResult
+        +run_tx_path_characterization(RfDevice, MeasurementDevice) CharacterizationResult
     }
 
     class RfDevice {
         <<interface>>
         +setFrequency(Frequency)
         +setOutputPower(Power)
+    }
+
+    class MeasurementDevice {
+        <<interface>>
         +measurePower() Power
     }
 
-    class SimulatedRfDevice
+    class SimulatedRfTester
+    class SimulatedMeasurementDevice
+    class SimulatedRfConnection
 
     class CharacterizationExecutionResult {
         +ok() bool
@@ -152,11 +166,16 @@ classDiagram
         +db() double
     }
 
-    SimulatedRfDevice --|> RfDevice
+    SimulatedRfTester --|> RfDevice
+    SimulatedMeasurementDevice --|> MeasurementDevice
+    SimulatedRfTester --> SimulatedRfConnection : publishes actual output
+    SimulatedMeasurementDevice --> SimulatedRfConnection : observes output
     RuntimeAPI ..> Program
     RuntimeAPI ..> RfDevice
+    RuntimeAPI ..> MeasurementDevice
     RuntimeAPI ..> CharacterizationExecutionResult
     ProceduralAPI ..> RfDevice
+    ProceduralAPI ..> MeasurementDevice
     ProceduralAPI ..> CharacterizationResult
 
     CharacterizationExecutionResult *-- "0..1" CharacterizationResult : result
@@ -169,6 +188,7 @@ classDiagram
     Program ..> PowerDelta
     RfDevice ..> Frequency
     RfDevice ..> Power
+    MeasurementDevice ..> Power
     CharacterizationSample *-- Frequency
     CharacterizationSample *-- Power
     CharacterizationSample *-- PowerDelta
@@ -184,23 +204,25 @@ classDiagram
   types, calibration indexes, and canonical units.
 - IR is a typed, device-independent plan of values and operations. Runtime consumes
   it without depending on AST shape.
-- Runtime executes IR only through the caller-owned `RfDevice&`. The device must
-  remain alive for the call; returned results do not refer to it.
+- Runtime executes IR only through caller-owned `RfDevice&` and
+  `MeasurementDevice&` abstractions. Both must remain alive for the call; returned
+  results do not refer to either one.
 - `Frequency`, `Power`, `PowerDelta`, samples, artifacts, and metrics are shared
   domain values. CSV is a terminal presentation layer and does not feed execution.
 
 ## Runtime sequence and failure behavior
 
-For each planned frequency, device calls and computation occur in this order:
+For each planned frequency, equipment calls and computation occur in this order:
 
 ```mermaid
 sequenceDiagram
     participant R as Runtime
-    participant D as RfDevice
-    R->>D: setFrequency(frequency)
-    R->>D: setOutputPower(reference)
-    R->>D: measurePower()
-    D-->>R: measured power
+    participant T as RfDevice (tester)
+    participant M as MeasurementDevice
+    R->>T: setFrequency(frequency)
+    R->>T: setOutputPower(reference)
+    R->>M: measurePower()
+    M-->>R: measured power
     Note over R: build standard report fields
     Note over R: error = measured - reference
     Note over R: correction from calibration expression
@@ -215,7 +237,7 @@ most 1,000,000 points. Exactly one measurement occurs per point, and sample,
 calibration dimension, and correction vectors remain aligned. Metrics are calculated
 only after all points succeed.
 
-IR and sweep validation happen before device calls. Device exceptions propagate:
+IR and sweep validation happen before equipment calls. Equipment exceptions propagate:
 there is no retry and no partial `CharacterizationResult` is returned.
 
 ## Dependencies, determinism, and extension points
@@ -237,8 +259,11 @@ The target-level dependency rules are:
 
 Domain code must not depend on compiler layers. AST must not depend on semantic,
 runtime, or device code. Runtime must not access simulator internals, and procedural
-orchestration must not depend on the compiler or runtime. Strong dBm/dB types make
-cross-layer dimensional intent explicit.
+orchestration must not depend on the compiler or runtime. The simulator's
+deterministic TX-path response is a private implementation function: the tester
+publishes only resulting power to the opaque connection, and measurement exposes
+only `measurePower()`. Strong dBm/dB types make cross-layer dimensional intent
+explicit.
 
 Fresh simulator instances with the same calls produce identical observations. The
 simulator model remains private. Console and CSV output use the classic locale and
@@ -247,8 +272,8 @@ round-trip-capable numeric precision, so results do not vary with host locale.
 ### Deliberately limited scope
 
 The architecture leaves boundaries at which a larger system could add real hardware
-implementations of `RfDevice`, richer calibration artifacts, explicit application
-syntax, or alternative compiler backends. They illustrate how the design separates
-concerns; they are not a roadmap. The demonstration has no hardware backend,
-persisted calibration, general instrument model, optimizer, bytecode, or LLVM
-integration.
+implementations of `RfDevice` and `MeasurementDevice`, richer calibration artifacts,
+explicit application syntax, or alternative compiler backends. They illustrate how
+the design separates concerns; they are not a roadmap. The demonstration has no
+hardware backend, persisted calibration, general instrument model, optimizer,
+bytecode, or LLVM integration.

@@ -3,6 +3,7 @@
 #include <optional>
 #include <vector>
 
+#include "horusrf/device/measurement_device.hpp"
 #include "horusrf/device/rf_device.hpp"
 #include "horusrf/domain/results.hpp"
 #include "horusrf/ir/ir.hpp"
@@ -20,6 +21,7 @@ struct CharacterizationExecutionResult {
 };
 
 [[nodiscard]] CharacterizationExecutionResult execute_characterization(
-    const ir::Program& program, device::RfDevice& device);
+    const ir::Program& program, device::RfDevice& tester,
+    device::MeasurementDevice& measurement);
 
 } // namespace horusrf::runtime

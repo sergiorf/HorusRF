@@ -256,7 +256,8 @@ const T& slot(const std::vector<RuntimeValue>& values, ir::ValueId id) {
 RuntimeValue evaluate_definition(const ir::Definition& definition,
                                  const ir::Program& program,
                                  domain::Frequency frequency,
-                                 device::RfDevice& device,
+                                 device::RfDevice& tester,
+                                 device::MeasurementDevice& measurement,
                                  const std::vector<RuntimeValue>& values) {
     return std::visit(
         Overloaded{
@@ -269,9 +270,9 @@ RuntimeValue evaluate_definition(const ir::Definition& definition,
             [&](const ir::MeasurePower&) -> RuntimeValue {
                 const auto point = slot<domain::Frequency>(values, program.sweep.frequency);
                 const auto reference = slot<domain::Power>(values, program.reference);
-                device.setFrequency(point);
-                device.setOutputPower(reference);
-                return device.measurePower();
+                tester.setFrequency(point);
+                tester.setOutputPower(reference);
+                return measurement.measurePower();
             },
             [&](const ir::Alias& operation) -> RuntimeValue {
                 return values[operation.value.value];
@@ -302,12 +303,13 @@ std::vector<Diagnostic> detail::validate_program(const ir::Program& program) {
 
 PointEvaluation detail::evaluate_validated_point(const ir::Program& program,
                                                  domain::Frequency frequency,
-                                                 device::RfDevice& device) {
+                                                 device::RfDevice& tester,
+                                                 device::MeasurementDevice& measurement) {
     PointEvaluation evaluation{frequency, {}};
     evaluation.values.reserve(program.values.size());
     for (const auto& value : program.values) {
         evaluation.values.push_back(
-            evaluate_definition(value.definition, program, frequency, device,
+            evaluate_definition(value.definition, program, frequency, tester, measurement,
                                 evaluation.values));
     }
     return evaluation;
@@ -318,12 +320,13 @@ const RuntimeValue& PointEvaluation::at(ir::ValueId id) const {
 }
 
 ExecutionResult execute_point(const ir::Program& program, domain::Frequency frequency,
-                              device::RfDevice& device) {
+                              device::RfDevice& tester,
+                              device::MeasurementDevice& measurement) {
     auto diagnostics = detail::validate_program(program);
     if (!diagnostics.empty()) return ExecutionResult{std::nullopt, std::move(diagnostics)};
 
     return ExecutionResult{
-        detail::evaluate_validated_point(program, frequency, device), {}};
+        detail::evaluate_validated_point(program, frequency, tester, measurement), {}};
 }
 
 } // namespace horusrf::runtime

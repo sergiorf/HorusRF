@@ -6,7 +6,7 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 | Suite | Responsibility | CTest label |
 |---|---|---|
 | parser, domain, semantic, IR | syntax, quantities, analysis, lowering | `unit` |
-| device, executor, characterization | simulated device and runtime behavior | `unit` |
+| device, executor, characterization | separated simulated equipment and runtime routing | `unit` |
 | procedural example, CSV | independent orchestration and serialization | `unit` |
 | declarative end-to-end | actual fixture through compiler and runtime | `integration` |
 | procedural/declarative equivalence | independent orchestration comparison | `integration` |

@@ -170,8 +170,11 @@ int run(const Arguments& arguments) {
         return diagnostic_error;
     }
 
-    device::SimulatedRfDevice simulator;
-    auto execution = runtime::execute_characterization(*lowered.program, simulator);
+    device::SimulatedRfConnection rf_output;
+    device::SimulatedRfTester tester{rf_output};
+    device::SimulatedMeasurementDevice measurement{rf_output};
+    auto execution =
+        runtime::execute_characterization(*lowered.program, tester, measurement);
     if (!execution.ok()) {
         print_diagnostics(arguments.source, execution.diagnostics,
                           runtime::diagnostic_code_name);

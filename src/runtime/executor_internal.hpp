@@ -10,6 +10,7 @@ namespace horusrf::runtime::detail {
 
 // The caller must first obtain an empty result from validate_program.
 [[nodiscard]] PointEvaluation evaluate_validated_point(
-    const ir::Program& program, domain::Frequency frequency, device::RfDevice& device);
+    const ir::Program& program, domain::Frequency frequency, device::RfDevice& tester,
+    device::MeasurementDevice& measurement);
 
 } // namespace horusrf::runtime::detail

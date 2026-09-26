@@ -40,7 +40,7 @@ ir::Program lower_source(std::string_view source) {
     return std::move(*lowered.program);
 }
 
-struct RecordingDevice : device::RfDevice {
+struct RecordingTester : device::RfDevice {
     void setFrequency(domain::Frequency value) override {
         calls.push_back("frequency");
         frequencies.push_back(value);
@@ -50,21 +50,35 @@ struct RecordingDevice : device::RfDevice {
         calls.push_back("power");
         powers.push_back(value);
     }
-    domain::Power measurePower() override {
-        calls.push_back("measure");
-        ++measurements;
-        if (throw_on_measurement != 0 && measurements == throw_on_measurement) {
-            throw std::runtime_error("device failure");
-        }
-        return domain::Power::from_dbm(-9.5 + current_frequency.hertz() * 0.01);
-    }
-
     std::vector<std::string> calls;
     std::vector<domain::Frequency> frequencies;
     std::vector<domain::Power> powers;
     domain::Frequency current_frequency = domain::Frequency::from_hertz(0.0);
+};
+
+struct RecordingMeasurement : device::MeasurementDevice {
+    explicit RecordingMeasurement(RecordingTester& tester) : tester_(tester) {}
+
+    domain::Power measurePower() override {
+        tester_.calls.push_back("measure");
+        ++measurements;
+        if (throw_on_measurement != 0 && measurements == throw_on_measurement) {
+            throw std::runtime_error("measurement failure");
+        }
+        return domain::Power::from_dbm(
+            -9.5 + tester_.current_frequency.hertz() * 0.01);
+    }
+
+    RecordingTester& tester_;
     std::size_t measurements{};
     std::size_t throw_on_measurement{};
+};
+
+struct RecordingSetup {
+    RecordingSetup() : measurement(tester) {}
+
+    RecordingTester tester;
+    RecordingMeasurement measurement;
 };
 
 void set_sweep(ir::Program& program, double start, double end, double step) {
@@ -75,32 +89,33 @@ void set_sweep(ir::Program& program, double start, double end, double step) {
 
 runtime::CharacterizationExecutionResult execute_range(double start, double end,
                                                         double step,
-                                                        RecordingDevice& device) {
+                                                        RecordingSetup& setup) {
     auto program = lower_source(small_source);
     set_sweep(program, start, end, step);
-    return runtime::execute_characterization(program, device);
+    return runtime::execute_characterization(program, setup.tester,
+                                             setup.measurement);
 }
 
 void sweep_generation_test() {
-    RecordingDevice one_device;
-    const auto one = execute_range(1.0, 1.0, 1.0, one_device);
+    RecordingSetup one_setup;
+    const auto one = execute_range(1.0, 1.0, 1.0, one_setup);
     CHECK(one.ok());
     CHECK_EQ(one.result->samples.size(), std::size_t{1});
 
-    RecordingDevice decimal_device;
-    const auto decimal = execute_range(0.0, 1.0, 0.1, decimal_device);
+    RecordingSetup decimal_setup;
+    const auto decimal = execute_range(0.0, 1.0, 0.1, decimal_setup);
     CHECK(decimal.ok());
     CHECK_EQ(decimal.result->samples.size(), std::size_t{11});
     CHECK_NEAR(decimal.result->samples.back().frequency.hertz(), 1.0, 0.0);
 
-    RecordingDevice non_divisible_device;
-    const auto non_divisible = execute_range(0.0, 1.0, 0.3, non_divisible_device);
+    RecordingSetup non_divisible_setup;
+    const auto non_divisible = execute_range(0.0, 1.0, 0.3, non_divisible_setup);
     CHECK(non_divisible.ok());
     CHECK_EQ(non_divisible.result->samples.size(), std::size_t{4});
     CHECK_NEAR(non_divisible.result->samples.back().frequency.hertz(), 0.9, 1e-12);
 
-    RecordingDevice negative_device;
-    const auto negative = execute_range(-2.0, 0.0, 1.0, negative_device);
+    RecordingSetup negative_setup;
+    const auto negative = execute_range(-2.0, 0.0, 1.0, negative_setup);
     CHECK(negative.ok());
     CHECK_EQ(negative.result->samples.size(), std::size_t{3});
     CHECK_NEAR(negative.result->samples.front().frequency.hertz(), -2.0, 0.0);
@@ -108,21 +123,21 @@ void sweep_generation_test() {
 }
 
 void orchestration_test() {
-    RecordingDevice device;
-    const auto result = execute_range(0.0, 1.0, 0.25, device);
+    RecordingSetup setup;
+    const auto result = execute_range(0.0, 1.0, 0.25, setup);
     CHECK(result.ok());
     CHECK_EQ(result.result->samples.size(), std::size_t{5});
     CHECK_EQ(result.result->calibration.name, std::string{"deliberately_different"});
     CHECK_EQ(result.result->calibration.dimensions.size(), std::size_t{5});
     CHECK_EQ(result.result->calibration.corrections.size(), std::size_t{5});
-    CHECK_EQ(device.calls.size(), std::size_t{15});
+    CHECK_EQ(setup.tester.calls.size(), std::size_t{15});
     for (std::size_t index = 0; index < result.result->samples.size(); ++index) {
         const auto& sample = result.result->samples[index];
-        CHECK_EQ(device.calls[index * 3], std::string{"frequency"});
-        CHECK_EQ(device.calls[index * 3 + 1], std::string{"power"});
-        CHECK_EQ(device.calls[index * 3 + 2], std::string{"measure"});
-        CHECK_EQ(device.frequencies[index], sample.frequency);
-        CHECK_EQ(device.powers[index], sample.reference_power);
+        CHECK_EQ(setup.tester.calls[index * 3], std::string{"frequency"});
+        CHECK_EQ(setup.tester.calls[index * 3 + 1], std::string{"power"});
+        CHECK_EQ(setup.tester.calls[index * 3 + 2], std::string{"measure"});
+        CHECK_EQ(setup.tester.frequencies[index], sample.frequency);
+        CHECK_EQ(setup.tester.powers[index], sample.reference_power);
         CHECK_EQ(result.result->calibration.dimensions[index], sample.frequency);
         CHECK_EQ(result.result->calibration.corrections[index], sample.correction);
         CHECK_NEAR(sample.error.db(),
@@ -135,8 +150,8 @@ void orchestration_test() {
                    1e-12);
     }
 
-    RecordingDevice repeated_device;
-    const auto repeated = execute_range(0.0, 1.0, 0.25, repeated_device);
+    RecordingSetup repeated_setup;
+    const auto repeated = execute_range(0.0, 1.0, 0.25, repeated_setup);
     CHECK(repeated.ok());
     for (std::size_t index = 0; index < result.result->samples.size(); ++index) {
         CHECK_EQ(repeated.result->samples[index].measured_power,
@@ -147,13 +162,14 @@ void orchestration_test() {
 }
 
 void expect_preflight_failure(ir::Program program, runtime::DiagnosticCode code) {
-    RecordingDevice device;
-    const auto result = runtime::execute_characterization(program, device);
+    RecordingSetup setup;
+    const auto result = runtime::execute_characterization(
+        program, setup.tester, setup.measurement);
     CHECK(!result.ok());
     CHECK(!result.result.has_value());
     CHECK(!result.diagnostics.empty());
     CHECK_EQ(result.diagnostics.front().code, code);
-    CHECK(device.calls.empty());
+    CHECK(setup.tester.calls.empty());
 }
 
 void validation_test() {
@@ -204,15 +220,16 @@ void validation_test() {
 
 void exception_propagation_test() {
     auto program = lower_source(small_source);
-    RecordingDevice device;
-    device.throw_on_measurement = 2;
+    RecordingSetup setup;
+    setup.measurement.throw_on_measurement = 2;
     try {
-        (void)runtime::execute_characterization(program, device);
+        (void)runtime::execute_characterization(program, setup.tester,
+                                                setup.measurement);
         CHECK(false);
     } catch (const std::runtime_error& error) {
-        CHECK_EQ(std::string{error.what()}, std::string{"device failure"});
-        CHECK_EQ(device.measurements, std::size_t{2});
-        CHECK_EQ(device.calls.size(), std::size_t{6});
+        CHECK_EQ(std::string{error.what()}, std::string{"measurement failure"});
+        CHECK_EQ(setup.measurement.measurements, std::size_t{2});
+        CHECK_EQ(setup.tester.calls.size(), std::size_t{6});
     }
 }
 
@@ -225,8 +242,11 @@ void canonical_pipeline_test() {
     const auto program = lower_source(source);
     CHECK_EQ(program.calibrations.front().indexes.front(), program.sweep.frequency);
 
-    device::SimulatedRfDevice simulator;
-    const auto execution = runtime::execute_characterization(program, simulator);
+    device::SimulatedRfConnection rf_output;
+    device::SimulatedRfTester tester{rf_output};
+    device::SimulatedMeasurementDevice measurement{rf_output};
+    const auto execution =
+        runtime::execute_characterization(program, tester, measurement);
     CHECK(execution.ok());
     const auto& result = *execution.result;
     CHECK_EQ(result.samples.size(), std::size_t{101});

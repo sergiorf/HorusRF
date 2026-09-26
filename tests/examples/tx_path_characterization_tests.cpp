@@ -25,7 +25,7 @@ public:
     using std::runtime_error::runtime_error;
 };
 
-struct RecordingDevice final : device::RfDevice {
+struct RecordingTester final : device::RfDevice {
     void setFrequency(domain::Frequency frequency) override {
         calls.push_back(Call::set_frequency);
         frequencies.push_back(frequency);
@@ -36,11 +36,19 @@ struct RecordingDevice final : device::RfDevice {
         output_powers.push_back(power);
     }
 
+    std::vector<Call> calls;
+    std::vector<domain::Frequency> frequencies;
+    std::vector<domain::Power> output_powers;
+};
+
+struct RecordingMeasurement final : device::MeasurementDevice {
+    explicit RecordingMeasurement(RecordingTester& tester) : tester_(tester) {}
+
     domain::Power measurePower() override {
-        calls.push_back(Call::measure_power);
+        tester_.calls.push_back(Call::measure_power);
         ++measurement_count;
         if (throw_on_measurement != 0 && measurement_count == throw_on_measurement) {
-            throw DeviceFailure{"recording device measurement failed"};
+            throw DeviceFailure{"recording measurement failed"};
         }
 
         const auto point_index = static_cast<double>(measurement_count - 1);
@@ -49,9 +57,7 @@ struct RecordingDevice final : device::RfDevice {
         return measured;
     }
 
-    std::vector<Call> calls;
-    std::vector<domain::Frequency> frequencies;
-    std::vector<domain::Power> output_powers;
+    RecordingTester& tester_;
     std::vector<domain::Power> measurements;
     std::size_t measurement_count{};
     std::size_t throw_on_measurement{};
@@ -68,31 +74,33 @@ void check_metrics_equal(const domain::CharacterizationMetrics& actual,
 }
 
 void recording_device_orchestration_test() {
-    RecordingDevice device;
-    const auto result = examples::run_tx_path_characterization(device);
+    RecordingTester tester;
+    RecordingMeasurement measurement{tester};
+    const auto result =
+        examples::run_tx_path_characterization(tester, measurement);
 
-    CHECK_EQ(device.calls.size(), std::size_t{303});
-    CHECK_EQ(device.measurement_count, std::size_t{101});
-    CHECK_EQ(device.frequencies.size(), std::size_t{101});
-    CHECK_EQ(device.output_powers.size(), std::size_t{101});
-    CHECK_EQ(device.measurements.size(), std::size_t{101});
+    CHECK_EQ(tester.calls.size(), std::size_t{303});
+    CHECK_EQ(measurement.measurement_count, std::size_t{101});
+    CHECK_EQ(tester.frequencies.size(), std::size_t{101});
+    CHECK_EQ(tester.output_powers.size(), std::size_t{101});
+    CHECK_EQ(measurement.measurements.size(), std::size_t{101});
     CHECK_EQ(result.samples.size(), std::size_t{101});
     CHECK_EQ(result.calibration.name, std::string{"tx_power"});
     CHECK_EQ(result.calibration.dimensions.size(), std::size_t{101});
     CHECK_EQ(result.calibration.corrections.size(), std::size_t{101});
 
-    CHECK_NEAR(device.frequencies.front().hertz(), 2.40e9, 0.0);
-    CHECK_NEAR(device.frequencies[1].hertz(), 2.401e9, 0.0);
-    CHECK_NEAR(device.frequencies.back().hertz(), 2.50e9, 0.0);
+    CHECK_NEAR(tester.frequencies.front().hertz(), 2.40e9, 0.0);
+    CHECK_NEAR(tester.frequencies[1].hertz(), 2.401e9, 0.0);
+    CHECK_NEAR(tester.frequencies.back().hertz(), 2.50e9, 0.0);
 
     for (std::size_t index = 0; index < result.samples.size(); ++index) {
         const auto& sample = result.samples[index];
-        CHECK_EQ(device.calls[index * 3], Call::set_frequency);
-        CHECK_EQ(device.calls[index * 3 + 1], Call::set_output_power);
-        CHECK_EQ(device.calls[index * 3 + 2], Call::measure_power);
-        CHECK_EQ(device.frequencies[index], sample.frequency);
-        CHECK_EQ(device.output_powers[index], sample.reference_power);
-        CHECK_EQ(device.measurements[index], sample.measured_power);
+        CHECK_EQ(tester.calls[index * 3], Call::set_frequency);
+        CHECK_EQ(tester.calls[index * 3 + 1], Call::set_output_power);
+        CHECK_EQ(tester.calls[index * 3 + 2], Call::measure_power);
+        CHECK_EQ(tester.frequencies[index], sample.frequency);
+        CHECK_EQ(tester.output_powers[index], sample.reference_power);
+        CHECK_EQ(measurement.measurements[index], sample.measured_power);
         CHECK_NEAR(sample.frequency.hertz(),
                    2.40e9 + static_cast<double>(index) * 1.0e6, 0.0);
         CHECK_NEAR(sample.reference_power.dbm(), -10.0, 0.0);
@@ -112,20 +120,21 @@ void recording_device_orchestration_test() {
 }
 
 void exception_propagation_test() {
-    RecordingDevice device;
-    device.throw_on_measurement = 7;
+    RecordingTester tester;
+    RecordingMeasurement measurement{tester};
+    measurement.throw_on_measurement = 7;
 
     try {
-        (void)examples::run_tx_path_characterization(device);
+        (void)examples::run_tx_path_characterization(tester, measurement);
         CHECK(false);
     } catch (const DeviceFailure& error) {
         CHECK_EQ(std::string{error.what()},
-                 std::string{"recording device measurement failed"});
-        CHECK_EQ(device.measurement_count, std::size_t{7});
-        CHECK_EQ(device.calls.size(), std::size_t{21});
-        CHECK_EQ(device.frequencies.size(), std::size_t{7});
-        CHECK_EQ(device.output_powers.size(), std::size_t{7});
-        CHECK_EQ(device.measurements.size(), std::size_t{6});
+                 std::string{"recording measurement failed"});
+        CHECK_EQ(measurement.measurement_count, std::size_t{7});
+        CHECK_EQ(tester.calls.size(), std::size_t{21});
+        CHECK_EQ(tester.frequencies.size(), std::size_t{7});
+        CHECK_EQ(tester.output_powers.size(), std::size_t{7});
+        CHECK_EQ(measurement.measurements.size(), std::size_t{6});
     }
 }
 
@@ -170,12 +179,18 @@ void check_canonical_result(const domain::CharacterizationResult& result) {
 }
 
 void simulator_acceptance_test() {
-    device::SimulatedRfDevice first_device;
-    const auto first = examples::run_tx_path_characterization(first_device);
+    device::SimulatedRfConnection first_output;
+    device::SimulatedRfTester first_tester{first_output};
+    device::SimulatedMeasurementDevice first_measurement{first_output};
+    const auto first =
+        examples::run_tx_path_characterization(first_tester, first_measurement);
     check_canonical_result(first);
 
-    device::SimulatedRfDevice second_device;
-    const auto second = examples::run_tx_path_characterization(second_device);
+    device::SimulatedRfConnection second_output;
+    device::SimulatedRfTester second_tester{second_output};
+    device::SimulatedMeasurementDevice second_measurement{second_output};
+    const auto second =
+        examples::run_tx_path_characterization(second_tester, second_measurement);
     check_canonical_result(second);
 
     for (std::size_t index = 0; index < first.samples.size(); ++index) {

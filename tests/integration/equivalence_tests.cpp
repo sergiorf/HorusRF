@@ -30,7 +30,8 @@ void require_near(double declarative, double procedural, double tolerance,
     throw std::runtime_error(message.str());
 }
 
-domain::CharacterizationResult declarative_result(device::RfDevice& device) {
+domain::CharacterizationResult declarative_result(
+    device::RfDevice& tester, device::MeasurementDevice& measurement) {
     std::ifstream input(std::string{HORUSRF_SOURCE_DIR} +
                         "/examples/tx_path_characterization.hrf", std::ios::binary);
     CHECK(input.good());
@@ -41,16 +42,23 @@ domain::CharacterizationResult declarative_result(device::RfDevice& device) {
     CHECK(analyzed.ok());
     const auto lowered = ir::lower(*analyzed.program);
     CHECK(lowered.ok());
-    auto execution = runtime::execute_characterization(*lowered.program, device);
+    auto execution =
+        runtime::execute_characterization(*lowered.program, tester, measurement);
     CHECK(execution.ok());
     return std::move(*execution.result);
 }
 
 void run_test() {
-    device::SimulatedRfDevice procedural_device;
-    device::SimulatedRfDevice declarative_device;
-    const auto procedural = examples::run_tx_path_characterization(procedural_device);
-    const auto declarative = declarative_result(declarative_device);
+    device::SimulatedRfConnection procedural_output;
+    device::SimulatedRfTester procedural_tester{procedural_output};
+    device::SimulatedMeasurementDevice procedural_measurement{procedural_output};
+    device::SimulatedRfConnection declarative_output;
+    device::SimulatedRfTester declarative_tester{declarative_output};
+    device::SimulatedMeasurementDevice declarative_measurement{declarative_output};
+    const auto procedural = examples::run_tx_path_characterization(
+        procedural_tester, procedural_measurement);
+    const auto declarative =
+        declarative_result(declarative_tester, declarative_measurement);
 
     CHECK_EQ(declarative.samples.size(), procedural.samples.size());
     CHECK_EQ(declarative.calibration.name, procedural.calibration.name);

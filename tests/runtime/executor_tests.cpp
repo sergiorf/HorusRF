@@ -66,7 +66,7 @@ ir::Program lower_source(std::string_view source) {
     return std::move(*lowered.program);
 }
 
-struct RecordingDevice : device::RfDevice {
+struct RecordingTester : device::RfDevice {
     void setFrequency(domain::Frequency value) override {
         calls.push_back("frequency");
         frequency = value;
@@ -75,14 +75,20 @@ struct RecordingDevice : device::RfDevice {
         calls.push_back("power");
         power = value;
     }
-    domain::Power measurePower() override {
-        calls.push_back("measure");
-        return measured;
-    }
-
     std::vector<std::string> calls;
     domain::Frequency frequency = domain::Frequency::from_hertz(0.0);
     domain::Power power = domain::Power::from_dbm(0.0);
+};
+
+struct RecordingMeasurement : device::MeasurementDevice {
+    explicit RecordingMeasurement(RecordingTester& tester) : tester_(tester) {}
+
+    domain::Power measurePower() override {
+        tester_.calls.push_back("measure");
+        return measured;
+    }
+
+    RecordingTester& tester_;
     domain::Power measured = domain::Power::from_dbm(-9.25);
 };
 
@@ -97,14 +103,15 @@ const runtime::RuntimeValue& named(const ir::Program& program,
 
 void operation_matrix_and_device_order_test() {
     const auto program = lower_source(operation_source);
-    RecordingDevice device;
+    RecordingTester tester;
+    RecordingMeasurement measurement{tester};
     const auto point = domain::Frequency::from_hertz(1.5e9);
-    const auto result = runtime::execute_point(program, point, device);
+    const auto result = runtime::execute_point(program, point, tester, measurement);
     CHECK(result.ok());
     CHECK_EQ(result.evaluation->values.size(), program.values.size());
-    CHECK_EQ(device.calls, std::vector<std::string>({"frequency", "power", "measure"}));
-    CHECK_EQ(device.frequency, point);
-    CHECK_NEAR(device.power.dbm(), -10.0, 1e-12);
+    CHECK_EQ(tester.calls, std::vector<std::string>({"frequency", "power", "measure"}));
+    CHECK_EQ(tester.frequency, point);
+    CHECK_NEAR(tester.power.dbm(), -10.0, 1e-12);
     CHECK_EQ(result.evaluation->frequency, point);
     CHECK_NEAR(std::get<domain::Frequency>(named(program, *result.evaluation,
                                                 "literal_frequency")).hertz(),
@@ -144,14 +151,15 @@ void operation_matrix_and_device_order_test() {
 
 void expect_failure(ir::Program program, runtime::DiagnosticCode code,
                     parser::SourceSpan expected_span) {
-    RecordingDevice device;
+    RecordingTester tester;
+    RecordingMeasurement measurement{tester};
     const auto result = runtime::execute_point(
-        program, domain::Frequency::from_hertz(1.5e9), device);
+        program, domain::Frequency::from_hertz(1.5e9), tester, measurement);
     CHECK(!result.ok());
     CHECK(!result.evaluation.has_value());
     CHECK_EQ(result.diagnostics.front().code, code);
     CHECK_EQ(result.diagnostics.front().span, expected_span);
-    CHECK(device.calls.empty());
+    CHECK(tester.calls.empty());
 }
 
 void defensive_validation_test() {
@@ -204,20 +212,22 @@ void defensive_validation_test() {
                    broken.calibrations.front().span);
 }
 
-struct ThrowingDevice final : device::RfDevice {
-    void setFrequency(domain::Frequency) override {}
-    void setOutputPower(domain::Power) override {}
-    domain::Power measurePower() override { throw std::runtime_error("device failure"); }
+struct ThrowingMeasurement final : device::MeasurementDevice {
+    domain::Power measurePower() override {
+        throw std::runtime_error("measurement failure");
+    }
 };
 
 void exception_propagation_test() {
-    ThrowingDevice device;
+    RecordingTester tester;
+    ThrowingMeasurement measurement;
     try {
         (void)runtime::execute_point(lower_source(operation_source),
-                                     domain::Frequency::from_hertz(1.5e9), device);
+                                     domain::Frequency::from_hertz(1.5e9), tester,
+                                     measurement);
         CHECK(false);
     } catch (const std::runtime_error& error) {
-        CHECK_EQ(std::string{error.what()}, "device failure");
+        CHECK_EQ(std::string{error.what()}, "measurement failure");
     }
 }
 
@@ -228,9 +238,11 @@ void canonical_pipeline_test() {
     const std::string source{std::istreambuf_iterator<char>{input},
                              std::istreambuf_iterator<char>{}};
     const auto program = lower_source(source);
-    device::SimulatedRfDevice simulator;
+    device::SimulatedRfConnection rf_output;
+    device::SimulatedRfTester tester{rf_output};
+    device::SimulatedMeasurementDevice measurement{rf_output};
     const auto result = runtime::execute_point(
-        program, domain::Frequency::from_hertz(2.425e9), simulator);
+        program, domain::Frequency::from_hertz(2.425e9), tester, measurement);
     CHECK(result.ok());
     CHECK_EQ(result.evaluation->values.size(), std::size_t{4});
     CHECK_NEAR(result.evaluation->frequency.hertz(), 2.425e9, 1e-3);

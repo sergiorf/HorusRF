@@ -46,8 +46,11 @@ void run_test() {
     CHECK_EQ(lowered.program->calibrations[0].indexes[0],
              lowered.program->sweep.frequency);
 
-    device::SimulatedRfDevice simulator;
-    const auto execution = runtime::execute_characterization(*lowered.program, simulator);
+    device::SimulatedRfConnection rf_output;
+    device::SimulatedRfTester tester{rf_output};
+    device::SimulatedMeasurementDevice measurement{rf_output};
+    const auto execution =
+        runtime::execute_characterization(*lowered.program, tester, measurement);
     CHECK(execution.ok());
     const auto& result = *execution.result;
     CHECK_EQ(result.samples.size(), std::size_t{101});

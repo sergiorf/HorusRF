@@ -2,8 +2,9 @@
 
 HorusRF is a C++20 declarative DSL for reproducible RF characterization. Its
 reference experiment configures a nominal tester TX output, sweeps 2.40–2.50 GHz in 1 MHz
-steps, observes an imperfect path through a deterministic simulator, and derives a
-frequency-indexed power correction. The canonical program is
+steps, measures the resulting RF output with separate calibrated measurement
+equipment, and derives a frequency-indexed power correction. A deterministic
+simulator supplies both sides of that physical setup. The canonical program is
 [`examples/tx_path_characterization.hrf`](examples/tx_path_characterization.hrf).
 The repository is a focused, executable demonstration of how such a DSL could
 look; it is not a staged product roadmap.
@@ -93,7 +94,9 @@ C++ API also uses strong `Frequency`, `Power`, and `PowerDelta` types, but the D
 additionally validates the experiment as a whole: required declarations, statement
 availability, sweep validity, expression dimensions, and calibration index shape.
 Procedural code can implement the same checks, but must do so explicitly and invoke
-them consistently before operating a device.
+them consistently before operating equipment. The procedural C++ example explicitly
+coordinates the tester and measurement device; the HorusRF runtime performs that
+coordination behind the unchanged `sweep frequency` and `measure power` intent.
 
 ## Reference documentation
 

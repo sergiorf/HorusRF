@@ -100,7 +100,8 @@ const T& slot(const PointEvaluation& evaluation, ir::ValueId id) {
 } // namespace
 
 CharacterizationExecutionResult execute_characterization(const ir::Program& program,
-                                                          device::RfDevice& device) {
+                                                          device::RfDevice& tester,
+                                                          device::MeasurementDevice& measurement) {
     auto diagnostics = detail::validate_program(program);
     if (!diagnostics.empty()) return {std::nullopt, std::move(diagnostics)};
 
@@ -131,7 +132,7 @@ CharacterizationExecutionResult execute_characterization(const ir::Program& prog
     for (std::size_t index = 0; index < sweep->point_count; ++index) {
         const auto frequency = frequency_at(*sweep, index);
         const auto evaluation =
-            detail::evaluate_validated_point(program, frequency, device);
+            detail::evaluate_validated_point(program, frequency, tester, measurement);
         const auto reference = slot<domain::Power>(evaluation, program.reference);
         const auto measured = slot<domain::Power>(evaluation, program.measurement);
         const auto correction =

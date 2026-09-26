@@ -18,7 +18,8 @@ static_assert(first_frequency_hz +
 } // namespace
 
 domain::CharacterizationResult
-run_tx_path_characterization(device::RfDevice& device) {
+run_tx_path_characterization(device::RfDevice& tester,
+                             device::MeasurementDevice& measurement) {
     domain::CharacterizationResult result;
     result.calibration.name = "tx_power";
     result.samples.reserve(point_count);
@@ -31,9 +32,9 @@ run_tx_path_characterization(device::RfDevice& device) {
         const auto frequency = domain::Frequency::from_hertz(
             first_frequency_hz + static_cast<double>(index) * frequency_step_hz);
 
-        device.setFrequency(frequency);
-        device.setOutputPower(reference_power);
-        const auto measured_power = device.measurePower();
+        tester.setFrequency(frequency);
+        tester.setOutputPower(reference_power);
+        const auto measured_power = measurement.measurePower();
 
         const auto error = measured_power - reference_power;
         const auto correction = -error;
