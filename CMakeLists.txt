@@ -111,6 +111,8 @@ if(HORUSRF_BUILD_STUDIO)
     add_library(horusrf_studio_ui STATIC
         src/studio/dsl_editor.cpp
         src/studio/dsl_editor.hpp
+        src/studio/experiment_runner.cpp
+        src/studio/experiment_runner.hpp
         src/studio/main_window.cpp
         src/studio/main_window.hpp
         src/studio/syntax_highlighter.cpp
@@ -247,6 +249,10 @@ if(BUILD_TESTING)
         target_link_libraries(horusrf_studio_tests PRIVATE
             horusrf_studio_ui Qt6::Test
         )
+        target_compile_definitions(horusrf_studio_tests PRIVATE
+            HORUSRF_RUN_PATH="$<TARGET_FILE:horusrf-run>"
+        )
+        add_dependencies(horusrf_studio_tests horusrf-run)
         set_target_properties(horusrf_studio_tests PROPERTIES AUTOMOC ON)
         horusrf_enable_warnings(horusrf_studio_tests)
         if(WIN32)

@@ -31,7 +31,7 @@ The executable is normally `build/horusrf-run` for a single-config generator and
 `build/Debug/horusrf-run` (or the selected configuration) for a multi-config
 generator. On Windows, append `.exe`.
 
-The default build remains Qt-free. To build the optional editor-only HorusRF
+The default build remains Qt-free. To build the optional HorusRF
 Studio on Windows with the supported Qt installation, configure and build the
 same directory with:
 
@@ -56,10 +56,13 @@ build/horusrf-studio
 ```
 
 For a multi-config generator, launch `build/<Configuration>/horusrf-studio`
-instead. Studio currently provides a resizable editor workspace, HorusRF syntax
-highlighting, line numbers, standard file and undo/redo actions, and the canonical
-example as an initially unmodified, untitled template. Results and diagnostics
-are placeholders until later milestones; Studio does not yet execute experiments.
+instead. Studio provides a resizable editor workspace, HorusRF syntax highlighting,
+line numbers, standard file and undo/redo actions, and the canonical example as an
+initially unmodified, untitled template. F5 validates the current editor buffer and
+F6 runs it, including unsaved changes, by invoking the sibling `horusrf-run`
+executable. Compiler diagnostics are clickable, and raw standard output and standard
+error remain available in separate panes. The results area shows the CLI summary;
+CSV plotting is reserved for the next milestone.
 
 ## Run the reference experiment
 
@@ -67,6 +70,7 @@ Using a multi-config Debug build:
 
 ```sh
 build/Debug/horusrf-run examples/tx_path_characterization.hrf
+build/Debug/horusrf-run examples/tx_path_characterization.hrf --check
 build/Debug/horusrf-run examples/tx_path_characterization.hrf --csv output.csv
 ```
 
@@ -84,10 +88,14 @@ standard report fields at every point: error is measured minus reference,
 corrected power is measured plus correction, and residual error is corrected power
 minus reference. These report fields are not implicit DSL declarations.
 
+`--check` parses, semantically analyzes, and lowers the source without constructing
+devices or executing the experiment. It is mutually exclusive with `--csv` and
+produces no output when validation succeeds.
+
 Source failures are written without color as
 `path:line:column: diagnostic.code: message`. Exit status is 0 for success, 2 for
 usage, 3 for file I/O, 4 for source/compiler/runtime diagnostics, and 5 for an
-unexpected failure. `horusrf-run --help` prints the accepted command form.
+unexpected failure. `horusrf-run --help` prints the accepted command forms.
 
 ## Semantic failure showcase
 

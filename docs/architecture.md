@@ -269,11 +269,12 @@ publishes only resulting power to the opaque connection, and measurement exposes
 only `measurePower()`. Strong dBm/dB types make cross-layer dimensional intent
 explicit.
 
-Studio is a separate application layer. Its first milestone is an editor shell;
-when execution is added it invokes the sibling `horusrf-run` executable rather
-than linking compiler, runtime, device, simulator, or output targets. This keeps
-the GPL-3.0-only desktop application outside the Apache-2.0 core and CLI target
-graph.
+Studio is a separate application layer. It writes the current editor buffer to a
+temporary source file and invokes the sibling `horusrf-run` executable asynchronously
+for validation or execution. It never links compiler, runtime, device, simulator,
+or output targets. Structured source diagnostics are parsed from standard error for
+navigation while raw standard output and standard error remain distinct. This keeps
+the GPL-3.0-only desktop application outside the Apache-2.0 core and CLI target graph.
 
 Fresh simulator instances with the same calls produce identical observations. The
 simulator model remains private. Console and CSV output use the classic locale and

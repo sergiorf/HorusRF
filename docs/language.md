@@ -112,6 +112,10 @@ Parse, semantic, lowering, and runtime codes begin with `parse.`, `semantic.`,
 status 4, writes to standard error, emits no success output, and does not create a
 requested CSV. Usage errors exit 2 and file I/O errors exit 3.
 
+`horusrf-run <source.hrf> --check` performs parsing, semantic analysis, and lowering
+without constructing devices or executing the characterization. A successful check
+is silent and exits with status 0. `--check` and `--csv` are mutually exclusive.
+
 Examples of rejected programs include a missing unit (`reference power = 10`), an
 unknown name (`derive x = missing`), a non-positive step, and a calibration indexed
 over `power` rather than `frequency`.

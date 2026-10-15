@@ -33,6 +33,22 @@ foreach(expected IN ITEMS "characterization: tx_path" "samples: 101"
 endforeach()
 
 execute_process(
+    COMMAND "${HORUSRF_RUN}" "${SOURCE_FILE}" --check
+    RESULT_VARIABLE check_result OUTPUT_VARIABLE check_output ERROR_VARIABLE check_error
+)
+if(NOT check_result EQUAL 0 OR NOT check_output STREQUAL "" OR NOT check_error STREQUAL "")
+    message(FATAL_ERROR "check invocation failed: ${check_result}: ${check_error}")
+endif()
+
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${SOURCE_FILE}" --check --csv "${OUTPUT_FILE}"
+    RESULT_VARIABLE mixed_result OUTPUT_VARIABLE mixed_output ERROR_VARIABLE mixed_error
+)
+if(NOT mixed_result EQUAL 2 OR mixed_error STREQUAL "")
+    message(FATAL_ERROR "mutually exclusive options were accepted: ${mixed_result}")
+endif()
+
+execute_process(
     COMMAND "${HORUSRF_RUN}" "${SOURCE_FILE}" --csv "${OUTPUT_FILE}"
     RESULT_VARIABLE csv_result OUTPUT_VARIABLE csv_output ERROR_VARIABLE csv_error
 )
@@ -101,6 +117,20 @@ foreach(case IN ITEMS parse semantic)
     endif()
     if(EXISTS "${failure_csv}")
         message(FATAL_ERROR "${case} failure created CSV: ${failure_csv}")
+    endif()
+
+    execute_process(
+        COMMAND "${HORUSRF_RUN}" "${invalid_source}" --check
+        RESULT_VARIABLE check_failure_result
+        OUTPUT_VARIABLE check_failure_output
+        ERROR_VARIABLE check_failure_error
+    )
+    if(NOT check_failure_result EQUAL 4 OR NOT check_failure_output STREQUAL "")
+        message(FATAL_ERROR "${case} check contract failed: ${check_failure_result}")
+    endif()
+    string(FIND "${check_failure_error}" "${expected_prefix}" check_prefix_position)
+    if(NOT check_prefix_position EQUAL 0)
+        message(FATAL_ERROR "${case} check diagnostic has wrong prefix: ${check_failure_error}")
     endif()
 endforeach()
 

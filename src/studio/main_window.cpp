@@ -2,6 +2,7 @@
 #include "main_window.hpp"
 
 #include "dsl_editor.hpp"
+#include "experiment_runner.hpp"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -10,11 +11,15 @@
 #include <QFileInfo>
 #include <QKeySequence>
 #include <QLabel>
+#include <QListWidget>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QSaveFile>
 #include <QSplitter>
 #include <QStringDecoder>
+#include <QTabWidget>
+#include <QTextBlock>
+#include <QTextCursor>
 #include <QTextDocument>
 #include <QToolBar>
 
@@ -24,8 +29,10 @@ static void initializeStudioResources() {
 
 namespace horusrf::studio {
 
-MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+MainWindow::MainWindow(QWidget* parent, const QString& runnerExecutable)
+    : QMainWindow(parent) {
     initializeStudioResources();
+    runner_ = new ExperimentRunner(runnerExecutable, this);
     createLayout();
     createActions();
 
@@ -42,29 +49,47 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
                 setWindowModified(modified);
                 updateWindowTitle();
             });
+    connect(runner_, &ExperimentRunner::completed, this,
+            &MainWindow::experimentCompleted);
 }
 
 void MainWindow::createLayout() {
     editor_ = new DslEditor(this);
 
-    auto* results = new QLabel(tr("Results will appear here in a later milestone."));
-    results->setObjectName(QStringLiteral("resultsPlaceholder"));
-    results->setAlignment(Qt::AlignCenter);
+    results_ = new QLabel(tr("Run an experiment to see its summary."));
+    results_->setObjectName(QStringLiteral("resultsPlaceholder"));
+    results_->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    results_->setWordWrap(true);
+    results_->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-    auto* diagnostics = new QLabel(
-        tr("Diagnostics will appear here after validation is implemented."));
-    diagnostics->setObjectName(QStringLiteral("diagnosticsPlaceholder"));
-    diagnostics->setAlignment(Qt::AlignCenter);
+    diagnostics_ = new QListWidget(this);
+    diagnostics_->setObjectName(QStringLiteral("diagnosticsList"));
+    diagnostics_->addItem(tr("No diagnostics."));
+    connect(diagnostics_, &QListWidget::itemClicked, this,
+            &MainWindow::navigateToDiagnostic);
+
+    standard_output_ = new QPlainTextEdit(this);
+    standard_output_->setObjectName(QStringLiteral("standardOutput"));
+    standard_output_->setReadOnly(true);
+    standard_error_ = new QPlainTextEdit(this);
+    standard_error_->setObjectName(QStringLiteral("standardError"));
+    standard_error_->setReadOnly(true);
+
+    auto* processOutput = new QTabWidget(this);
+    processOutput->setObjectName(QStringLiteral("processOutputTabs"));
+    processOutput->addTab(diagnostics_, tr("Diagnostics"));
+    processOutput->addTab(standard_output_, tr("Standard output"));
+    processOutput->addTab(standard_error_, tr("Standard error"));
 
     auto* upper = new QSplitter(Qt::Horizontal, this);
     upper->addWidget(editor_);
-    upper->addWidget(results);
+    upper->addWidget(results_);
     upper->setStretchFactor(0, 3);
     upper->setStretchFactor(1, 2);
 
     auto* workspace = new QSplitter(Qt::Vertical, this);
     workspace->addWidget(upper);
-    workspace->addWidget(diagnostics);
+    workspace->addWidget(processOutput);
     workspace->setStretchFactor(0, 4);
     workspace->setStretchFactor(1, 1);
     setCentralWidget(workspace);
@@ -109,6 +134,102 @@ void MainWindow::createActions() {
     redo->setEnabled(false);
     connect(redo, &QAction::triggered, editor_, &QPlainTextEdit::redo);
     connect(editor_, &QPlainTextEdit::redoAvailable, redo, &QAction::setEnabled);
+
+    auto* experiment = menuBar()->addMenu(tr("&Experiment"));
+    auto* experimentToolbar = addToolBar(tr("Experiment"));
+    experimentToolbar->setObjectName(QStringLiteral("experimentToolBar"));
+
+    validate_action_ = experiment->addAction(tr("&Validate"));
+    validate_action_->setObjectName(QStringLiteral("validateAction"));
+    validate_action_->setShortcut(QKeySequence(Qt::Key_F5));
+    connect(validate_action_, &QAction::triggered, this,
+            &MainWindow::validateExperiment);
+    experimentToolbar->addAction(validate_action_);
+
+    run_action_ = experiment->addAction(tr("&Run"));
+    run_action_->setObjectName(QStringLiteral("runAction"));
+    run_action_->setShortcut(QKeySequence(Qt::Key_F6));
+    connect(run_action_, &QAction::triggered, this, &MainWindow::runExperiment);
+    experimentToolbar->addAction(run_action_);
+}
+
+void MainWindow::validateExperiment() {
+    results_->setText(tr("Validating..."));
+    diagnostics_->clear();
+    standard_output_->clear();
+    standard_error_->clear();
+    validate_action_->setEnabled(false);
+    run_action_->setEnabled(false);
+    if (!runner_->validate(editor_->toPlainText())) {
+        validate_action_->setEnabled(true);
+        run_action_->setEnabled(true);
+    }
+}
+
+void MainWindow::runExperiment() {
+    results_->setText(tr("Running..."));
+    diagnostics_->clear();
+    standard_output_->clear();
+    standard_error_->clear();
+    validate_action_->setEnabled(false);
+    run_action_->setEnabled(false);
+    if (!runner_->run(editor_->toPlainText())) {
+        validate_action_->setEnabled(true);
+        run_action_->setEnabled(true);
+    }
+}
+
+void MainWindow::experimentCompleted() {
+    validate_action_->setEnabled(true);
+    run_action_->setEnabled(true);
+
+    const auto& result = runner_->lastResult();
+    standard_output_->setPlainText(result.standard_output);
+    standard_error_->setPlainText(result.standard_error);
+    diagnostics_->clear();
+    for (const auto& diagnostic : result.diagnostics) {
+        auto* item = new QListWidgetItem(
+            tr("%1:%2: %3: %4")
+                .arg(diagnostic.line)
+                .arg(diagnostic.column)
+                .arg(diagnostic.code, diagnostic.message),
+            diagnostics_);
+        item->setData(Qt::UserRole, diagnostic.line);
+        item->setData(Qt::UserRole + 1, diagnostic.column);
+        item->setToolTip(diagnostic.path);
+    }
+    if (result.diagnostics.isEmpty()) diagnostics_->addItem(tr("No diagnostics."));
+
+    if (result.succeeded()) {
+        if (result.operation == ExperimentRunner::Operation::Validate) {
+            results_->setText(tr("Validation succeeded."));
+        } else {
+            const QString summary = result.standard_output.trimmed();
+            results_->setText(summary.isEmpty() ? tr("Experiment completed.") : summary);
+        }
+    } else if (result.exit_status == QProcess::CrashExit) {
+        results_->setText(tr("The HorusRF runner terminated abnormally."));
+    } else if (result.exit_code < 0) {
+        results_->setText(tr("The HorusRF runner could not be started."));
+    } else {
+        results_->setText(tr("The HorusRF runner failed with exit code %1.")
+                              .arg(result.exit_code));
+    }
+}
+
+void MainWindow::navigateToDiagnostic(QListWidgetItem* item) {
+    const int line = item->data(Qt::UserRole).toInt();
+    const int column = item->data(Qt::UserRole + 1).toInt();
+    if (line < 1 || column < 1) return;
+
+    const QTextBlock block = editor_->document()->findBlockByNumber(line - 1);
+    if (!block.isValid()) return;
+    QTextCursor cursor(block);
+    const int offset = qMin(column - 1, qMax(0, block.length() - 1));
+    cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, offset);
+    editor_->setTextCursor(cursor);
+    editor_->setFocus();
+    editor_->centerCursor();
 }
 
 void MainWindow::newDocument() {
@@ -196,6 +317,7 @@ void MainWindow::updateWindowTitle() {
 
 void MainWindow::closeEvent(QCloseEvent* event) {
     if (confirmSaveIfModified()) {
+        runner_->cancel();
         event->accept();
     } else {
         event->ignore();

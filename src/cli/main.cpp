@@ -27,11 +27,12 @@ constexpr int io_error = 3;
 constexpr int diagnostic_error = 4;
 constexpr int unexpected_error = 5;
 constexpr std::string_view usage =
-    "usage: horusrf-run <source.hrf> [--csv <output.csv>]";
+    "usage: horusrf-run <source.hrf> [--check | --csv <output.csv>]";
 
 struct Arguments {
     fs::path source;
     std::optional<fs::path> csv;
+    bool check = false;
 };
 
 int report_usage(std::string_view message) {
@@ -54,11 +55,15 @@ std::optional<Arguments> parse_arguments(int argc, char** argv, int& exit_code) 
         return std::nullopt;
     }
 
-    Arguments arguments{fs::path{argv[1]}, std::nullopt};
+    Arguments arguments{fs::path{argv[1]}, std::nullopt, false};
     if (argc == 2) return arguments;
+    if (argc == 3 && std::string_view{argv[2]} == "--check") {
+        arguments.check = true;
+        return arguments;
+    }
     if (argc != 4 || std::string_view{argv[2]} != "--csv" ||
         std::string_view{argv[3]}.empty()) {
-        exit_code = report_usage("expected one optional --csv path");
+        exit_code = report_usage("expected --check or one optional --csv path");
         return std::nullopt;
     }
     arguments.csv = fs::path{argv[3]};
@@ -169,6 +174,8 @@ int run(const Arguments& arguments) {
         print_diagnostics(arguments.source, lowered.diagnostics, ir::diagnostic_code_name);
         return diagnostic_error;
     }
+
+    if (arguments.check) return 0;
 
     device::SimulatedRfConnection rf_output;
     device::SimulatedRfTester tester{rf_output};
