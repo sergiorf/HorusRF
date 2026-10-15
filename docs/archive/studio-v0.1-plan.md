@@ -1,5 +1,10 @@
 # HorusRF Studio v0.1 implementation plan
 
+> **Archived as complete on 2026-10-16.** All three milestones were implemented
+> and accepted in commits `a5e7221`, `3e4e3a1`, and `8758a57`. The Qt-disabled
+> suite passed 17/17 tests and the Qt-enabled suite passed 18/18 tests at final
+> acceptance. The instructions below are retained as the historical plan.
+
 ## Purpose and execution boundary
 
 This document is the handoff plan for adding the optional HorusRF Studio desktop
