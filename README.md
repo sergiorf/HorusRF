@@ -31,6 +31,36 @@ The executable is normally `build/horusrf-run` for a single-config generator and
 `build/Debug/horusrf-run` (or the selected configuration) for a multi-config
 generator. On Windows, append `.exe`.
 
+The default build remains Qt-free. To build the optional editor-only HorusRF
+Studio on Windows with the supported Qt installation, configure and build the
+same directory with:
+
+```powershell
+cmake -S . -B build `
+  -DHORUSRF_BUILD_STUDIO=ON `
+  -DCMAKE_PREFIX_PATH=C:\Qt\6.12.0\msvc2022_64
+cmake --build build --config Debug --parallel
+ctest --test-dir build -C Debug --output-on-failure
+build\Debug\horusrf-studio.exe
+```
+
+On Linux, use the generator-neutral equivalent (omit `CMAKE_PREFIX_PATH` when
+Qt is already discoverable):
+
+```sh
+cmake -S . -B build -DHORUSRF_BUILD_STUDIO=ON \
+  -DCMAKE_PREFIX_PATH=/path/to/Qt/6.x/gcc_64
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+build/horusrf-studio
+```
+
+For a multi-config generator, launch `build/<Configuration>/horusrf-studio`
+instead. Studio currently provides a resizable editor workspace, HorusRF syntax
+highlighting, line numbers, standard file and undo/redo actions, and the canonical
+example as an initially unmodified, untitled template. Results and diagnostics
+are placeholders until later milestones; Studio does not yet execute experiments.
+
 ## Run the reference experiment
 
 Using a multi-config Debug build:
@@ -103,17 +133,19 @@ coordination behind the unchanged `sweep frequency` and `measure power` intent.
 - [Language reference](docs/language.md)
 - [Architecture and execution model](docs/architecture.md)
 - [Test suite organization](tests/README.md)
-- [Apache 2.0 license](LICENSE)
+- [Apache 2.0 core and CLI license](LICENSE)
+- [GPLv3 Studio license](LICENSE-GPL-3.0)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Licensing
 
-HorusRF source code remains licensed under Apache License 2.0. Optional desktop
-components may use dynamically linked third-party libraries under their own
-terms. In particular, HorusRF Studio is designed to use Qt 6 under either a
-suitable commercial Qt license or the applicable open-source Qt terms. See the
-[third-party notices](THIRD_PARTY_NOTICES.md) for details relevant to building
-and distributing Studio.
+The HorusRF language, compiler, runtime, device, simulator, output, examples, and
+`horusrf-run` CLI remain licensed under Apache License 2.0. The separate
+`horusrf-studio` application and its Studio-specific tests are licensed under
+GPL-3.0-only; their source files carry SPDX notices and the license text is in
+[`LICENSE-GPL-3.0`](LICENSE-GPL-3.0). Qt remains under its own commercial or
+open-source terms. See the [third-party notices](THIRD_PARTY_NOTICES.md) for
+build and distribution details.
 
 The current implementation is simulator-only. It does not provide real hardware support, general-purpose RF
 automation, or persisted/imported calibration.

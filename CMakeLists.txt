@@ -5,6 +5,8 @@ project(HorusRF VERSION 0.1.0 LANGUAGES CXX)
 include(CTest)
 include(cmake/warnings.cmake)
 
+option(HORUSRF_BUILD_STUDIO "Build the optional HorusRF Studio application" OFF)
+
 add_library(horusrf_parser STATIC
     src/parser/lexer.cpp
     src/parser/parser.cpp
@@ -99,6 +101,38 @@ target_link_libraries(horusrf-run PRIVATE
     horusrf_semantic horusrf_ir
 )
 horusrf_enable_warnings(horusrf-run)
+
+if(HORUSRF_BUILD_STUDIO)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets)
+    if(BUILD_TESTING)
+        find_package(Qt6 REQUIRED COMPONENTS Test)
+    endif()
+
+    add_library(horusrf_studio_ui STATIC
+        src/studio/dsl_editor.cpp
+        src/studio/dsl_editor.hpp
+        src/studio/main_window.cpp
+        src/studio/main_window.hpp
+        src/studio/syntax_highlighter.cpp
+        src/studio/syntax_highlighter.hpp
+    )
+    target_compile_features(horusrf_studio_ui PUBLIC cxx_std_20)
+    target_include_directories(horusrf_studio_ui PUBLIC src/studio)
+    target_link_libraries(horusrf_studio_ui PUBLIC Qt6::Widgets)
+    set_target_properties(horusrf_studio_ui PROPERTIES AUTOMOC ON AUTORCC ON)
+    qt_add_resources(horusrf_studio_ui "studio_resources"
+        PREFIX "/examples"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/examples"
+        FILES examples/tx_path_characterization.hrf
+    )
+    horusrf_enable_warnings(horusrf_studio_ui)
+
+    add_executable(horusrf-studio src/studio/main.cpp)
+    target_compile_features(horusrf-studio PRIVATE cxx_std_20)
+    target_link_libraries(horusrf-studio PRIVATE horusrf_studio_ui)
+    set_target_properties(horusrf-studio PROPERTIES AUTOMOC ON AUTORCC ON)
+    horusrf_enable_warnings(horusrf-studio)
+endif()
 
 if(BUILD_TESTING)
     if(CMAKE_CONFIGURATION_TYPES)
@@ -206,6 +240,30 @@ if(BUILD_TESTING)
     target_link_libraries(horusrf_csv_tests PRIVATE horusrf_output horusrf_domain)
     horusrf_enable_warnings(horusrf_csv_tests)
     add_test(NAME horusrf_csv_tests COMMAND horusrf_csv_tests)
+
+    if(HORUSRF_BUILD_STUDIO)
+        add_executable(horusrf_studio_tests tests/studio/studio_tests.cpp)
+        target_compile_features(horusrf_studio_tests PRIVATE cxx_std_20)
+        target_link_libraries(horusrf_studio_tests PRIVATE
+            horusrf_studio_ui Qt6::Test
+        )
+        set_target_properties(horusrf_studio_tests PROPERTIES AUTOMOC ON)
+        horusrf_enable_warnings(horusrf_studio_tests)
+        if(WIN32)
+            add_test(NAME horusrf_studio_tests
+                COMMAND ${CMAKE_COMMAND} -E env
+                    "QT_QPA_PLATFORM=offscreen"
+                    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+                    $<TARGET_FILE:horusrf_studio_tests>
+            )
+        else()
+            add_test(NAME horusrf_studio_tests COMMAND horusrf_studio_tests)
+        endif()
+        set_tests_properties(horusrf_studio_tests PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            LABELS unit
+        )
+    endif()
 
     add_executable(horusrf_end_to_end_tests
         tests/integration/end_to_end_tests.cpp

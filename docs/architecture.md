@@ -57,6 +57,7 @@ order.
 flowchart TB
     subgraph Applications
         CLI[horusrf-run]
+        Studio[horusrf-studio<br/>Qt editor and process orchestration]
         Procedural[horusrf_procedural_example]
     end
 
@@ -81,6 +82,8 @@ flowchart TB
     CLI --> Runtime
     CLI --> Simulator
     CLI --> Output
+
+    Studio -. process boundary .-> CLI
 
     Semantic --> Parser
     Semantic --> Domain
@@ -256,6 +259,7 @@ The target-level dependency rules are:
 | `horusrf_procedural_example` | device, domain |
 | `horusrf_output` | domain |
 | `horusrf-run` | composition of the implemented layers |
+| `horusrf-studio` | Qt Widgets only; communicates with `horusrf-run` through a process boundary |
 
 Domain code must not depend on compiler layers. AST must not depend on semantic,
 runtime, or device code. Runtime must not access simulator internals, and procedural
@@ -264,6 +268,12 @@ deterministic TX-path response is a private implementation function: the tester
 publishes only resulting power to the opaque connection, and measurement exposes
 only `measurePower()`. Strong dBm/dB types make cross-layer dimensional intent
 explicit.
+
+Studio is a separate application layer. Its first milestone is an editor shell;
+when execution is added it invokes the sibling `horusrf-run` executable rather
+than linking compiler, runtime, device, simulator, or output targets. This keeps
+the GPL-3.0-only desktop application outside the Apache-2.0 core and CLI target
+graph.
 
 Fresh simulator instances with the same calls produce identical observations. The
 simulator model remains private. Console and CSV output use the classic locale and
