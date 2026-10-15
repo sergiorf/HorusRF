@@ -104,6 +104,16 @@ coordination behind the unchanged `sweep frequency` and `measure power` intent.
 - [Architecture and execution model](docs/architecture.md)
 - [Test suite organization](tests/README.md)
 - [Apache 2.0 license](LICENSE)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+## Licensing
+
+HorusRF source code remains licensed under Apache License 2.0. Optional desktop
+components may use dynamically linked third-party libraries under their own
+terms. In particular, HorusRF Studio is designed to use Qt 6 under either a
+suitable commercial Qt license or the applicable open-source Qt terms. See the
+[third-party notices](THIRD_PARTY_NOTICES.md) for details relevant to building
+and distributing Studio.
 
 The current implementation is simulator-only. It does not provide real hardware support, general-purpose RF
 automation, or persisted/imported calibration.
