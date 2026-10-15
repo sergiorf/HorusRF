@@ -3,6 +3,8 @@
 
 #include "dsl_editor.hpp"
 #include "experiment_runner.hpp"
+#include "results_model.hpp"
+#include "results_view.hpp"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -10,7 +12,6 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QKeySequence>
-#include <QLabel>
 #include <QListWidget>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -56,11 +57,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& runnerExecutable)
 void MainWindow::createLayout() {
     editor_ = new DslEditor(this);
 
-    results_ = new QLabel(tr("Run an experiment to see its summary."));
-    results_->setObjectName(QStringLiteral("resultsPlaceholder"));
-    results_->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-    results_->setWordWrap(true);
-    results_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    results_ = new ResultsView(this);
 
     diagnostics_ = new QListWidget(this);
     diagnostics_->setObjectName(QStringLiteral("diagnosticsList"));
@@ -154,7 +151,7 @@ void MainWindow::createActions() {
 }
 
 void MainWindow::validateExperiment() {
-    results_->setText(tr("Validating..."));
+    results_->setStatusMessage(tr("Validating..."));
     diagnostics_->clear();
     standard_output_->clear();
     standard_error_->clear();
@@ -167,7 +164,7 @@ void MainWindow::validateExperiment() {
 }
 
 void MainWindow::runExperiment() {
-    results_->setText(tr("Running..."));
+    results_->setStatusMessage(tr("Running..."));
     diagnostics_->clear();
     standard_output_->clear();
     standard_error_->clear();
@@ -202,18 +199,25 @@ void MainWindow::experimentCompleted() {
 
     if (result.succeeded()) {
         if (result.operation == ExperimentRunner::Operation::Validate) {
-            results_->setText(tr("Validation succeeded."));
+            results_->setStatusMessage(tr("Validation succeeded."));
         } else {
-            const QString summary = result.standard_output.trimmed();
-            results_->setText(summary.isEmpty() ? tr("Experiment completed.") : summary);
+            QString parseError;
+            const auto model = ResultsModel::fromCsvFile(result.csv_path, &parseError);
+            if (model.has_value()) {
+                results_->setResults(*model, result.standard_output);
+            } else {
+                results_->setStatusMessage(tr("The experiment completed, but its results "
+                                              "could not be loaded: %1")
+                                               .arg(parseError));
+            }
         }
     } else if (result.exit_status == QProcess::CrashExit) {
-        results_->setText(tr("The HorusRF runner terminated abnormally."));
+        results_->setStatusMessage(tr("The HorusRF runner terminated abnormally."));
     } else if (result.exit_code < 0) {
-        results_->setText(tr("The HorusRF runner could not be started."));
+        results_->setStatusMessage(tr("The HorusRF runner could not be started."));
     } else {
-        results_->setText(tr("The HorusRF runner failed with exit code %1.")
-                              .arg(result.exit_code));
+        results_->setStatusMessage(tr("The HorusRF runner failed with exit code %1.")
+                                       .arg(result.exit_code));
     }
 }
 

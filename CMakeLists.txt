@@ -103,7 +103,7 @@ target_link_libraries(horusrf-run PRIVATE
 horusrf_enable_warnings(horusrf-run)
 
 if(HORUSRF_BUILD_STUDIO)
-    find_package(Qt6 REQUIRED COMPONENTS Widgets)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
     if(BUILD_TESTING)
         find_package(Qt6 REQUIRED COMPONENTS Test)
     endif()
@@ -115,12 +115,16 @@ if(HORUSRF_BUILD_STUDIO)
         src/studio/experiment_runner.hpp
         src/studio/main_window.cpp
         src/studio/main_window.hpp
+        src/studio/results_model.cpp
+        src/studio/results_model.hpp
+        src/studio/results_view.cpp
+        src/studio/results_view.hpp
         src/studio/syntax_highlighter.cpp
         src/studio/syntax_highlighter.hpp
     )
     target_compile_features(horusrf_studio_ui PUBLIC cxx_std_20)
     target_include_directories(horusrf_studio_ui PUBLIC src/studio)
-    target_link_libraries(horusrf_studio_ui PUBLIC Qt6::Widgets)
+    target_link_libraries(horusrf_studio_ui PUBLIC Qt6::Widgets Qt6::Charts)
     set_target_properties(horusrf_studio_ui PROPERTIES AUTOMOC ON AUTORCC ON)
     qt_add_resources(horusrf_studio_ui "studio_resources"
         PREFIX "/examples"

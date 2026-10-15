@@ -259,7 +259,7 @@ The target-level dependency rules are:
 | `horusrf_procedural_example` | device, domain |
 | `horusrf_output` | domain |
 | `horusrf-run` | composition of the implemented layers |
-| `horusrf-studio` | Qt Widgets only; communicates with `horusrf-run` through a process boundary |
+| `horusrf-studio` | Qt Widgets and Charts only; communicates with `horusrf-run` through a process boundary |
 
 Domain code must not depend on compiler layers. AST must not depend on semantic,
 runtime, or device code. Runtime must not access simulator internals, and procedural
@@ -273,7 +273,10 @@ Studio is a separate application layer. It writes the current editor buffer to a
 temporary source file and invokes the sibling `horusrf-run` executable asynchronously
 for validation or execution. It never links compiler, runtime, device, simulator,
 or output targets. Structured source diagnostics are parsed from standard error for
-navigation while raw standard output and standard error remain distinct. This keeps
+navigation while raw standard output and standard error remain distinct. A successful
+run's CSV is parsed strictly into a Studio-owned results model and displayed through
+Qt Charts; this presentation path does not introduce a core or output-library link.
+The most recent valid results remain visible if a later run or CSV load fails. This keeps
 the GPL-3.0-only desktop application outside the Apache-2.0 core and CLI target graph.
 
 Fresh simulator instances with the same calls produce identical observations. The

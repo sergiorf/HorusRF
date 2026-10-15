@@ -8,9 +8,8 @@ HorusRF.
 
 ## Qt 6
 
-Milestone 1 of HorusRF Studio uses the Qt 6 Core, GUI, and Widgets modules, with
-Qt Test used only by Studio tests. A planned visualization milestone will also
-use Qt Charts. HorusRF does not include Qt source code or binaries in this
+HorusRF Studio uses the Qt 6 Core, GUI, Widgets, and Charts modules, with Qt Test
+used only by Studio tests. HorusRF does not include Qt source code or binaries in this
 repository. These Qt modules are available from The Qt Company under commercial
 terms and applicable open-source terms. Core, GUI, Widgets, and Test are
 available under LGPLv3 terms; Qt Charts is available to open-source users under

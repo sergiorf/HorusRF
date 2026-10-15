@@ -45,7 +45,7 @@ build\Debug\horusrf-studio.exe
 ```
 
 On Linux, use the generator-neutral equivalent (omit `CMAKE_PREFIX_PATH` when
-Qt is already discoverable):
+Qt with the Widgets and Charts development components is already discoverable):
 
 ```sh
 cmake -S . -B build -DHORUSRF_BUILD_STUDIO=ON \
@@ -61,8 +61,20 @@ line numbers, standard file and undo/redo actions, and the canonical example as 
 initially unmodified, untitled template. F5 validates the current editor buffer and
 F6 runs it, including unsaved changes, by invoking the sibling `horusrf-run`
 executable. Compiler diagnostics are clickable, and raw standard output and standard
-error remain available in separate panes. The results area shows the CLI summary;
-CSV plotting is reserved for the next milestone.
+error remain available in separate panes. Successful runs plot measured and corrected
+power against frequency, with a toggleable reference curve, sample count, and the
+CLI-reported error metrics. A later failure leaves the most recent successful graph
+visible and reports the new failure separately.
+
+For deployment, keep `horusrf-run` beside `horusrf-studio`; Studio deliberately
+finds and invokes that sibling process rather than linking the compiler or runtime.
+On Windows, run the Qt installation's `windeployqt` on `horusrf-studio.exe` to
+collect its dynamically linked Qt libraries and platform plugin. On Linux, package
+the equivalent Qt Core, GUI, Widgets, and Charts shared libraries and platform
+integration using the distribution's normal mechanism. Distributed open-source
+bundles must include the Studio corresponding source and GPLv3 notice and satisfy
+the Qt source, notice, relinking, and other obligations summarized in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 ## Run the reference experiment
 

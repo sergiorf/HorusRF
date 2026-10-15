@@ -6,7 +6,6 @@
 
 class QCloseEvent;
 class QAction;
-class QLabel;
 class QListWidget;
 class QListWidgetItem;
 class QPlainTextEdit;
@@ -15,6 +14,7 @@ namespace horusrf::studio {
 
 class DslEditor;
 class ExperimentRunner;
+class ResultsView;
 
 class MainWindow final : public QMainWindow {
 public:
@@ -47,7 +47,7 @@ private:
 
     DslEditor* editor_ = nullptr;
     ExperimentRunner* runner_ = nullptr;
-    QLabel* results_ = nullptr;
+    ResultsView* results_ = nullptr;
     QListWidget* diagnostics_ = nullptr;
     QPlainTextEdit* standard_output_ = nullptr;
     QPlainTextEdit* standard_error_ = nullptr;
