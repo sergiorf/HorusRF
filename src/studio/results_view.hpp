@@ -27,17 +27,25 @@ public:
     }
 
 private:
+    void updatePowerAxis();
+    void updateOverlapNotice();
+
     ResultsModel model_;
     QLineSeries* reference_series_ = nullptr;
     QLineSeries* measured_series_ = nullptr;
     QLineSeries* corrected_series_ = nullptr;
+    QLineSeries* correction_series_ = nullptr;
     QValueAxis* frequency_axis_ = nullptr;
     QValueAxis* power_axis_ = nullptr;
+    QValueAxis* correction_frequency_axis_ = nullptr;
+    QValueAxis* correction_axis_ = nullptr;
     QLabel* status_ = nullptr;
     QLabel* sample_count_ = nullptr;
     QLabel* metrics_ = nullptr;
+    QLabel* overlap_notice_ = nullptr;
     QCheckBox* show_reference_ = nullptr;
     bool has_results_ = false;
+    bool curves_overlap_ = false;
 };
 
 } // namespace horusrf::studio

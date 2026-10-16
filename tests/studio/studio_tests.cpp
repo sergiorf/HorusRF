@@ -15,6 +15,7 @@
 #include <QLabel>
 #include <QLineSeries>
 #include <QListWidget>
+#include <QPen>
 #include <QValueAxis>
 #include <QTextBlock>
 #include <QTextDocument>
@@ -245,6 +246,10 @@ private slots:
             QStringLiteral("powerAxis"));
         auto* toggle = view.findChild<QCheckBox*>(QStringLiteral("showReference"));
         auto* count = view.findChild<QLabel*>(QStringLiteral("sampleCount"));
+        auto* metrics = view.findChild<QLabel*>(QStringLiteral("resultMetrics"));
+        auto* overlap = view.findChild<QLabel*>(QStringLiteral("overlapNotice"));
+        auto* correctionChart = view.findChild<QChartView*>(
+            QStringLiteral("correctionChart"));
         QVERIFY(measured != nullptr);
         QVERIFY(corrected != nullptr);
         QVERIFY(reference != nullptr);
@@ -252,6 +257,15 @@ private slots:
         QVERIFY(power != nullptr);
         QVERIFY(toggle != nullptr);
         QVERIFY(count != nullptr);
+        QVERIFY(metrics != nullptr);
+        QVERIFY(overlap != nullptr);
+        QVERIFY(correctionChart != nullptr);
+        auto* correction = correctionChart->chart()->findChild<QLineSeries*>(
+            QStringLiteral("correctionSeries"));
+        auto* correctionAxis = correctionChart->chart()->findChild<QValueAxis*>(
+            QStringLiteral("correctionAxis"));
+        QVERIFY(correction != nullptr);
+        QVERIFY(correctionAxis != nullptr);
         QCOMPARE(measured->count(), 2);
         QCOMPARE(corrected->count(), 2);
         QCOMPARE(reference->count(), 2);
@@ -259,12 +273,32 @@ private slots:
         QCOMPARE(frequency->titleText(), QStringLiteral("Frequency (GHz)"));
         QCOMPARE(power->titleText(), QStringLiteral("Power (dBm)"));
         QVERIFY(frequency->min() < frequency->max());
-        QVERIFY(power->min() < power->max());
+        QVERIFY(power->min() < -10.25);
+        QVERIFY(power->max() > -9.5);
+        QCOMPARE(measured->pen().color(), QColor(QStringLiteral("#2e7d32")));
+        QCOMPARE(measured->pen().style(), Qt::SolidLine);
+        QCOMPARE(reference->pen().color(), QColor(QStringLiteral("#1565c0")));
+        QCOMPARE(reference->pen().style(), Qt::DashLine);
+        QCOMPARE(corrected->pen().color(), QColor(QStringLiteral("#ef6c00")));
+        QCOMPARE(corrected->pen().style(), Qt::SolidLine);
+        QCOMPARE(correction->count(), 2);
+        QCOMPARE(correction->at(0).y(), -0.5);
+        QCOMPARE(correctionAxis->titleText(), QStringLiteral("Correction (dB)"));
+        QVERIFY(correctionAxis->min() < -0.5);
+        QVERIFY(correctionAxis->max() > 0.25);
+        QVERIFY(!overlap->isHidden());
+        QVERIFY(overlap->text().contains(QStringLiteral("overlap exactly")));
+        QVERIFY(metrics->text().contains(QStringLiteral("Calibration fit")));
+        QVERIFY(metrics->text().contains(QStringLiteral("0.400 dB")));
+        QVERIFY(metrics->text().contains(QStringLiteral("N/A (perfect in-sample fit)")));
+        QVERIFY(metrics->text().contains(QStringLiteral("Validation metrics")));
+        QVERIFY(!metrics->text().contains(QStringLiteral("inf"), Qt::CaseInsensitive));
         QVERIFY(count->text().contains(QStringLiteral("2")));
 
         toggle->setChecked(false);
         QVERIFY(!reference->isVisible());
         QVERIFY(measured->isVisible());
+        QVERIFY(overlap->isHidden());
 
         const QByteArray singleSampleCsv(
             "frequency_hz,reference_power_dbm,measured_power_dbm,error_db,"
@@ -279,6 +313,96 @@ private slots:
         QVERIFY(frequency->max() > 2.4);
         QVERIFY(power->min() < -10.0);
         QVERIFY(power->max() > -10.0);
+        QVERIFY(correctionAxis->min() < 0.0);
+        QVERIFY(correctionAxis->max() > 0.0);
+    }
+
+    void powerBoundsTrackVisibleSeries() {
+        const QByteArray csv(
+            "frequency_hz,reference_power_dbm,measured_power_dbm,error_db,"
+            "correction_db,corrected_power_dbm,residual_error_db\n"
+            "2400000000,-20,-9,11,-1,-10,10\n"
+            "2500000000,-20,-9,11,-1,-10,10\n");
+        const auto model = horusrf::studio::ResultsModel::fromCsv(csv);
+        QVERIFY(model.has_value());
+        horusrf::studio::ResultsView view;
+        view.setResults(*model, {});
+        auto* chartView = view.findChild<QChartView*>(QStringLiteral("resultsChart"));
+        auto* toggle = view.findChild<QCheckBox*>(QStringLiteral("showReference"));
+        QVERIFY(chartView != nullptr);
+        auto* power = chartView->chart()->findChild<QValueAxis*>(
+            QStringLiteral("powerAxis"));
+        QVERIFY(power != nullptr);
+        QVERIFY(toggle != nullptr);
+        QVERIFY(power->min() < -20.0);
+        toggle->setChecked(false);
+        QVERIFY(power->min() < -10.0);
+        QVERIFY(power->min() > -11.0);
+        QVERIFY(power->max() > -9.0);
+    }
+
+    void sixHundredOneSampleCalibrationRendersWithPaddedAxesAndFormattedMetrics() {
+        QByteArray csv(
+            "frequency_hz,reference_power_dbm,measured_power_dbm,error_db,"
+            "correction_db,corrected_power_dbm,residual_error_db\n");
+        for (int index = 0; index <= 600; ++index) {
+            const double measured = -9.65 + (index % 2 == 0 ? 0.05 : -0.05);
+            const double correction = -10.0 - measured;
+            csv += QByteArray::number(2400000000LL + 1000000LL * index) + ",-10,";
+            csv += QByteArray::number(measured, 'g', 15) + ',';
+            csv += QByteArray::number(measured + 10.0, 'g', 15) + ',';
+            csv += QByteArray::number(correction, 'g', 15) + ",-10,0\n";
+        }
+        const auto model = horusrf::studio::ResultsModel::fromCsv(csv);
+        QVERIFY(model.has_value());
+        horusrf::studio::ResultsView view;
+        view.setResults(
+            *model,
+            QStringLiteral("uncorrected_rms_error_db: 0.35355339059327379\n"
+                           "corrected_rms_error_db: 0\n"
+                           "maximum_absolute_error_db: 0.40000000000000036\n"
+                           "corrected_maximum_absolute_error_db: 0\n"
+                           "rms_improvement_ratio: inf\n"));
+
+        QCOMPARE(view.sampleCount(), 601);
+        auto* chartView = view.findChild<QChartView*>(QStringLiteral("resultsChart"));
+        auto* correctionChart = view.findChild<QChartView*>(
+            QStringLiteral("correctionChart"));
+        auto* metrics = view.findChild<QLabel*>(QStringLiteral("resultMetrics"));
+        QVERIFY(chartView != nullptr);
+        QVERIFY(correctionChart != nullptr);
+        auto* measured = chartView->chart()->findChild<QLineSeries*>(
+            QStringLiteral("measuredSeries"));
+        auto* reference = chartView->chart()->findChild<QLineSeries*>(
+            QStringLiteral("referenceSeries"));
+        auto* corrected = chartView->chart()->findChild<QLineSeries*>(
+            QStringLiteral("correctedSeries"));
+        auto* correction = correctionChart->chart()->findChild<QLineSeries*>(
+            QStringLiteral("correctionSeries"));
+        auto* frequency = chartView->chart()->findChild<QValueAxis*>(
+            QStringLiteral("frequencyAxis"));
+        auto* power = chartView->chart()->findChild<QValueAxis*>(
+            QStringLiteral("powerAxis"));
+        QVERIFY(measured != nullptr);
+        QVERIFY(reference != nullptr);
+        QVERIFY(corrected != nullptr);
+        QVERIFY(correction != nullptr);
+        QVERIFY(frequency != nullptr);
+        QVERIFY(power != nullptr);
+        QVERIFY(metrics != nullptr);
+        QCOMPARE(measured->count(), 601);
+        QCOMPARE(reference->count(), 601);
+        QCOMPARE(corrected->count(), 601);
+        QCOMPARE(correction->count(), 601);
+        QVERIFY(frequency->min() < 2.4);
+        QVERIFY(frequency->max() > 3.0);
+        QVERIFY(power->min() < -10.0);
+        QVERIFY(power->max() > -9.6);
+        QVERIFY(metrics->text().contains(QStringLiteral("0.354 dB")));
+        QVERIFY(metrics->text().contains(QStringLiteral("0.400 dB")));
+        QVERIFY(metrics->text().contains(QStringLiteral("N/A (perfect in-sample fit)")));
+        QVERIFY(!metrics->text().contains(QStringLiteral("0.400000000")));
+        QVERIFY(!metrics->text().contains(QStringLiteral("inf"), Qt::CaseInsensitive));
     }
 
     void mainWindowRetainsSuccessfulResultsAfterLaterFailure() {

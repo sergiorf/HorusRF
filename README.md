@@ -61,10 +61,13 @@ line numbers, standard file and undo/redo actions, and the canonical example as 
 initially unmodified, untitled template. F5 validates the current editor buffer and
 F6 runs it, including unsaved changes, by invoking the sibling `horusrf-run`
 executable. Compiler diagnostics are clickable, and raw standard output and standard
-error remain available in separate panes. Successful runs plot measured and corrected
-power against frequency, with a toggleable reference curve, sample count, and the
-CLI-reported error metrics. A later failure leaves the most recent successful graph
-visible and reports the new failure separately.
+error remain available in separate panes. Successful runs plot measured, reference,
+and corrected power against frequency and show the engine-produced calibration
+correction in a second frequency plot. Both charts use padded bounds and GHz/dBm/dB
+units; the reference curve remains toggleable. Studio formats the CLI-reported values
+as calibration-fit metrics and explicitly notes that they are not independent
+validation metrics. A later failure leaves the most recent successful graphs visible
+and reports the new failure separately.
 
 For deployment, keep `horusrf-run` beside `horusrf-studio`; Studio deliberately
 finds and invokes that sibling process rather than linking the compiler or runtime.
