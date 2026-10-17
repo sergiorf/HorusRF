@@ -177,11 +177,23 @@ int run(const Arguments& arguments) {
 
     if (arguments.check) return 0;
 
+    if (arguments.csv &&
+        (lowered.program->sweeps.size() != 1 ||
+         lowered.program->sweeps.front().dimension != ir::SweepDimension::Frequency)) {
+        const auto& position = lowered.program->span.begin;
+        std::cerr << arguments.source.string() << ':' << position.line << ':'
+                  << position.column
+                  << ": output.csv_unrepresentable: the legacy CSV schema supports only a single frequency sweep\n";
+        return diagnostic_error;
+    }
+
     device::SimulatedRfConnection rf_output;
     device::SimulatedRfTester tester{rf_output};
     device::SimulatedMeasurementDevice measurement{rf_output};
-    auto execution =
-        runtime::execute_characterization(*lowered.program, tester, measurement);
+    device::SimulatedTemperatureController temperature{rf_output};
+    auto execution = runtime::execute_characterization(
+        *lowered.program,
+        runtime::DeviceCapabilities{tester, &measurement, &temperature});
     if (!execution.ok()) {
         print_diagnostics(arguments.source, execution.diagnostics,
                           runtime::diagnostic_code_name);

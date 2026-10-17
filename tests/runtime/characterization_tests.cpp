@@ -74,11 +74,24 @@ struct RecordingMeasurement : device::MeasurementDevice {
     std::size_t throw_on_measurement{};
 };
 
+struct RecordingTemperature : device::TemperatureController {
+    explicit RecordingTemperature(RecordingTester& tester) : tester_(tester) {}
+
+    void setTemperature(domain::Temperature value) override {
+        tester_.calls.push_back("temperature");
+        temperatures.push_back(value);
+    }
+
+    RecordingTester& tester_;
+    std::vector<domain::Temperature> temperatures;
+};
+
 struct RecordingSetup {
-    RecordingSetup() : measurement(tester) {}
+    RecordingSetup() : measurement(tester), temperature(tester) {}
 
     RecordingTester tester;
     RecordingMeasurement measurement;
+    RecordingTemperature temperature;
 };
 
 void set_sweep(ir::Program& program, double start, double end, double step) {
@@ -225,7 +238,7 @@ void exception_propagation_test() {
     }
 }
 
-void multidimensional_preflight_gate_test() {
+void multidimensional_execution_test() {
     const auto program = lower_source(R"(
 characterize typed_sweeps {
   reference power = -10 dBm
@@ -238,15 +251,83 @@ characterize typed_sweeps {
   }
 })");
     RecordingSetup setup;
-    const auto execution = runtime::execute_characterization(
+    const auto unavailable = runtime::execute_characterization(
         program, setup.tester, setup.measurement);
-    CHECK(!execution.ok());
-    CHECK(!execution.result.has_value());
-    CHECK_EQ(execution.diagnostics.size(), std::size_t{1});
-    CHECK_EQ(execution.diagnostics.front().code,
-             runtime::DiagnosticCode::UnsupportedSweepShape);
+    CHECK(!unavailable.ok());
+    CHECK(!unavailable.result.has_value());
+    CHECK_EQ(unavailable.diagnostics.size(), std::size_t{1});
+    CHECK_EQ(unavailable.diagnostics.front().code,
+             runtime::DiagnosticCode::CapabilityUnavailable);
     CHECK(setup.tester.calls.empty());
     CHECK_EQ(setup.measurement.measurements, std::size_t{0});
+
+    RecordingSetup missing_power;
+    const auto power_unavailable = runtime::execute_characterization(
+        program, runtime::DeviceCapabilities{missing_power.tester, nullptr,
+                                             &missing_power.temperature});
+    CHECK(!power_unavailable.ok());
+    CHECK_EQ(power_unavailable.diagnostics.front().code,
+             runtime::DiagnosticCode::CapabilityUnavailable);
+    CHECK(missing_power.tester.calls.empty());
+
+    auto inconsistent = program;
+    inconsistent.sweeps[1].point_count = 5;
+    inconsistent.total_point_count = 105;
+    RecordingSetup inconsistent_setup;
+    const auto inconsistent_execution = runtime::execute_characterization(
+        inconsistent,
+        runtime::DeviceCapabilities{inconsistent_setup.tester,
+                                    &inconsistent_setup.measurement,
+                                    &inconsistent_setup.temperature});
+    CHECK(!inconsistent_execution.ok());
+    CHECK_EQ(inconsistent_execution.diagnostics.front().code,
+             runtime::DiagnosticCode::InvalidProgramBinding);
+    CHECK(inconsistent_setup.tester.calls.empty());
+
+    const auto execution = runtime::execute_characterization(
+        program, runtime::DeviceCapabilities{setup.tester, &setup.measurement,
+                                             &setup.temperature});
+    CHECK(execution.ok());
+    CHECK_EQ(execution.result->samples.size(), std::size_t{126});
+    CHECK_EQ(execution.result->calibration.operating_points.size(),
+             std::size_t{126});
+    CHECK_EQ(setup.measurement.measurements, std::size_t{126});
+    CHECK_EQ(setup.tester.calls.size(), std::size_t{126 * 4});
+    CHECK_EQ(setup.temperature.temperatures.size(), std::size_t{126});
+
+    for (std::size_t index = 0; index < 126; ++index) {
+        const auto& sample = execution.result->samples[index];
+        CHECK_EQ(sample.operating_point.coordinates.size(), std::size_t{2});
+        const auto& frequency = sample.operating_point.coordinates[0];
+        const auto& temperature = sample.operating_point.coordinates[1];
+        CHECK_EQ(frequency.name, std::string{"frequency"});
+        CHECK_EQ(frequency.type, domain::CoordinateType::Frequency);
+        CHECK_EQ(temperature.name, std::string{"temperature"});
+        CHECK_EQ(temperature.type, domain::CoordinateType::Temperature);
+        CHECK_NEAR(std::get<domain::Frequency>(frequency.value).hertz(),
+                   2.40e9 + static_cast<double>(index / 6) * 5.0e6, 1e-3);
+        CHECK_NEAR(std::get<domain::Temperature>(temperature.value).kelvin(),
+                   253.15 + static_cast<double>(index % 6) * 20.0, 1e-12);
+        CHECK_EQ(execution.result->calibration.operating_points[index],
+                 sample.operating_point);
+        CHECK_EQ(setup.tester.calls[index * 4], std::string{"frequency"});
+        CHECK_EQ(setup.tester.calls[index * 4 + 1], std::string{"temperature"});
+        CHECK_EQ(setup.tester.calls[index * 4 + 2], std::string{"power"});
+        CHECK_EQ(setup.tester.calls[index * 4 + 3], std::string{"measure"});
+    }
+
+    RecordingSetup failing;
+    failing.measurement.throw_on_measurement = 2;
+    try {
+        (void)runtime::execute_characterization(
+            program, runtime::DeviceCapabilities{failing.tester,
+                                                 &failing.measurement,
+                                                 &failing.temperature});
+        CHECK(false);
+    } catch (const std::runtime_error&) {
+        CHECK_EQ(failing.measurement.measurements, std::size_t{2});
+        CHECK_EQ(failing.tester.calls.size(), std::size_t{8});
+    }
 }
 
 void canonical_pipeline_test() {
@@ -296,7 +377,7 @@ int main() {
         orchestration_test();
         validation_test();
         exception_propagation_test();
-        multidimensional_preflight_gate_test();
+        multidimensional_execution_test();
         canonical_pipeline_test();
         std::cout << "All HorusRF characterization tests passed\n";
         return 0;

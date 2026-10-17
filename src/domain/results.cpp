@@ -4,17 +4,28 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 namespace horusrf::domain {
 
 CharacterizationSample make_characterization_sample(
     Frequency frequency, Power reference_power, Power measured_power,
     PowerDelta correction) {
+    OperatingPoint point{{Coordinate{"frequency", CoordinateType::Frequency,
+                                     frequency}}};
+    return make_characterization_sample(std::move(point), frequency, reference_power,
+                                        measured_power, correction);
+}
+
+CharacterizationSample make_characterization_sample(
+    OperatingPoint operating_point, Frequency frequency, Power reference_power,
+    Power measured_power, PowerDelta correction) {
     const auto error = measured_power - reference_power;
     const auto corrected_power = measured_power + correction;
     const auto residual_error = corrected_power - reference_power;
     return CharacterizationSample{frequency, reference_power, measured_power, error,
-                                  correction, corrected_power, residual_error};
+                                  correction, corrected_power, residual_error,
+                                  std::move(operating_point)};
 }
 
 CharacterizationMetrics calculate_metrics(

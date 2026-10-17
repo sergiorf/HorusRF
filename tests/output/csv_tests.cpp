@@ -102,6 +102,23 @@ void content_and_state_test() {
     }
 }
 
+void multidimensional_rejection_test() {
+    auto result = fixture();
+    result.samples.front().operating_point.coordinates = {
+        domain::Coordinate{"frequency", domain::CoordinateType::Frequency,
+                           domain::Frequency::from_hertz(2.4e9)},
+        domain::Coordinate{"temperature", domain::CoordinateType::Temperature,
+                           domain::Temperature::from_kelvin(293.15)},
+    };
+    std::ostringstream stream;
+    try {
+        output::write_csv(stream, result);
+        CHECK(false);
+    } catch (const std::invalid_argument&) {
+        CHECK(stream.str().empty());
+    }
+}
+
 void empty_and_failure_test() {
     std::ostringstream empty;
     output::write_csv(empty, domain::CharacterizationResult{});
@@ -121,6 +138,7 @@ void empty_and_failure_test() {
 int main() {
     try {
         content_and_state_test();
+        multidimensional_rejection_test();
         empty_and_failure_test();
         std::cout << "All HorusRF CSV tests passed\n";
         return 0;

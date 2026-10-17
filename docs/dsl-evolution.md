@@ -4,9 +4,9 @@ Status: accepted Phase 1 design, 2026-10-17. This document completes M0 of the
 [project roadmap](project-roadmap.md). It specifies work for M1-M6; unless a section
 explicitly says otherwise, the described additions are not implemented yet.
 
-Implementation status: M1 (typed frequency/temperature sweep compiler support and
-the multidimensional runtime gate) was completed on 2026-10-17. M2-M6 remain
-forward-looking.
+Implementation status: M1 (typed frequency/temperature sweep compiler support) and
+M2 (typed Cartesian runtime execution and environmental control) were completed on
+2026-10-17. M3-M6 remain forward-looking.
 
 ## Scope and audited baseline
 
@@ -226,9 +226,8 @@ comparison returns `Boolean`, and an `assert` expression must be Boolean.
 - Axis counts and their Cartesian product use checked `size_t` arithmetic. Each
   axis and the whole experiment are limited to 1,000,000 points. Overflow and
   limit violations are rejected before allocation or equipment access.
-- M1 accepts and lowers multiple dimensions, but execution of anything except the
-  legacy one-frequency shape returns `runtime.unsupported_sweep_shape` before any
-  equipment call. M2 removes that temporary gate.
+- M1 accepts and lowers multiple dimensions. M2 executes their checked Cartesian
+  product through typed coordinates and explicit device capabilities.
 
 ## Compiler representations
 

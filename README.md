@@ -125,13 +125,13 @@ minus reference. These report fields are not implicit DSL declarations.
 devices or executing the experiment. It is mutually exclusive with `--csv` and
 produces no output when validation succeeds.
 
-M1 also accepts declaration-ordered frequency and temperature sweeps. Temperature
+M1 and M2 support declaration-ordered frequency and temperature sweeps. Temperature
 endpoints use `K` or `degC`; steps use `deltaK` or `deltaC`. For example,
 [`multidimensional_check.hrf`](examples/multidimensional_check.hrf) has 21 × 6 =
-126 checked points and succeeds with `--check`. Multidimensional execution belongs
-to M2, so running that source without `--check` currently exits 4 with
-`runtime.unsupported_sweep_shape` before any equipment call. Legacy single-frequency
-execution and its CSV schema are unchanged.
+126 points and succeeds both with `--check` and normal execution. Coordinates are
+ordered by sweep declaration and the last dimension varies fastest. The legacy
+single-frequency CSV schema is unchanged; requesting CSV for a multidimensional
+program exits 4 with `output.csv_unrepresentable` before any equipment call.
 
 Source failures are written without color as
 `path:line:column: diagnostic.code: message`. Exit status is 0 for success, 2 for

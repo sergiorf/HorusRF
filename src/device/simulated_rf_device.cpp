@@ -7,10 +7,13 @@ namespace horusrf::device {
 namespace {
 
 domain::Power actual_output_power(domain::Frequency frequency,
-                                  domain::Power requested_power) {
+                                  domain::Power requested_power,
+                                  domain::Temperature temperature) {
     constexpr double pi = 3.141592653589793238462643383279502884;
     const double normalized = (frequency.hertz() - 2.40e9) / 100.0e6;
-    const double error = 0.35 + 0.20 * std::sin(2.0 * pi * normalized);
+    const double temperature_error = 0.002 * (temperature.kelvin() - 293.15);
+    const double error = 0.35 + 0.20 * std::sin(2.0 * pi * normalized) +
+                         temperature_error;
     return domain::Power::from_dbm(requested_power.dbm() + error);
 }
 
@@ -20,19 +23,19 @@ SimulatedRfTester::SimulatedRfTester(SimulatedRfConnection& connection) noexcept
     : connection_(connection) {}
 
 void SimulatedRfTester::setFrequency(domain::Frequency frequency) {
-    frequency_ = frequency;
-    update_output();
+    connection_.frequency_ = frequency;
 }
 
 void SimulatedRfTester::setOutputPower(domain::Power power) {
-    requested_power_ = power;
-    update_output();
+    connection_.requested_power_ = power;
 }
 
-void SimulatedRfTester::update_output() {
-    if (frequency_ && requested_power_) {
-        connection_.output_power_ = actual_output_power(*frequency_, *requested_power_);
-    }
+SimulatedTemperatureController::SimulatedTemperatureController(
+    SimulatedRfConnection& connection) noexcept
+    : connection_(connection) {}
+
+void SimulatedTemperatureController::setTemperature(domain::Temperature temperature) {
+    connection_.temperature_ = temperature;
 }
 
 SimulatedMeasurementDevice::SimulatedMeasurementDevice(
@@ -40,11 +43,14 @@ SimulatedMeasurementDevice::SimulatedMeasurementDevice(
     : connection_(connection) {}
 
 domain::Power SimulatedMeasurementDevice::measurePower() {
-    if (!connection_.output_power_) {
+    if (!connection_.frequency_ || !connection_.requested_power_) {
         throw std::logic_error(
             "RF tester frequency and output power must be configured before measurement");
     }
-    return *connection_.output_power_;
+    const auto temperature = connection_.temperature_.value_or(
+        domain::Temperature::from_kelvin(293.15));
+    return actual_output_power(*connection_.frequency_, *connection_.requested_power_,
+                               temperature);
 }
 
 } // namespace horusrf::device

@@ -21,6 +21,8 @@ std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
     case DiagnosticCode::SweepTooLarge: return "runtime.sweep_too_large";
     case DiagnosticCode::UnsupportedSweepShape:
         return "runtime.unsupported_sweep_shape";
+    case DiagnosticCode::CapabilityUnavailable:
+        return "runtime.capability_unavailable";
     case DiagnosticCode::InvalidCalibrationBinding:
         return "runtime.invalid_calibration_binding";
     }
@@ -326,9 +328,8 @@ const T& slot(const std::vector<RuntimeValue>& values, ir::ValueId id) {
 
 RuntimeValue evaluate_definition(const ir::Definition& definition,
                                  const ir::Program& program,
-                                 domain::Frequency frequency,
-                                 device::RfDevice& tester,
-                                 device::MeasurementDevice& measurement,
+                                 const domain::OperatingPoint& point,
+                                 DeviceCapabilities devices,
                                  const std::vector<RuntimeValue>& values) {
     return std::visit(
         Overloaded{
@@ -337,16 +338,26 @@ RuntimeValue evaluate_definition(const ir::Definition& definition,
                                   operation.value);
             },
             [](const ir::ReferencePower& operation) -> RuntimeValue { return operation.value; },
-            [frequency](const ir::SweepFrequency&) -> RuntimeValue { return frequency; },
-            [](const ir::SweepTemperature&) -> RuntimeValue {
-                throw std::logic_error("temperature sweep execution is unavailable before M2");
+            [&](const ir::SweepFrequency&) -> RuntimeValue {
+                for (const auto& coordinate : point.coordinates) {
+                    if (coordinate.type == domain::CoordinateType::Frequency) {
+                        return std::get<domain::Frequency>(coordinate.value);
+                    }
+                }
+                throw std::logic_error("operating point has no frequency coordinate");
+            },
+            [&](const ir::SweepTemperature&) -> RuntimeValue {
+                for (const auto& coordinate : point.coordinates) {
+                    if (coordinate.type == domain::CoordinateType::Temperature) {
+                        return std::get<domain::Temperature>(coordinate.value);
+                    }
+                }
+                throw std::logic_error("operating point has no temperature coordinate");
             },
             [&](const ir::MeasurePower&) -> RuntimeValue {
-                const auto point = slot<domain::Frequency>(values, program.sweep.frequency);
                 const auto reference = slot<domain::Power>(values, program.reference);
-                tester.setFrequency(point);
-                tester.setOutputPower(reference);
-                return measurement.measurePower();
+                devices.rf.setOutputPower(reference);
+                return devices.power->measurePower();
             },
             [&](const ir::Alias& operation) -> RuntimeValue {
                 return values[operation.value.value];
@@ -376,14 +387,25 @@ std::vector<Diagnostic> detail::validate_program(const ir::Program& program) {
 }
 
 PointEvaluation detail::evaluate_validated_point(const ir::Program& program,
-                                                 domain::Frequency frequency,
-                                                 device::RfDevice& tester,
-                                                 device::MeasurementDevice& measurement) {
-    PointEvaluation evaluation{frequency, {}};
+                                                 domain::OperatingPoint point,
+                                                 DeviceCapabilities devices) {
+    domain::Frequency frequency = domain::Frequency::from_hertz(0.0);
+    for (const auto& coordinate : point.coordinates) {
+        if (coordinate.type == domain::CoordinateType::Frequency) {
+            frequency = std::get<domain::Frequency>(coordinate.value);
+            devices.rf.setFrequency(frequency);
+        } else {
+            devices.temperature->setTemperature(
+                std::get<domain::Temperature>(coordinate.value));
+        }
+    }
+
+    PointEvaluation evaluation{frequency, {}, std::move(point)};
     evaluation.values.reserve(program.values.size());
     for (const auto& value : program.values) {
         evaluation.values.push_back(
-            evaluate_definition(value.definition, program, frequency, tester, measurement,
+            evaluate_definition(value.definition, program, evaluation.operating_point,
+                                devices,
                                 evaluation.values));
     }
     return evaluation;
@@ -396,19 +418,60 @@ const RuntimeValue& PointEvaluation::at(ir::ValueId id) const {
 ExecutionResult execute_point(const ir::Program& program, domain::Frequency frequency,
                               device::RfDevice& tester,
                               device::MeasurementDevice& measurement) {
+    domain::OperatingPoint point{{domain::Coordinate{
+        "frequency", domain::CoordinateType::Frequency, frequency}}};
+    return execute_point(program, std::move(point),
+                         DeviceCapabilities{tester, &measurement, nullptr});
+}
+
+ExecutionResult execute_point(const ir::Program& program,
+                              domain::OperatingPoint point,
+                              DeviceCapabilities devices) {
     auto diagnostics = detail::validate_program(program);
     if (!diagnostics.empty()) return ExecutionResult{std::nullopt, std::move(diagnostics)};
-    if (program.sweeps.size() != 1 ||
-        program.sweeps.front().dimension != ir::SweepDimension::Frequency) {
+
+    if (devices.power == nullptr) {
         return ExecutionResult{
             std::nullopt,
-            {Diagnostic{DiagnosticCode::UnsupportedSweepShape,
-                        "multidimensional sweep execution is not available in this milestone",
+            {Diagnostic{DiagnosticCode::CapabilityUnavailable,
+                        "power measurement capability is required",
                         program.span}}};
+    }
+    if (point.coordinates.size() != program.sweeps.size()) {
+        return ExecutionResult{
+            std::nullopt,
+            {Diagnostic{DiagnosticCode::InvalidProgramBinding,
+                        "operating point does not match the program sweep shape",
+                        program.span}}};
+    }
+    for (std::size_t index = 0; index < program.sweeps.size(); ++index) {
+        const auto& sweep = program.sweeps[index];
+        const auto& coordinate = point.coordinates[index];
+        const auto expected = sweep.dimension == ir::SweepDimension::Frequency
+                                  ? domain::CoordinateType::Frequency
+                                  : domain::CoordinateType::Temperature;
+        if (coordinate.name != sweep.name || coordinate.type != expected ||
+            (expected == domain::CoordinateType::Frequency &&
+             !std::holds_alternative<domain::Frequency>(coordinate.value)) ||
+            (expected == domain::CoordinateType::Temperature &&
+             !std::holds_alternative<domain::Temperature>(coordinate.value))) {
+            return ExecutionResult{
+                std::nullopt,
+                {Diagnostic{DiagnosticCode::InvalidProgramBinding,
+                            "operating-point coordinates are not in sweep declaration order",
+                            sweep.span}}};
+        }
+        if (expected == domain::CoordinateType::Temperature &&
+            devices.temperature == nullptr) {
+            return ExecutionResult{
+                std::nullopt,
+                {Diagnostic{DiagnosticCode::CapabilityUnavailable,
+                            "temperature control capability is required", sweep.span}}};
+        }
     }
 
     return ExecutionResult{
-        detail::evaluate_validated_point(program, frequency, tester, measurement), {}};
+        detail::evaluate_validated_point(program, std::move(point), devices), {}};
 }
 
 } // namespace horusrf::runtime

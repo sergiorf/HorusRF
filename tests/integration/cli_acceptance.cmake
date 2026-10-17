@@ -22,16 +22,39 @@ execute_process(
     OUTPUT_VARIABLE multidimensional_run_output
     ERROR_VARIABLE multidimensional_run_error
 )
-if(NOT multidimensional_run_result EQUAL 4 OR
-   NOT multidimensional_run_output STREQUAL "")
+if(NOT multidimensional_run_result EQUAL 0 OR
+   NOT multidimensional_run_error STREQUAL "")
     message(FATAL_ERROR
-        "multidimensional runtime gate failed: ${multidimensional_run_result}: ${multidimensional_run_output}")
+        "multidimensional execution failed: ${multidimensional_run_result}: ${multidimensional_run_error}")
 endif()
-string(FIND "${multidimensional_run_error}"
-    "runtime.unsupported_sweep_shape" multidimensional_diagnostic)
-if(multidimensional_diagnostic EQUAL -1)
+foreach(expected IN ITEMS "characterization: temperature_characterization"
+        "samples: 126" "calibration: tx_power")
+    string(FIND "${multidimensional_run_output}" "${expected}" found)
+    if(found EQUAL -1)
+        message(FATAL_ERROR
+            "multidimensional summary is missing '${expected}': ${multidimensional_run_output}")
+    endif()
+endforeach()
+
+set(multidimensional_csv "${OUTPUT_FILE}.multidimensional")
+file(REMOVE "${multidimensional_csv}")
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${MULTIDIMENSIONAL_SOURCE_FILE}" --csv "${multidimensional_csv}"
+    RESULT_VARIABLE multidimensional_csv_result
+    OUTPUT_VARIABLE multidimensional_csv_output
+    ERROR_VARIABLE multidimensional_csv_error
+)
+if(NOT multidimensional_csv_result EQUAL 4 OR
+   NOT multidimensional_csv_output STREQUAL "" OR
+   EXISTS "${multidimensional_csv}")
     message(FATAL_ERROR
-        "multidimensional runtime diagnostic missing: ${multidimensional_run_error}")
+        "multidimensional CSV gate failed: ${multidimensional_csv_result}: ${multidimensional_csv_error}")
+endif()
+string(FIND "${multidimensional_csv_error}"
+    "output.csv_unrepresentable" multidimensional_csv_diagnostic)
+if(multidimensional_csv_diagnostic EQUAL -1)
+    message(FATAL_ERROR
+        "multidimensional CSV diagnostic missing: ${multidimensional_csv_error}")
 endif()
 
 file(REMOVE "${OUTPUT_FILE}")
@@ -166,4 +189,4 @@ foreach(case IN ITEMS parse semantic)
     endif()
 endforeach()
 
-file(REMOVE "${OUTPUT_FILE}" "${parse_invalid}" "${semantic_invalid}")
+file(REMOVE "${OUTPUT_FILE}" "${multidimensional_csv}" "${parse_invalid}" "${semantic_invalid}")

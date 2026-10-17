@@ -8,6 +8,7 @@
 #include "horusrf/domain/results.hpp"
 #include "horusrf/ir/ir.hpp"
 #include "horusrf/runtime/diagnostics.hpp"
+#include "horusrf/runtime/executor.hpp"
 
 namespace horusrf::runtime {
 
@@ -23,5 +24,8 @@ struct CharacterizationExecutionResult {
 [[nodiscard]] CharacterizationExecutionResult execute_characterization(
     const ir::Program& program, device::RfDevice& tester,
     device::MeasurementDevice& measurement);
+
+[[nodiscard]] CharacterizationExecutionResult execute_characterization(
+    const ir::Program& program, DeviceCapabilities devices);
 
 } // namespace horusrf::runtime

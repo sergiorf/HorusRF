@@ -6,14 +6,16 @@ HorusRF is a focused demonstration of what a declarative DSL for RF
 characterization could look like. Its reference experiment characterizes an
 imperfect tester transmit path: the runtime sets a nominal output power and a
 frequency through the TX-only `RfDevice` contract, then obtains power through a
-separate `MeasurementDevice` contract. The deterministic simulator implements
-these as a simulated RF tester and calibrated measurement instrument connected by
-an opaque RF-output object. The measurement equipment is part of the physical
-setup; it is not a separately programmable DSL instrument. The
+separate `MeasurementDevice` contract. Environmental control uses the independent
+`TemperatureController` contract. The deterministic simulator implements these as
+simulated instruments connected by an opaque connection object. The measurement
+equipment is part of the physical setup; it is not a separately programmable DSL
+instrument. The
 measured-minus-reference error produces an equal and opposite correction.
 
-The public result owns its samples, calibration dimensions and corrections. It does
-not alias source text, compiler storage, a device, or simulator state.
+The public result owns its samples, typed operating-point coordinates, calibration
+dimensions, and corrections. It does not alias source text, compiler storage, a
+device, or simulator state.
 `CharacterizationSample` is also the standard verification report for one point:
 domain code consistently calculates raw error, corrected power, and residual error
 from the reference, measurement, and calibration correction for both declarative
@@ -102,9 +104,9 @@ flowchart TB
 
 The CLI is the composition root, so its broad dependencies do not relax the
 dependencies of the components it assembles. In particular, runtime reaches
-simulated or future hardware implementations only through `RfDevice` and
-`MeasurementDevice`. `RfDevice` is intentionally the tester TX-control boundary;
-it has no measurement operation.
+simulated or future hardware implementations only through `RfDevice`,
+`MeasurementDevice`, and `TemperatureController`. `RfDevice` is intentionally the
+tester TX-control boundary; it has no measurement operation.
 
 ## Public contracts and ownership
 
@@ -121,9 +123,13 @@ classDiagram
 
     class RuntimeAPI {
         <<module>>
+        +execute_characterization(Program, DeviceCapabilities) CharacterizationExecutionResult
         +execute_characterization(Program, RfDevice, MeasurementDevice) CharacterizationExecutionResult
+        +execute_point(Program, OperatingPoint, DeviceCapabilities) ExecutionResult
         +execute_point(Program, Frequency, RfDevice, MeasurementDevice) ExecutionResult
     }
+
+    class DeviceCapabilities
 
     class ProceduralAPI {
         <<module>>
@@ -141,8 +147,14 @@ classDiagram
         +measurePower() Power
     }
 
+    class TemperatureController {
+        <<interface>>
+        +setTemperature(Temperature)
+    }
+
     class SimulatedRfTester
     class SimulatedMeasurementDevice
+    class SimulatedTemperatureController
     class SimulatedRfConnection
 
     class CharacterizationExecutionResult {
@@ -153,10 +165,16 @@ classDiagram
     class CharacterizationSample
     class CalibrationArtifact
     class CharacterizationMetrics
+    class OperatingPoint
 
     class Frequency {
         +from_hertz(double) Frequency
         +hertz() double
+    }
+
+    class Temperature {
+        +from_kelvin(double) Temperature
+        +kelvin() double
     }
 
     class Power {
@@ -171,11 +189,15 @@ classDiagram
 
     SimulatedRfTester --|> RfDevice
     SimulatedMeasurementDevice --|> MeasurementDevice
-    SimulatedRfTester --> SimulatedRfConnection : publishes actual output
+    SimulatedTemperatureController --|> TemperatureController
+    SimulatedRfTester --> SimulatedRfConnection : configures RF state
+    SimulatedTemperatureController --> SimulatedRfConnection : configures environment
     SimulatedMeasurementDevice --> SimulatedRfConnection : observes output
     RuntimeAPI ..> Program
+    RuntimeAPI ..> DeviceCapabilities
     RuntimeAPI ..> RfDevice
     RuntimeAPI ..> MeasurementDevice
+    RuntimeAPI ..> TemperatureController
     RuntimeAPI ..> CharacterizationExecutionResult
     ProceduralAPI ..> RfDevice
     ProceduralAPI ..> MeasurementDevice
@@ -185,6 +207,7 @@ classDiagram
     CharacterizationResult *-- "0..*" CharacterizationSample : samples
     CharacterizationResult *-- "1" CalibrationArtifact : calibration
     CharacterizationResult *-- "1" CharacterizationMetrics : metrics
+    CharacterizationSample *-- "1" OperatingPoint : coordinates
 
     Program ..> Frequency
     Program ..> Power
@@ -192,6 +215,7 @@ classDiagram
     RfDevice ..> Frequency
     RfDevice ..> Power
     MeasurementDevice ..> Power
+    TemperatureController ..> Temperature
     CharacterizationSample *-- Frequency
     CharacterizationSample *-- Power
     CharacterizationSample *-- PowerDelta
@@ -207,22 +231,26 @@ classDiagram
   types, calibration indexes, and canonical units.
 - IR is a typed, device-independent plan of values and operations. Runtime consumes
   it without depending on AST shape.
-- Runtime executes IR only through caller-owned `RfDevice&` and
-  `MeasurementDevice&` abstractions. Both must remain alive for the call; returned
-  results do not refer to either one.
+- Runtime executes IR only through caller-owned `RfDevice`, `MeasurementDevice`,
+  and, when required, `TemperatureController` abstractions. Supplied devices must
+  remain alive for the call; returned results do not refer to them.
 - `Frequency`, `Power`, `PowerDelta`, samples, artifacts, and metrics are shared
   domain values. CSV is a terminal presentation layer and does not feed execution.
 
 ## Runtime sequence and failure behavior
 
-For each planned frequency, equipment calls and computation occur in this order:
+For each operating point, equipment calls and computation occur in this order:
 
 ```mermaid
 sequenceDiagram
     participant R as Runtime
     participant T as RfDevice (tester)
+    participant E as TemperatureController
     participant M as MeasurementDevice
     R->>T: setFrequency(frequency)
+    opt temperature sweep
+        R->>E: setTemperature(temperature)
+    end
     R->>T: setOutputPower(reference)
     R->>M: measurePower()
     M-->>R: measured power
@@ -244,10 +272,10 @@ IR and sweep validation happen before equipment calls. Equipment exceptions prop
 there is no retry and no partial `CharacterizationResult` is returned.
 
 M1 generalizes the compiler representation to declaration-ordered frequency and
-temperature sweeps with checked axis and product counts. The execution sequence
-above remains the legacy single-frequency path; a multidimensional IR plan returns
-`runtime.unsupported_sweep_shape` before equipment access until M2 adds the
-environment controller and Cartesian runtime orchestration.
+temperature sweeps with checked axis and product counts. M2 executes their
+Cartesian product with the last declared dimension varying fastest. Runtime
+preflights the explicit `TemperatureController` capability before equipment access,
+then applies sweep controls in declaration order before output power and measurement.
 
 ## Dependencies, determinism, and extension points
 
@@ -292,8 +320,8 @@ desktop application outside the Apache-2.0 core and CLI target graph.
 
 The accepted M0 design is specified in
 [`docs/dsl-evolution.md`](dsl-evolution.md). M1's typed sweep compiler
-representation and runtime gate are implemented; the remaining items are
-boundaries for M2-M6, not a claim that those features are already implemented.
+representation and M2's typed Cartesian runtime are implemented; the remaining
+items are boundaries for M3-M6, not a claim that those features are already implemented.
 
 - Parser, AST, semantic analysis, and IR generalize in their existing order. AST
   remains syntactic; semantic analysis resolves typed names and operations; IR

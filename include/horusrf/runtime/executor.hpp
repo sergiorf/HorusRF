@@ -6,6 +6,8 @@
 
 #include "horusrf/device/measurement_device.hpp"
 #include "horusrf/device/rf_device.hpp"
+#include "horusrf/device/temperature_controller.hpp"
+#include "horusrf/domain/operating_point.hpp"
 #include "horusrf/domain/quantity.hpp"
 #include "horusrf/ir/ir.hpp"
 #include "horusrf/runtime/diagnostics.hpp"
@@ -19,8 +21,15 @@ using RuntimeValue =
 struct PointEvaluation {
     domain::Frequency frequency;
     std::vector<RuntimeValue> values;
+    domain::OperatingPoint operating_point;
 
     [[nodiscard]] const RuntimeValue& at(ir::ValueId id) const;
+};
+
+struct DeviceCapabilities {
+    device::RfDevice& rf;
+    device::MeasurementDevice* power{};
+    device::TemperatureController* temperature{};
 };
 
 struct ExecutionResult {
@@ -31,6 +40,10 @@ struct ExecutionResult {
         return evaluation.has_value() && diagnostics.empty();
     }
 };
+
+[[nodiscard]] ExecutionResult execute_point(const ir::Program& program,
+                                            domain::OperatingPoint point,
+                                            DeviceCapabilities devices);
 
 [[nodiscard]] ExecutionResult execute_point(const ir::Program& program,
                                             domain::Frequency frequency,

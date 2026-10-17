@@ -28,6 +28,26 @@ void standard_report_calculation_test() {
     CHECK_NEAR(result.correction.db(), -0.25, 1e-12);
     CHECK_NEAR(result.corrected_power.dbm(), -9.75, 1e-12);
     CHECK_NEAR(result.residual_error.db(), 0.25, 1e-12);
+    CHECK_EQ(result.operating_point.coordinates.size(), std::size_t{1});
+    CHECK_EQ(result.operating_point.coordinates.front().name,
+             std::string{"frequency"});
+    CHECK_EQ(result.operating_point.coordinates.front().type,
+             CoordinateType::Frequency);
+}
+
+void typed_operating_point_test() {
+    OperatingPoint point{{
+        Coordinate{"frequency", CoordinateType::Frequency,
+                   Frequency::from_hertz(2.45e9)},
+        Coordinate{"temperature", CoordinateType::Temperature,
+                   Temperature::from_kelvin(253.15)},
+    }};
+    const auto result = make_characterization_sample(
+        point, Frequency::from_hertz(2.45e9), Power::from_dbm(-10.0),
+        Power::from_dbm(-9.5), PowerDelta::from_db(-0.5));
+    CHECK_EQ(result.operating_point, point);
+    CHECK_EQ(std::get<Temperature>(result.operating_point.coordinates[1].value),
+             Temperature::from_kelvin(253.15));
 }
 
 void hand_checked_metrics_test() {
@@ -75,6 +95,7 @@ void results_own_values_test() {
 
 void run_results_tests() {
     standard_report_calculation_test();
+    typed_operating_point_test();
     hand_checked_metrics_test();
     ratio_edge_cases_test();
     results_own_values_test();

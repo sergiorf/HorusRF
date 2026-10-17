@@ -46,14 +46,16 @@ or `degC`, while temperature steps must use the explicit delta units `deltaK` or
 `deltaC`; an absolute Celsius unit is never accepted as a step. All steps are
 strictly positive and an end must not precede its start. Axis counts use integer
 index generation and the existing endpoint tolerance. Each axis and the checked
-Cartesian product are limited to 1,000,000 points. The last declared dimension
-will vary fastest when multidimensional execution lands in M2.
+Cartesian product are limited to 1,000,000 points. At runtime the last declared
+dimension varies fastest.
 
-M1 compiles and lowers multidimensional programs in `--check` mode. Execution is
-intentionally gated until M2: attempting to run one produces
-`runtime.unsupported_sweep_shape` before any device call. A single frequency sweep
-continues to execute with unchanged result and CSV behavior. `measure power`
-defines `power`.
+M1 compiles and lowers multidimensional programs and M2 executes their deterministic
+Cartesian product. Sweep controls are applied in declaration order at every point,
+followed by output power and measurement. A missing environmental controller is
+reported as `runtime.capability_unavailable` before any device call. The fixed CSV
+schema remains available only for a single frequency sweep; multidimensional
+`--csv` requests produce `output.csv_unrepresentable` before execution. `measure
+power` defines `power`.
 
 Statements are analyzed in written order. `frequency`, `temperature`, `power`,
 `reference.power`, and derived names are usable only after their declarations.
@@ -110,9 +112,9 @@ The runner produces a standard verification report for every characterization.
 For each point it calculates `error = measured - reference`, applies the declared
 calibration as `corrected = measured + correction`, and calculates
 `residual = corrected - reference`. These are runner-generated report fields, not
-named DSL values, and source expressions cannot reference them. Runtime stores one
-dimension and correction entry per sample; there is no calibration application
-statement in the language.
+named DSL values, and source expressions cannot reference them. Runtime stores the
+typed coordinate tuple and one correction entry per sample; there is no calibration
+application statement in the language.
 
 ## Diagnostics
 
@@ -139,7 +141,7 @@ over `power` rather than `frequency`.
 ## Current limitations
 
 The demonstration has no conditionals, general loops, functions, arrays, strings,
-interpolation, multiple characterizations, multidimensional runtime execution,
-phase/gain dimensions, instrument declarations, procedural DSL statements,
+interpolation, multiple characterizations, phase/gain dimensions, instrument
+declarations, procedural DSL statements,
 calibration import or persistence, or explicit calibration application. These
 omissions define the current scope.

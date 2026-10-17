@@ -153,6 +153,8 @@ Acceptance:
 
 ### M2 - Multidimensional runtime execution
 
+Status: complete on 2026-10-17.
+
 Execute the deterministic Cartesian product of the IR sweep dimensions. Introduce
 typed operating-point coordinates and an explicit environmental-control device
 contract with a deterministic simulator implementation. Retain the existing

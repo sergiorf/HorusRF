@@ -30,6 +30,7 @@ void diagnostic_code_name_tests() {
         std::pair{runtime::DiagnosticCode::InvalidSweep, "runtime.invalid_sweep"},
         std::pair{runtime::DiagnosticCode::SweepTooLarge, "runtime.sweep_too_large"},
         std::pair{runtime::DiagnosticCode::UnsupportedSweepShape, "runtime.unsupported_sweep_shape"},
+        std::pair{runtime::DiagnosticCode::CapabilityUnavailable, "runtime.capability_unavailable"},
         std::pair{runtime::DiagnosticCode::InvalidCalibrationBinding, "runtime.invalid_calibration_binding"},
     };
     for (const auto& [code, name] : mappings) {

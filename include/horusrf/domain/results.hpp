@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "horusrf/domain/operating_point.hpp"
 #include "horusrf/domain/quantity.hpp"
 
 namespace horusrf::domain {
@@ -16,12 +17,14 @@ struct CharacterizationSample {
     PowerDelta correction;
     Power corrected_power;
     PowerDelta residual_error;
+    OperatingPoint operating_point;
 };
 
 struct CalibrationArtifact {
     std::string name;
     std::vector<Frequency> dimensions;
     std::vector<PowerDelta> corrections;
+    std::vector<OperatingPoint> operating_points;
 };
 
 struct CharacterizationMetrics {
@@ -41,6 +44,10 @@ struct CharacterizationResult {
 [[nodiscard]] CharacterizationSample make_characterization_sample(
     Frequency frequency, Power reference_power, Power measured_power,
     PowerDelta correction);
+
+[[nodiscard]] CharacterizationSample make_characterization_sample(
+    OperatingPoint operating_point, Frequency frequency, Power reference_power,
+    Power measured_power, PowerDelta correction);
 
 [[nodiscard]] CharacterizationMetrics calculate_metrics(
     std::span<const CharacterizationSample> samples);

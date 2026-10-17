@@ -4,6 +4,7 @@
 #include <limits>
 #include <locale>
 #include <ostream>
+#include <stdexcept>
 
 namespace horusrf::output {
 namespace {
@@ -34,6 +35,17 @@ private:
 
 void write_csv(std::ostream& output,
                const domain::CharacterizationResult& result) {
+    for (const auto& sample : result.samples) {
+        const auto& coordinates = sample.operating_point.coordinates;
+        if (!coordinates.empty() &&
+            (coordinates.size() != 1 ||
+             coordinates.front().type != domain::CoordinateType::Frequency ||
+             !std::holds_alternative<domain::Frequency>(coordinates.front().value))) {
+            throw std::invalid_argument(
+                "legacy CSV cannot represent multidimensional operating points");
+        }
+    }
+
     StreamState state(output);
     output.imbue(std::locale::classic());
     output.precision(std::numeric_limits<double>::max_digits10);

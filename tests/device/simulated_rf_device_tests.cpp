@@ -109,6 +109,23 @@ void determinism_and_reconfiguration_test() {
     CHECK_NEAR(first_measurement.measurePower().dbm(), -4.85, 1e-12);
 }
 
+void temperature_control_test() {
+    device::SimulatedRfConnection connection;
+    device::SimulatedRfTester tester{connection};
+    device::SimulatedMeasurementDevice measurement_device{connection};
+    device::SimulatedTemperatureController controller{connection};
+    device::TemperatureController& abstract_controller = controller;
+
+    tester.setFrequency(domain::Frequency::from_hertz(2.425e9));
+    tester.setOutputPower(domain::Power::from_dbm(-10.0));
+    abstract_controller.setTemperature(domain::Temperature::from_kelvin(293.15));
+    const auto nominal = measurement_device.measurePower();
+    abstract_controller.setTemperature(domain::Temperature::from_kelvin(313.15));
+    const auto warm = measurement_device.measurePower();
+    CHECK_NEAR(warm.dbm() - nominal.dbm(), 0.04, 1e-12);
+    CHECK_EQ(warm, measurement_device.measurePower());
+}
+
 struct DestructionProbe final : device::RfDevice {
     explicit DestructionProbe(bool& destroyed) : destroyed_(destroyed) {}
     ~DestructionProbe() override { destroyed_ = true; }
@@ -144,6 +161,7 @@ int main() {
         configuration_contract_test();
         documented_model_test();
         determinism_and_reconfiguration_test();
+        temperature_control_test();
         virtual_destruction_test();
         std::cout << "All HorusRF simulator tests passed\n";
         return 0;
