@@ -173,6 +173,7 @@ coordination behind the unchanged `sweep frequency` and `measure power` intent.
 
 - [Language reference](docs/language.md)
 - [Architecture and execution model](docs/architecture.md)
+- [Project roadmap](docs/project-roadmap.md)
 - [Test suite organization](tests/README.md)
 - [Apache 2.0 core and CLI license](LICENSE)
 - [GPLv3 Studio license](LICENSE-GPL-3.0)
