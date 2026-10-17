@@ -31,9 +31,26 @@ The executable is normally `build/horusrf-run` for a single-config generator and
 `build/Debug/horusrf-run` (or the selected configuration) for a multi-config
 generator. On Windows, append `.exe`.
 
-The default build remains Qt-free. To build the optional HorusRF
-Studio on Windows with the supported Qt installation, configure and build the
-same directory with:
+The default build remains Qt-free. On Windows, the development script configures
+the optional HorusRF Studio, builds it, runs the full test suite, and launches it:
+
+```powershell
+.\scripts\run-studio.cmd
+```
+
+The script defaults to a Debug build and the supported Qt installation at
+`C:\Qt\6.12.0\msvc2022_64`. Override either value when necessary:
+
+```powershell
+.\scripts\run-studio.cmd -Configuration Release `
+  -QtPath C:\path\to\Qt\6.x\msvc2022_64
+```
+
+Pass `-NoLaunch` to perform the configure, build, and test steps without opening
+Studio. The `.cmd` entry point applies a PowerShell execution-policy bypass only
+to the script process; it does not change the user's execution policy.
+
+The equivalent manual commands are:
 
 ```powershell
 cmake -S . -B build `
