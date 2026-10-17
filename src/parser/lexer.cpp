@@ -18,12 +18,15 @@ TokenKind word_kind(std::string_view word) {
         {"characterize", TokenKind::Characterize}, {"reference", TokenKind::Reference},
         {"power", TokenKind::Power}, {"sweep", TokenKind::Sweep},
         {"frequency", TokenKind::Frequency}, {"step", TokenKind::Step},
+        {"temperature", TokenKind::Temperature},
         {"measure", TokenKind::Measure}, {"derive", TokenKind::Derive},
         {"calibration", TokenKind::Calibration}, {"correction", TokenKind::Correction},
         {"over", TokenKind::Over}, {"Hz", TokenKind::UnitHz},
         {"kHz", TokenKind::UnitKHz}, {"MHz", TokenKind::UnitMHz},
         {"GHz", TokenKind::UnitGHz}, {"dBm", TokenKind::UnitDBm},
         {"dB", TokenKind::UnitDB},
+        {"K", TokenKind::UnitK}, {"degC", TokenKind::UnitDegC},
+        {"deltaK", TokenKind::UnitDeltaK}, {"deltaC", TokenKind::UnitDeltaC},
     };
     const auto found = words.find(word);
     return found == words.end() ? TokenKind::Identifier : found->second;
@@ -41,6 +44,7 @@ std::string_view token_kind_name(TokenKind kind) noexcept {
     case TokenKind::Power: return "power";
     case TokenKind::Sweep: return "sweep";
     case TokenKind::Frequency: return "frequency";
+    case TokenKind::Temperature: return "temperature";
     case TokenKind::Step: return "step";
     case TokenKind::Measure: return "measure";
     case TokenKind::Derive: return "derive";
@@ -63,6 +67,10 @@ std::string_view token_kind_name(TokenKind kind) noexcept {
     case TokenKind::UnitGHz: return "GHz";
     case TokenKind::UnitDBm: return "dBm";
     case TokenKind::UnitDB: return "dB";
+    case TokenKind::UnitK: return "K";
+    case TokenKind::UnitDegC: return "degC";
+    case TokenKind::UnitDeltaK: return "deltaK";
+    case TokenKind::UnitDeltaC: return "deltaC";
     case TokenKind::Invalid: return "invalid token";
     }
     return "unknown token";
@@ -71,7 +79,9 @@ std::string_view token_kind_name(TokenKind kind) noexcept {
 bool is_unit(TokenKind kind) noexcept {
     return kind == TokenKind::UnitHz || kind == TokenKind::UnitKHz ||
            kind == TokenKind::UnitMHz || kind == TokenKind::UnitGHz ||
-           kind == TokenKind::UnitDBm || kind == TokenKind::UnitDB;
+           kind == TokenKind::UnitDBm || kind == TokenKind::UnitDB ||
+           kind == TokenKind::UnitK || kind == TokenKind::UnitDegC ||
+           kind == TokenKind::UnitDeltaK || kind == TokenKind::UnitDeltaC;
 }
 
 bool Lexer::at_end() const noexcept { return position_.offset >= source_.size(); }

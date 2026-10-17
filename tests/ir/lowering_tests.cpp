@@ -100,6 +100,8 @@ void model_test() {
     CHECK(ir::ValueId{0} == ir::ValueId{0});
     CHECK(ir::ValueId{0} != ir::ValueId{1});
     CHECK_EQ(ir::type_name(ir::ValueType::Frequency), "Frequency");
+    CHECK_EQ(ir::type_name(ir::ValueType::Temperature), "Temperature");
+    CHECK_EQ(ir::type_name(ir::ValueType::TemperatureDelta), "TemperatureDelta");
     CHECK_EQ(ir::type_name(ir::ValueType::Power), "Power");
     CHECK_EQ(ir::type_name(ir::ValueType::PowerDelta), "PowerDelta");
     CHECK_EQ(ir::type_name(static_cast<ir::ValueType>(99)), "unknown");
@@ -109,6 +111,32 @@ void model_test() {
     const ir::ApplyPowerDelta apply{ir::ValueId{3}, ir::ValueId{4}};
     CHECK_EQ(apply.power, ir::ValueId{3});
     CHECK_EQ(apply.delta, ir::ValueId{4});
+}
+
+void typed_sweep_lowering_test() {
+    const auto program = lower_source(R"(
+characterize typed_sweeps {
+  reference power = -10 dBm
+  sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
+  sweep temperature -20 degC .. 80 degC step 20 deltaC
+  measure power
+  derive calibration cal {
+    correction = reference.power - power
+    over frequency, temperature
+  }
+})");
+    CHECK_EQ(program.sweeps.size(), std::size_t{2});
+    CHECK_EQ(program.total_point_count, std::size_t{126});
+    CHECK_EQ(program.sweeps[0].name, "frequency");
+    CHECK_EQ(program.sweeps[0].dimension, ir::SweepDimension::Frequency);
+    CHECK_EQ(program.sweeps[1].name, "temperature");
+    CHECK_EQ(program.sweeps[1].dimension, ir::SweepDimension::Temperature);
+    CHECK_EQ(program.sweeps[1].point_count, std::size_t{6});
+    CHECK(std::holds_alternative<ir::SweepTemperature>(
+        value_at(program, program.sweeps[1].value).definition));
+    CHECK_EQ(program.calibration.indexes[0], program.sweeps[0].value);
+    CHECK_EQ(program.calibration.indexes[1], program.sweeps[1].value);
+    CHECK_EQ(program.calibration.index_types[1], ir::ValueType::Temperature);
 }
 
 void canonical_pipeline_test() {
@@ -343,6 +371,7 @@ int main() {
         diagnostic_code_name_tests();
         model_test();
         canonical_pipeline_test();
+        typed_sweep_lowering_test();
         focused_lowering_test();
         owning_result_test();
         defensive_failure_tests();

@@ -11,11 +11,13 @@
 
 namespace horusrf::ir {
 
-enum class ValueType { Frequency, Power, PowerDelta };
+enum class ValueType { Frequency, Temperature, TemperatureDelta, Power, PowerDelta };
 
 [[nodiscard]] constexpr std::string_view type_name(ValueType type) noexcept {
     switch (type) {
     case ValueType::Frequency: return "Frequency";
+    case ValueType::Temperature: return "Temperature";
+    case ValueType::TemperatureDelta: return "TemperatureDelta";
     case ValueType::Power: return "Power";
     case ValueType::PowerDelta: return "PowerDelta";
     }
@@ -28,7 +30,8 @@ struct ValueId {
 };
 
 using ConstantValue =
-    std::variant<domain::Frequency, domain::Power, domain::PowerDelta>;
+    std::variant<domain::Frequency, domain::Temperature, domain::TemperatureDelta,
+                 domain::Power, domain::PowerDelta>;
 
 struct Constant {
     ConstantValue value;
@@ -40,6 +43,9 @@ struct ReferencePower {
 };
 struct SweepFrequency {
     friend bool operator==(SweepFrequency, SweepFrequency) = default;
+};
+struct SweepTemperature {
+    friend bool operator==(SweepTemperature, SweepTemperature) = default;
 };
 struct MeasurePower {
     friend bool operator==(MeasurePower, MeasurePower) = default;
@@ -68,7 +74,8 @@ struct PowerDifference {
     friend bool operator==(PowerDifference, PowerDifference) = default;
 };
 
-using Definition = std::variant<Constant, ReferencePower, SweepFrequency, MeasurePower,
+using Definition = std::variant<Constant, ReferencePower, SweepFrequency, SweepTemperature,
+                                MeasurePower,
                                 Alias, NegatePowerDelta, AddPowerDelta,
                                 ApplyPowerDelta, PowerDifference>;
 
@@ -87,6 +94,22 @@ struct Sweep {
     domain::Frequency step;
     parser::SourceSpan span;
     friend bool operator==(const Sweep&, const Sweep&) = default;
+};
+
+enum class SweepDimension { Frequency, Temperature };
+using SweepEndpoint = std::variant<domain::Frequency, domain::Temperature>;
+using SweepStep = std::variant<domain::Frequency, domain::TemperatureDelta>;
+
+struct TypedSweep {
+    ValueId value;
+    std::string name;
+    SweepDimension dimension{SweepDimension::Frequency};
+    SweepEndpoint start;
+    SweepEndpoint end;
+    SweepStep step;
+    std::size_t point_count{};
+    parser::SourceSpan span;
+    friend bool operator==(const TypedSweep&, const TypedSweep&) = default;
 };
 
 struct NamedValue {
@@ -112,6 +135,8 @@ struct Program {
     parser::SourceSpan span;
     ValueId reference;
     Sweep sweep;
+    std::vector<TypedSweep> sweeps;
+    std::size_t total_point_count{};
     ValueId measurement;
     std::vector<Value> values;
     std::vector<NamedValue> named_values;

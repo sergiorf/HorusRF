@@ -16,6 +16,32 @@ private:
     double value_;
 };
 
+class TemperatureDelta;
+
+class Temperature {
+public:
+    static Temperature from_kelvin(double value);
+    [[nodiscard]] double kelvin() const noexcept { return value_; }
+    friend bool operator==(Temperature, Temperature) = default;
+    friend auto operator<=>(Temperature, Temperature) = default;
+
+private:
+    explicit Temperature(double value) : value_(value) {}
+    double value_;
+};
+
+class TemperatureDelta {
+public:
+    static TemperatureDelta from_kelvin(double value);
+    [[nodiscard]] double kelvin() const noexcept { return value_; }
+    friend bool operator==(TemperatureDelta, TemperatureDelta) = default;
+    friend auto operator<=>(TemperatureDelta, TemperatureDelta) = default;
+
+private:
+    explicit TemperatureDelta(double value) : value_(value) {}
+    double value_;
+};
+
 class Power {
 public:
     static Power from_dbm(double value);
@@ -42,5 +68,11 @@ private:
 [[nodiscard]] Power operator+(Power lhs, PowerDelta rhs);
 [[nodiscard]] PowerDelta operator+(PowerDelta lhs, PowerDelta rhs);
 [[nodiscard]] PowerDelta operator-(PowerDelta value);
+[[nodiscard]] TemperatureDelta operator-(Temperature lhs, Temperature rhs);
+[[nodiscard]] Temperature operator+(Temperature lhs, TemperatureDelta rhs);
+[[nodiscard]] Temperature operator-(Temperature lhs, TemperatureDelta rhs);
+[[nodiscard]] TemperatureDelta operator+(TemperatureDelta lhs, TemperatureDelta rhs);
+[[nodiscard]] TemperatureDelta operator-(TemperatureDelta lhs, TemperatureDelta rhs);
+[[nodiscard]] TemperatureDelta operator-(TemperatureDelta value);
 
 } // namespace horusrf::domain

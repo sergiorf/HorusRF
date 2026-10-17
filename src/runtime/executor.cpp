@@ -19,6 +19,8 @@ std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
     case DiagnosticCode::InvalidOperation: return "runtime.invalid_operation";
     case DiagnosticCode::InvalidSweep: return "runtime.invalid_sweep";
     case DiagnosticCode::SweepTooLarge: return "runtime.sweep_too_large";
+    case DiagnosticCode::UnsupportedSweepShape:
+        return "runtime.unsupported_sweep_shape";
     case DiagnosticCode::InvalidCalibrationBinding:
         return "runtime.invalid_calibration_binding";
     }
@@ -89,6 +91,10 @@ private:
                     const auto actual = std::visit(
                         Overloaded{
                             [](domain::Frequency) { return ir::ValueType::Frequency; },
+                            [](domain::Temperature) { return ir::ValueType::Temperature; },
+                            [](domain::TemperatureDelta) {
+                                return ir::ValueType::TemperatureDelta;
+                            },
                             [](domain::Power) { return ir::ValueType::Power; },
                             [](domain::PowerDelta) { return ir::ValueType::PowerDelta; }},
                         operation.value);
@@ -105,6 +111,12 @@ private:
                     return value.type == ir::ValueType::Frequency ||
                            report(DiagnosticCode::TypeMismatch,
                                   "sweep frequency definition must have type Frequency",
+                                  value.span);
+                },
+                [&](const ir::SweepTemperature&) {
+                    return value.type == ir::ValueType::Temperature ||
+                           report(DiagnosticCode::TypeMismatch,
+                                  "sweep temperature definition must have type Temperature",
                                   value.span);
                 },
                 [&](const ir::MeasurePower&) {
@@ -184,22 +196,72 @@ private:
         std::size_t measurements{};
         for (const auto& value : program_.values) {
             references += std::holds_alternative<ir::ReferencePower>(value.definition) ? 1U : 0U;
-            sweeps += std::holds_alternative<ir::SweepFrequency>(value.definition) ? 1U : 0U;
+            sweeps += (std::holds_alternative<ir::SweepFrequency>(value.definition) ||
+                       std::holds_alternative<ir::SweepTemperature>(value.definition)) ? 1U : 0U;
             measurements += std::holds_alternative<ir::MeasurePower>(value.definition) ? 1U : 0U;
         }
-        if (references != 1 || sweeps != 1 || measurements != 1) {
+        if (references != 1 || sweeps != program_.sweeps.size() || sweeps == 0 ||
+            measurements != 1) {
             return report(DiagnosticCode::InvalidProgramBinding,
-                          "program must contain exactly one reference, sweep, and measurement",
+                          "program must contain one reference and measurement and its declared sweeps",
                           program_.span);
         }
-        return binding(program_.reference, ir::ValueType::Power,
+        if (!binding(program_.reference, ir::ValueType::Power,
                        ir::Definition{ir::ReferencePower{
                            domain::Power::from_dbm(0.0)}}.index(),
-                       program_.span, "reference") &&
-               binding(program_.sweep.frequency, ir::ValueType::Frequency,
+                       program_.span, "reference")) return false;
+        std::size_t product = 1;
+        std::size_t frequency_dimensions = 0;
+        std::size_t temperature_dimensions = 0;
+        const ir::TypedSweep* frequency_sweep = nullptr;
+        for (const auto& sweep : program_.sweeps) {
+            const auto expected_type = sweep.dimension == ir::SweepDimension::Frequency
+                                           ? ir::ValueType::Frequency
+                                           : ir::ValueType::Temperature;
+            const auto definition_index = sweep.dimension == ir::SweepDimension::Frequency
+                                              ? ir::Definition{ir::SweepFrequency{}}.index()
+                                              : ir::Definition{ir::SweepTemperature{}}.index();
+            if (!binding(sweep.value, expected_type, definition_index, sweep.span,
+                         "sweep")) return false;
+            if (sweep.dimension == ir::SweepDimension::Frequency) {
+                ++frequency_dimensions;
+                frequency_sweep = &sweep;
+                if (sweep.name != "frequency" ||
+                    !std::holds_alternative<domain::Frequency>(sweep.start) ||
+                    !std::holds_alternative<domain::Frequency>(sweep.end) ||
+                    !std::holds_alternative<domain::Frequency>(sweep.step)) {
+                    return report(DiagnosticCode::InvalidProgramBinding,
+                                  "frequency sweep metadata has inconsistent types",
+                                  sweep.span);
+                }
+            } else {
+                ++temperature_dimensions;
+                if (sweep.name != "temperature" ||
+                    !std::holds_alternative<domain::Temperature>(sweep.start) ||
+                    !std::holds_alternative<domain::Temperature>(sweep.end) ||
+                    !std::holds_alternative<domain::TemperatureDelta>(sweep.step)) {
+                    return report(DiagnosticCode::InvalidProgramBinding,
+                                  "temperature sweep metadata has inconsistent types",
+                                  sweep.span);
+                }
+            }
+            if (sweep.point_count == 0 || product > 1'000'000U / sweep.point_count) {
+                return report(DiagnosticCode::SweepTooLarge,
+                              "sweep product exceeds the safety limit", sweep.span);
+            }
+            product *= sweep.point_count;
+        }
+        if (product != program_.total_point_count) {
+            return report(DiagnosticCode::InvalidProgramBinding,
+                          "sweep product metadata is inconsistent", program_.span);
+        }
+        if (frequency_dimensions != 1 || temperature_dimensions > 1 ||
+            frequency_sweep == nullptr ||
+            frequency_sweep->value != program_.sweep.frequency ||
+            !binding(program_.sweep.frequency, ir::ValueType::Frequency,
                        ir::Definition{ir::SweepFrequency{}}.index(), program_.sweep.span,
-                       "sweep") &&
-               binding(program_.measurement, ir::ValueType::Power,
+                       "legacy sweep")) return false;
+        return binding(program_.measurement, ir::ValueType::Power,
                        ir::Definition{ir::MeasurePower{}}.index(), program_.span,
                        "measurement");
     }
@@ -232,13 +294,23 @@ private:
                           "calibration correction must have type PowerDelta",
                           calibration.span);
         }
-        if (calibration.indexes.size() != 1 ||
-            calibration.index_types.size() != 1 ||
-            calibration.indexes.front() != program_.sweep.frequency ||
-            calibration.index_types.front() != ir::ValueType::Frequency) {
+        if (calibration.indexes.size() != program_.sweeps.size() ||
+            calibration.index_types.size() != program_.sweeps.size()) {
             return report(DiagnosticCode::InvalidProgramBinding,
-                          "calibration must be indexed by the active frequency sweep",
+                          "calibration must be indexed by every active sweep",
                           calibration.span);
+        }
+        for (std::size_t i = 0; i < program_.sweeps.size(); ++i) {
+            const auto expected_type = program_.sweeps[i].dimension ==
+                                               ir::SweepDimension::Frequency
+                                           ? ir::ValueType::Frequency
+                                           : ir::ValueType::Temperature;
+            if (calibration.indexes[i] != program_.sweeps[i].value ||
+                calibration.index_types[i] != expected_type) {
+                return report(DiagnosticCode::InvalidProgramBinding,
+                              "calibration sweep indexes are not in declaration order",
+                              calibration.span);
+            }
         }
         return true;
     }
@@ -266,6 +338,9 @@ RuntimeValue evaluate_definition(const ir::Definition& definition,
             },
             [](const ir::ReferencePower& operation) -> RuntimeValue { return operation.value; },
             [frequency](const ir::SweepFrequency&) -> RuntimeValue { return frequency; },
+            [](const ir::SweepTemperature&) -> RuntimeValue {
+                throw std::logic_error("temperature sweep execution is unavailable before M2");
+            },
             [&](const ir::MeasurePower&) -> RuntimeValue {
                 const auto point = slot<domain::Frequency>(values, program.sweep.frequency);
                 const auto reference = slot<domain::Power>(values, program.reference);
@@ -323,6 +398,14 @@ ExecutionResult execute_point(const ir::Program& program, domain::Frequency freq
                               device::MeasurementDevice& measurement) {
     auto diagnostics = detail::validate_program(program);
     if (!diagnostics.empty()) return ExecutionResult{std::nullopt, std::move(diagnostics)};
+    if (program.sweeps.size() != 1 ||
+        program.sweeps.front().dimension != ir::SweepDimension::Frequency) {
+        return ExecutionResult{
+            std::nullopt,
+            {Diagnostic{DiagnosticCode::UnsupportedSweepShape,
+                        "multidimensional sweep execution is not available in this milestone",
+                        program.span}}};
+    }
 
     return ExecutionResult{
         detail::evaluate_validated_point(program, frequency, tester, measurement), {}};

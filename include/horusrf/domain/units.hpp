@@ -8,17 +8,23 @@
 
 namespace horusrf::domain {
 
-enum class Dimension { Frequency, AbsolutePower, RelativePower };
-enum class Unit { Hz, KHz, MHz, GHz, DBm, DB };
+enum class Dimension { Frequency, AbsolutePower, RelativePower, Temperature, TemperatureDelta };
+enum class Unit { Hz, KHz, MHz, GHz, DBm, DB, Kelvin, DegC, DeltaK, DeltaC };
 
 [[nodiscard]] std::string_view spelling(Unit unit) noexcept;
 [[nodiscard]] Dimension dimension(Unit unit) noexcept;
 [[nodiscard]] double scale(Unit unit) noexcept;
 [[nodiscard]] std::optional<Unit> parse_unit(std::string_view text) noexcept;
 
-using CanonicalQuantity = std::variant<Frequency, Power, PowerDelta>;
+using CanonicalQuantity =
+    std::variant<Frequency, Power, PowerDelta, Temperature, TemperatureDelta>;
 
-enum class QuantityConversionError { InvalidNumber, NumberOutOfRange, UnknownUnit };
+enum class QuantityConversionError {
+    InvalidNumber,
+    NumberOutOfRange,
+    UnknownUnit,
+    BelowAbsoluteZero
+};
 
 struct QuantityConversionResult {
     std::optional<CanonicalQuantity> value;

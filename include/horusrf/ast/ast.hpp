@@ -58,6 +58,7 @@ struct ReferenceStatement {
     SourceSpan span;
 };
 struct SweepStatement {
+    std::string dimension;
     QuantityLiteral start;
     QuantityLiteral end;
     QuantityLiteral step;

@@ -14,8 +14,8 @@ require a leading digit and, when a decimal point is present, digits after it;
 scientific notation and leading-dot forms are rejected.
 
 Punctuation is `{ } = .. . + - ( ) ,`. Units are `Hz`, `kHz`, `MHz`, `GHz`, `dBm`,
-and `dB`. Source locations are one-based line and column numbers; spans use byte
-offsets internally.
+`dB`, `K`, `degC`, `deltaK`, and `deltaC`. Source locations are one-based line and
+column numbers; spans use byte offsets internally.
 
 ## Program and declarations
 
@@ -35,20 +35,30 @@ characterize tx_path {
 ```
 
 `reference power` declares the sole nominal comparison power. Its expression name
-is `reference.power`. A program requires exactly one reference, frequency sweep,
-power measurement, and calibration. Duplicate required declarations are errors; a
-missing one is reported after statement analysis.
+is `reference.power`. A program requires exactly one reference, one frequency
+sweep, an optional temperature sweep, one power measurement, and one calibration.
+Sweeps retain declaration order and must precede `measure power`. Duplicate
+dimensions are errors; a missing required declaration is reported after statement
+analysis.
 
-The sweep endpoints and step must be frequency quantities. The step is strictly
-positive and the end must not precede the start. Runtime generates points in
-ascending order by integer index, includes a reachable endpoint, and rejects plans
-above 1,000,000 points. `measure power` defines `power`; at runtime that sole
-measurement is associated with each point of the sole active frequency sweep.
+Frequency endpoints and steps use frequency units. Temperature endpoints use `K`
+or `degC`, while temperature steps must use the explicit delta units `deltaK` or
+`deltaC`; an absolute Celsius unit is never accepted as a step. All steps are
+strictly positive and an end must not precede its start. Axis counts use integer
+index generation and the existing endpoint tolerance. Each axis and the checked
+Cartesian product are limited to 1,000,000 points. The last declared dimension
+will vary fastest when multidimensional execution lands in M2.
 
-Statements are analyzed in written order. `frequency`, `power`, `reference.power`,
-and derived names are usable only after their declarations. Forward references,
-unknown names, duplicate user names, and attempts to reuse `frequency` or `power`
-are rejected.
+M1 compiles and lowers multidimensional programs in `--check` mode. Execution is
+intentionally gated until M2: attempting to run one produces
+`runtime.unsupported_sweep_shape` before any device call. A single frequency sweep
+continues to execute with unchanged result and CSV behavior. `measure power`
+defines `power`.
+
+Statements are analyzed in written order. `frequency`, `temperature`, `power`,
+`reference.power`, and derived names are usable only after their declarations.
+Forward references, unknown names, duplicate user names, and attempts to reuse a
+reserved sweep or measurement name are rejected.
 
 ## Expressions and quantities
 
@@ -61,6 +71,12 @@ left to right. Unary minus binds more tightly. Quantities normalize as follows:
 | `Hz`, `kHz`, `MHz`, `GHz` | `Frequency` | Hz |
 | `dBm` | `Power` | dBm |
 | `dB` | `PowerDelta` | dB |
+| `K`, `degC` | `Temperature` | K (`degC` adds 273.15) |
+| `deltaK`, `deltaC` | `TemperatureDelta` | K |
+
+All converted values must be finite, and absolute temperatures below 0 K are
+rejected. Celsius conversion is affine only for absolute temperature; delta units
+have identical Kelvin-sized increments.
 
 Only these arithmetic operations are supported:
 
@@ -85,10 +101,10 @@ derive calibration tx_power {
 ```
 
 The correction must have `PowerDelta` type. `over` is mandatory and names explicit
-index dimensions. Every index must already name an active sweep, and unknown,
-non-sweep, or duplicate indexes are rejected. The implemented language has one
-frequency sweep, so the canonical result is
-`tx_power : Frequency -> PowerDelta`.
+index dimensions. Every index must already name an active sweep. The list must
+contain every active sweep exactly once and in declaration order; unknown,
+non-sweep, duplicate, missing, and reordered indexes are rejected. A checked
+two-dimensional program therefore declares `over frequency, temperature`.
 
 The runner produces a standard verification report for every characterization.
 For each point it calculates `error = measured - reference`, applies the declared
@@ -123,7 +139,7 @@ over `power` rather than `frequency`.
 ## Current limitations
 
 The demonstration has no conditionals, general loops, functions, arrays, strings,
-interpolation, multiple characterizations, multiple sweeps, phase/gain/temperature
-dimensions, instrument declarations, procedural DSL statements, calibration import
-or persistence, or explicit calibration application. These omissions define the
-scope of the example; they do not imply a roadmap for adding those features.
+interpolation, multiple characterizations, multidimensional runtime execution,
+phase/gain dimensions, instrument declarations, procedural DSL statements,
+calibration import or persistence, or explicit calibration application. These
+omissions define the current scope.

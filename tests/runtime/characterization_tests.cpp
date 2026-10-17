@@ -225,6 +225,30 @@ void exception_propagation_test() {
     }
 }
 
+void multidimensional_preflight_gate_test() {
+    const auto program = lower_source(R"(
+characterize typed_sweeps {
+  reference power = -10 dBm
+  sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
+  sweep temperature -20 degC .. 80 degC step 20 deltaC
+  measure power
+  derive calibration cal {
+    correction = reference.power - power
+    over frequency, temperature
+  }
+})");
+    RecordingSetup setup;
+    const auto execution = runtime::execute_characterization(
+        program, setup.tester, setup.measurement);
+    CHECK(!execution.ok());
+    CHECK(!execution.result.has_value());
+    CHECK_EQ(execution.diagnostics.size(), std::size_t{1});
+    CHECK_EQ(execution.diagnostics.front().code,
+             runtime::DiagnosticCode::UnsupportedSweepShape);
+    CHECK(setup.tester.calls.empty());
+    CHECK_EQ(setup.measurement.measurements, std::size_t{0});
+}
+
 void canonical_pipeline_test() {
     std::ifstream input(std::string{HORUSRF_SOURCE_DIR} +
                         "/examples/tx_path_characterization.hrf", std::ios::binary);
@@ -272,6 +296,7 @@ int main() {
         orchestration_test();
         validation_test();
         exception_propagation_test();
+        multidimensional_preflight_gate_test();
         canonical_pipeline_test();
         std::cout << "All HorusRF characterization tests passed\n";
         return 0;

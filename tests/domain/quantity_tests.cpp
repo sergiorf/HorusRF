@@ -29,6 +29,14 @@ static_assert(!Subtractable<PowerDelta, Power>);
 static_assert(!Subtractable<Power, PowerDelta>);
 static_assert(!Negatable<Power>);
 static_assert(!Addable<Frequency, Frequency>);
+static_assert(Subtractable<Temperature, Temperature>);
+static_assert(Addable<Temperature, TemperatureDelta>);
+static_assert(Subtractable<Temperature, TemperatureDelta>);
+static_assert(Addable<TemperatureDelta, TemperatureDelta>);
+static_assert(Subtractable<TemperatureDelta, TemperatureDelta>);
+static_assert(Negatable<TemperatureDelta>);
+static_assert(!Addable<TemperatureDelta, Temperature>);
+static_assert(!Negatable<Temperature>);
 
 const CanonicalQuantity& converted(std::string_view number, std::string_view unit) {
     static QuantityConversionResult result;
@@ -45,6 +53,14 @@ void conversion_tests() {
     CHECK_NEAR(std::get<Frequency>(converted("2.5", "GHz")).hertz(), 2.5e9, 1e-3);
     CHECK_NEAR(std::get<Power>(converted("-10", "dBm")).dbm(), -10.0, 1e-12);
     CHECK_NEAR(std::get<PowerDelta>(converted("3.25", "dB")).db(), 3.25, 1e-12);
+    CHECK_NEAR(std::get<Temperature>(converted("0", "degC")).kelvin(), 273.15, 1e-12);
+    CHECK_NEAR(std::get<Temperature>(converted("20", "K")).kelvin(), 20.0, 1e-12);
+    CHECK_NEAR(std::get<TemperatureDelta>(converted("20", "deltaC")).kelvin(),
+               20.0, 1e-12);
+    CHECK_NEAR(std::get<TemperatureDelta>(converted("20", "deltaK")).kelvin(),
+               20.0, 1e-12);
+    CHECK_EQ(*convert_quantity("-273.16", "degC").error,
+             QuantityConversionError::BelowAbsoluteZero);
 
     CHECK_EQ(*convert_quantity("1", "watts").error, QuantityConversionError::UnknownUnit);
     CHECK_EQ(*convert_quantity("abc", "Hz").error, QuantityConversionError::InvalidNumber);
@@ -63,6 +79,11 @@ void arithmetic_tests() {
     CHECK_NEAR((PowerDelta::from_db(2.0) + PowerDelta::from_db(4.0)).db(), 6.0, 1e-12);
     CHECK_NEAR((-PowerDelta::from_db(2.0)).db(), -2.0, 1e-12);
     CHECK(Frequency::from_hertz(10.0) > Frequency::from_hertz(9.0));
+    const auto room = Temperature::from_kelvin(293.15);
+    const auto freezing = Temperature::from_kelvin(273.15);
+    CHECK_NEAR((room - freezing).kelvin(), 20.0, 1e-12);
+    CHECK_NEAR((freezing + TemperatureDelta::from_kelvin(20.0)).kelvin(),
+               293.15, 1e-12);
 
     bool threw = false;
     try {

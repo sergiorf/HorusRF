@@ -22,9 +22,11 @@ enum class DiagnosticCode {
     InvalidBinaryOperands,
     InvalidSweepRange,
     InvalidSweepStep,
+    SweepTooLarge,
     UnknownCalibrationDimension,
     NonSweepCalibrationDimension,
     DuplicateCalibrationDimension,
+    InvalidCalibrationDimensions,
     InvalidCalibrationCorrection,
 };
 

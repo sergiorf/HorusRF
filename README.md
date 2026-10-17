@@ -125,6 +125,14 @@ minus reference. These report fields are not implicit DSL declarations.
 devices or executing the experiment. It is mutually exclusive with `--csv` and
 produces no output when validation succeeds.
 
+M1 also accepts declaration-ordered frequency and temperature sweeps. Temperature
+endpoints use `K` or `degC`; steps use `deltaK` or `deltaC`. For example,
+[`multidimensional_check.hrf`](examples/multidimensional_check.hrf) has 21 × 6 =
+126 checked points and succeeds with `--check`. Multidimensional execution belongs
+to M2, so running that source without `--check` currently exits 4 with
+`runtime.unsupported_sweep_shape` before any equipment call. Legacy single-frequency
+execution and its CSV schema are unchanged.
+
 Source failures are written without color as
 `path:line:column: diagnostic.code: message`. Exit status is 0 for success, 2 for
 usage, 3 for file I/O, 4 for source/compiler/runtime diagnostics, and 5 for an
@@ -161,7 +169,8 @@ CLI test suite runs every showcase fixture and verifies its diagnostic, exit sta
 empty standard output, and lack of an output artifact.
 
 These examples highlight a distinction from ad hoc procedural orchestration. The
-C++ API also uses strong `Frequency`, `Power`, and `PowerDelta` types, but the DSL
+C++ API also uses strong `Frequency`, `Temperature`, `TemperatureDelta`, `Power`,
+and `PowerDelta` types, but the DSL
 additionally validates the experiment as a whole: required declarations, statement
 availability, sweep validity, expression dimensions, and calibration index shape.
 Procedural code can implement the same checks, but must do so explicitly and invoke

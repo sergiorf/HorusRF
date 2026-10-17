@@ -60,6 +60,7 @@ void canonical_program_test() {
     CHECK_EQ(reference.span.begin.line, std::size_t{3});
 
     const auto& sweep = alternative<ast::SweepStatement>(characterization.statements[1]);
+    CHECK_EQ(sweep.dimension, "frequency");
     CHECK_EQ(sweep.start.number, "2.40");
     CHECK_EQ(sweep.start.unit, "GHz");
     CHECK_EQ(sweep.end.number, "2.50");
@@ -79,6 +80,18 @@ void canonical_program_test() {
     CHECK_EQ(calibration.dimensions.size(), std::size_t{1});
     CHECK_EQ(calibration.dimensions[0], "frequency");
     CHECK(calibration.correction.span.end.offset < calibration.span.end.offset);
+}
+
+void typed_sweep_test() {
+    const auto program = parser::parse(
+        "characterize c { sweep temperature -20 degC .. 80 degC step 20 deltaC }");
+    const auto& sweep = alternative<ast::SweepStatement>(
+        program.characterization.statements.front());
+    CHECK_EQ(sweep.dimension, "temperature");
+    CHECK_EQ(sweep.start.number, "-20");
+    CHECK_EQ(sweep.end.number, "80");
+    CHECK_EQ(sweep.step.number, "20");
+    CHECK_EQ(sweep.step.unit, "deltaC");
 }
 
 void expression_tests() {
@@ -165,6 +178,7 @@ int main() {
         canonical_program_test();
         expression_tests();
         multiple_dimensions_test();
+        typed_sweep_test();
         diagnostic_tests();
         std::cout << "All HorusRF parser tests passed\n";
         return 0;

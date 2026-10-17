@@ -1,5 +1,37 @@
-if(NOT DEFINED HORUSRF_RUN OR NOT DEFINED SOURCE_FILE OR NOT DEFINED OUTPUT_FILE)
+if(NOT DEFINED HORUSRF_RUN OR NOT DEFINED SOURCE_FILE OR
+   NOT DEFINED MULTIDIMENSIONAL_SOURCE_FILE OR NOT DEFINED OUTPUT_FILE)
     message(FATAL_ERROR "CLI acceptance paths were not provided")
+endif()
+
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${MULTIDIMENSIONAL_SOURCE_FILE}" --check
+    RESULT_VARIABLE multidimensional_check_result
+    OUTPUT_VARIABLE multidimensional_check_output
+    ERROR_VARIABLE multidimensional_check_error
+)
+if(NOT multidimensional_check_result EQUAL 0 OR
+   NOT multidimensional_check_output STREQUAL "" OR
+   NOT multidimensional_check_error STREQUAL "")
+    message(FATAL_ERROR
+        "multidimensional check failed: ${multidimensional_check_result}: ${multidimensional_check_error}")
+endif()
+
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${MULTIDIMENSIONAL_SOURCE_FILE}"
+    RESULT_VARIABLE multidimensional_run_result
+    OUTPUT_VARIABLE multidimensional_run_output
+    ERROR_VARIABLE multidimensional_run_error
+)
+if(NOT multidimensional_run_result EQUAL 4 OR
+   NOT multidimensional_run_output STREQUAL "")
+    message(FATAL_ERROR
+        "multidimensional runtime gate failed: ${multidimensional_run_result}: ${multidimensional_run_output}")
+endif()
+string(FIND "${multidimensional_run_error}"
+    "runtime.unsupported_sweep_shape" multidimensional_diagnostic)
+if(multidimensional_diagnostic EQUAL -1)
+    message(FATAL_ERROR
+        "multidimensional runtime diagnostic missing: ${multidimensional_run_error}")
 endif()
 
 file(REMOVE "${OUTPUT_FILE}")

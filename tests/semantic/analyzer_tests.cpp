@@ -115,6 +115,83 @@ void frequency_unit_tests() {
     }
 }
 
+void typed_sweep_tests() {
+    const auto result = analyze_source(R"(
+characterize typed_sweeps {
+  reference power = -10 dBm
+  sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
+  sweep temperature -20 degC .. 80 degC step 20 deltaC
+  measure power
+  derive calibration cal {
+    correction = reference.power - power
+    over frequency, temperature
+  }
+})");
+    CHECK(result.ok());
+    CHECK_EQ(result.program->sweeps.size(), std::size_t{2});
+    CHECK_EQ(result.program->total_point_count, std::size_t{126});
+    const auto& frequency = std::get<semantic::FrequencySweep>(result.program->sweeps[0]);
+    const auto& temperature =
+        std::get<semantic::TemperatureSweep>(result.program->sweeps[1]);
+    CHECK_EQ(frequency.point_count, std::size_t{21});
+    CHECK_EQ(temperature.point_count, std::size_t{6});
+    CHECK_NEAR(temperature.start.kelvin(), 253.15, 1e-12);
+    CHECK_NEAR(temperature.end.kelvin(), 353.15, 1e-12);
+    CHECK_NEAR(temperature.step.kelvin(), 20.0, 1e-12);
+    CHECK_EQ(result.program->calibration.type.index_types[1],
+             semantic::SemanticType::Temperature);
+
+    auto invalid = analyze_source(
+        "characterize c { reference power = 0 dBm "
+        "sweep frequency 1 Hz .. 2 Hz step 1 Hz "
+        "sweep temperature 0 degC .. 20 degC step 10 degC measure power }");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::UnexpectedQuantityType));
+
+    invalid = analyze_source(
+        "characterize c { reference power = 0 dBm "
+        "sweep frequency 1 Hz .. 2 Hz step 1 Hz "
+        "sweep temperature -274 degC .. 20 degC step 10 deltaC measure power }");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::InvalidNumericLiteral));
+
+    invalid = analyze_source(
+        "characterize c { reference power = 0 dBm "
+        "sweep frequency 1 Hz .. 1000000 Hz step 1 Hz "
+        "sweep temperature 0 K .. 1 K step 1 deltaK measure power }");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::SweepTooLarge));
+
+    invalid = analyze_source(
+        "characterize c { reference power = 0 dBm "
+        "sweep frequency 1 Hz .. 2 Hz step 1 Hz "
+        "sweep temperature 0 K .. 1 K step 1 deltaK measure power "
+        "derive calibration cal { correction = reference.power - power "
+        "over temperature, frequency } }");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::InvalidCalibrationDimensions));
+
+    invalid = analyze_source(
+        "characterize c { reference power = 0 dBm "
+        "sweep frequency 1 Hz .. 2 Hz step 1 Hz "
+        "sweep temperature 20 K .. 0 K step 1 deltaK measure power }");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::InvalidSweepRange));
+
+    invalid = analyze_source(
+        "characterize c { reference power = 0 dBm "
+        "sweep frequency 1 Hz .. 2 Hz step 1 Hz "
+        "sweep temperature 0 K .. 20 K step -1 deltaK measure power }");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::InvalidSweepStep));
+
+    invalid = analyze_source(
+        "characterize c { reference power = 0 dBm "
+        "sweep frequency 1 Hz .. 2 Hz step 1 Hz "
+        "sweep temperature 0 K .. 1 K step 1 deltaK "
+        "sweep temperature 2 K .. 3 K step 1 deltaK measure power }");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::DuplicateDeclaration));
+
+    invalid = analyze_source(
+        "characterize c { sweep frequency -2 Hz .. 0 Hz step 1 Hz "
+        "measure power reference power = 0 dBm }");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::ReferenceNotAvailable));
+}
+
 void rejection_tests() {
     auto result = analyze_source(
         "characterize c { reference power = 1 dB sweep frequency 1 Hz .. 2 Hz step 1 Hz "
@@ -268,9 +345,11 @@ void diagnostic_code_name_tests() {
         std::pair{semantic::DiagnosticCode::InvalidBinaryOperands, "semantic.invalid_binary_operands"},
         std::pair{semantic::DiagnosticCode::InvalidSweepRange, "semantic.invalid_sweep_range"},
         std::pair{semantic::DiagnosticCode::InvalidSweepStep, "semantic.invalid_sweep_step"},
+        std::pair{semantic::DiagnosticCode::SweepTooLarge, "semantic.sweep_too_large"},
         std::pair{semantic::DiagnosticCode::UnknownCalibrationDimension, "semantic.unknown_calibration_dimension"},
         std::pair{semantic::DiagnosticCode::NonSweepCalibrationDimension, "semantic.non_sweep_calibration_dimension"},
         std::pair{semantic::DiagnosticCode::DuplicateCalibrationDimension, "semantic.duplicate_calibration_dimension"},
+        std::pair{semantic::DiagnosticCode::InvalidCalibrationDimensions, "semantic.invalid_calibration_dimensions"},
         std::pair{semantic::DiagnosticCode::InvalidCalibrationCorrection, "semantic.invalid_calibration_correction"},
     };
     for (const auto& [code, name] : mappings) {
@@ -286,6 +365,7 @@ int main() {
         canonical_fixture_test();
         supported_expression_tests();
         frequency_unit_tests();
+        typed_sweep_tests();
         rejection_tests();
         calibration_rejection_tests();
         diagnostic_code_name_tests();

@@ -11,11 +11,13 @@
 
 namespace horusrf::semantic {
 
-enum class SemanticType { Frequency, Power, PowerDelta };
+enum class SemanticType { Frequency, Temperature, TemperatureDelta, Power, PowerDelta };
 
 [[nodiscard]] constexpr const char* type_name(SemanticType type) noexcept {
     switch (type) {
     case SemanticType::Frequency: return "Frequency";
+    case SemanticType::Temperature: return "Temperature";
+    case SemanticType::TemperatureDelta: return "TemperatureDelta";
     case SemanticType::Power: return "Power";
     case SemanticType::PowerDelta: return "PowerDelta";
     }
@@ -88,8 +90,20 @@ struct FrequencySweep {
     domain::Frequency start;
     domain::Frequency end;
     domain::Frequency step;
+    std::size_t point_count{};
     SourceSpan span;
 };
+
+struct TemperatureSweep {
+    SymbolId symbol;
+    domain::Temperature start;
+    domain::Temperature end;
+    domain::TemperatureDelta step;
+    std::size_t point_count{};
+    SourceSpan span;
+};
+
+using Sweep = std::variant<FrequencySweep, TemperatureSweep>;
 
 struct PowerMeasurement {
     SymbolId symbol;
@@ -123,6 +137,8 @@ struct AnalyzedProgram {
     SourceSpan span;
     ReferencePower reference;
     FrequencySweep sweep;
+    std::vector<Sweep> sweeps;
+    std::size_t total_point_count{};
     PowerMeasurement measurement;
     std::vector<DerivedQuantity> derived_quantities;
     Calibration calibration;

@@ -23,11 +23,12 @@ struct SourceSpan {
 
 enum class TokenKind {
     EndOfFile, Identifier, Number,
-    Characterize, Reference, Power, Sweep, Frequency, Step, Measure, Derive,
+    Characterize, Reference, Power, Sweep, Frequency, Temperature, Step, Measure, Derive,
     Calibration, Correction, Over,
     LeftBrace, RightBrace, Equal, Range, Dot, Plus, Minus, LeftParen, RightParen,
     Comma,
     UnitHz, UnitKHz, UnitMHz, UnitGHz, UnitDBm, UnitDB,
+    UnitK, UnitDegC, UnitDeltaK, UnitDeltaC,
     Invalid
 };
 

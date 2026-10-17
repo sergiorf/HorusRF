@@ -1,6 +1,8 @@
 #include "horusrf/semantic/analyzer.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,12 +28,15 @@ std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
     case DiagnosticCode::InvalidBinaryOperands: return "semantic.invalid_binary_operands";
     case DiagnosticCode::InvalidSweepRange: return "semantic.invalid_sweep_range";
     case DiagnosticCode::InvalidSweepStep: return "semantic.invalid_sweep_step";
+    case DiagnosticCode::SweepTooLarge: return "semantic.sweep_too_large";
     case DiagnosticCode::UnknownCalibrationDimension:
         return "semantic.unknown_calibration_dimension";
     case DiagnosticCode::NonSweepCalibrationDimension:
         return "semantic.non_sweep_calibration_dimension";
     case DiagnosticCode::DuplicateCalibrationDimension:
         return "semantic.duplicate_calibration_dimension";
+    case DiagnosticCode::InvalidCalibrationDimensions:
+        return "semantic.invalid_calibration_dimensions";
     case DiagnosticCode::InvalidCalibrationCorrection:
         return "semantic.invalid_calibration_correction";
     }
@@ -49,8 +54,43 @@ struct Symbol {
 
 SemanticType canonical_type(const domain::CanonicalQuantity& value) {
     if (std::holds_alternative<domain::Frequency>(value)) return SemanticType::Frequency;
+    if (std::holds_alternative<domain::Temperature>(value)) return SemanticType::Temperature;
+    if (std::holds_alternative<domain::TemperatureDelta>(value)) {
+        return SemanticType::TemperatureDelta;
+    }
     if (std::holds_alternative<domain::Power>(value)) return SemanticType::Power;
     return SemanticType::PowerDelta;
+}
+
+constexpr std::size_t maximum_sweep_points = 1'000'000;
+constexpr long double sweep_tolerance_multiplier = 16.0L;
+
+std::optional<std::size_t> axis_point_count(double start, double end, double step) {
+    const auto first = static_cast<long double>(start);
+    const auto last = static_cast<long double>(end);
+    const auto increment = static_cast<long double>(step);
+    const auto magnitude = std::max({std::abs(first), std::abs(last),
+                                     std::abs(increment), 1.0L});
+    const auto tolerance = sweep_tolerance_multiplier *
+                           static_cast<long double>(std::numeric_limits<double>::epsilon()) *
+                           magnitude;
+    const auto quotient = (last - first) / increment;
+    if (!std::isfinite(quotient) || quotient > static_cast<long double>(maximum_sweep_points)) {
+        return std::nullopt;
+    }
+    auto last_index = std::floor(quotient);
+    const auto candidate = first + last_index * increment;
+    if (std::abs(candidate - last) > tolerance) {
+        const auto next = first + (last_index + 1.0L) * increment;
+        if (std::isfinite(next) && next <= last + tolerance) ++last_index;
+    }
+    const auto count = last_index + 1.0L;
+    if (!std::isfinite(count) || count < 1.0L ||
+        count > static_cast<long double>(maximum_sweep_points) ||
+        count > static_cast<long double>(std::numeric_limits<std::size_t>::max())) {
+        return std::nullopt;
+    }
+    return static_cast<std::size_t>(count);
 }
 
 class Analyzer {
@@ -74,7 +114,8 @@ public:
         if (result.diagnostics.empty()) {
             result.program.emplace(AnalyzedProgram{
                 input_.characterization.name, input_.characterization.span,
-                std::move(*reference_), std::move(*sweep_), std::move(*measurement_),
+                std::move(*reference_), std::move(*frequency_sweep_), std::move(sweeps_),
+                total_point_count_, std::move(*measurement_),
                 std::move(derived_), std::move(*calibration_)});
         }
         return result;
@@ -97,6 +138,9 @@ private:
                 detail = "number is out of range";
                 break;
             case domain::QuantityConversionError::UnknownUnit: detail = "unknown unit"; break;
+            case domain::QuantityConversionError::BelowAbsoluteZero:
+                detail = "absolute temperature is below 0 K";
+                break;
             }
             report(DiagnosticCode::InvalidNumericLiteral,
                    detail + " in quantity '" + literal.number + " " + literal.unit + "'",
@@ -133,30 +177,88 @@ private:
     }
 
     void analyze_statement(const ast::SweepStatement& statement) {
-        if (seen_sweep_) {
-            report(DiagnosticCode::DuplicateDeclaration, "duplicate sweep frequency declaration",
+        if (seen_sweep_dimensions_.contains(statement.dimension)) {
+            report(DiagnosticCode::DuplicateDeclaration,
+                   "duplicate sweep " + statement.dimension + " declaration",
                    statement.span);
             return;
         }
-        seen_sweep_ = true;
-        auto start = quantity_as<domain::Frequency>(statement.start, SemanticType::Frequency);
-        auto end = quantity_as<domain::Frequency>(statement.end, SemanticType::Frequency);
-        auto step = quantity_as<domain::Frequency>(statement.step, SemanticType::Frequency);
-        bool valid = start.has_value() && end.has_value() && step.has_value();
-        if (step && step->hertz() <= 0.0) {
+        if (seen_measurement_) {
+            report(DiagnosticCode::ReferenceNotAvailable,
+                   "sweep declarations must precede measure power", statement.span);
+            return;
+        }
+        seen_sweep_dimensions_.insert(statement.dimension);
+        if (statement.dimension == "frequency") {
+            auto start = quantity_as<domain::Frequency>(statement.start, SemanticType::Frequency);
+            auto end = quantity_as<domain::Frequency>(statement.end, SemanticType::Frequency);
+            auto step = quantity_as<domain::Frequency>(statement.step, SemanticType::Frequency);
+            bool valid = start.has_value() && end.has_value() && step.has_value();
+            if (step && step->hertz() <= 0.0) {
+                report(DiagnosticCode::InvalidSweepStep, "sweep step must be strictly positive",
+                       statement.step.span);
+                valid = false;
+            }
+            if (start && end && end->hertz() < start->hertz()) {
+                report(DiagnosticCode::InvalidSweepRange,
+                       "sweep end must not precede its start", statement.span);
+                valid = false;
+            }
+            if (!valid) return;
+            const auto count = axis_point_count(start->hertz(), end->hertz(), step->hertz());
+            if (!count) {
+                report(DiagnosticCode::SweepTooLarge,
+                       "sweep point count exceeds the 1000000 point safety limit",
+                       statement.span);
+                return;
+            }
+            if (!add_sweep_points(*count, statement.span)) return;
+            const auto id = next_symbol();
+            FrequencySweep sweep{id, *start, *end, *step, *count, statement.span};
+            frequency_sweep_ = sweep;
+            sweeps_.push_back(sweep);
+            symbols_.emplace("frequency", Symbol{id, SemanticType::Frequency, true, true});
+            return;
+        }
+
+        auto start = quantity_as<domain::Temperature>(statement.start,
+                                                      SemanticType::Temperature);
+        auto end = quantity_as<domain::Temperature>(statement.end,
+                                                    SemanticType::Temperature);
+        auto step = quantity_as<domain::TemperatureDelta>(statement.step,
+                                                          SemanticType::TemperatureDelta);
+        if (!start || !end || !step) return;
+        if (step->kelvin() <= 0.0) {
             report(DiagnosticCode::InvalidSweepStep, "sweep step must be strictly positive",
                    statement.step.span);
-            valid = false;
+            return;
         }
-        if (start && end && end->hertz() < start->hertz()) {
-            report(DiagnosticCode::InvalidSweepRange, "sweep end must not precede its start",
-                   statement.span);
-            valid = false;
+        if (end->kelvin() < start->kelvin()) {
+            report(DiagnosticCode::InvalidSweepRange,
+                   "sweep end must not precede its start", statement.span);
+            return;
         }
-        if (!valid) return;
+        const auto count = axis_point_count(start->kelvin(), end->kelvin(), step->kelvin());
+        if (!count) {
+            report(DiagnosticCode::SweepTooLarge,
+                   "sweep point count exceeds the 1000000 point safety limit", statement.span);
+            return;
+        }
+        if (!add_sweep_points(*count, statement.span)) return;
         const auto id = next_symbol();
-        sweep_.emplace(FrequencySweep{id, *start, *end, *step, statement.span});
-        symbols_.emplace("frequency", Symbol{id, SemanticType::Frequency, true, true});
+        sweeps_.push_back(TemperatureSweep{id, *start, *end, *step, *count, statement.span});
+        symbols_.emplace("temperature", Symbol{id, SemanticType::Temperature, true, true});
+    }
+
+    bool add_sweep_points(std::size_t count, parser::SourceSpan span) {
+        if (count > maximum_sweep_points ||
+            total_point_count_ > maximum_sweep_points / count) {
+            report(DiagnosticCode::SweepTooLarge,
+                   "sweep point count exceeds the 1000000 point safety limit", span);
+            return false;
+        }
+        total_point_count_ *= count;
+        return true;
     }
 
     void analyze_statement(const ast::MeasurementStatement& statement) {
@@ -166,13 +268,18 @@ private:
             return;
         }
         seen_measurement_ = true;
+        if (!seen_reference_) {
+            report(DiagnosticCode::ReferenceNotAvailable,
+                   "reference power must precede measure power", statement.span);
+        }
         const auto id = next_symbol();
         measurement_.emplace(PowerMeasurement{id, statement.span});
         symbols_.emplace("power", Symbol{id, SemanticType::Power, false, true});
     }
 
     bool user_name_available(const std::string& name, parser::SourceSpan span) {
-        if (name == "frequency" || name == "power" || declared_user_names_.contains(name)) {
+        if (name == "frequency" || name == "temperature" || name == "power" ||
+            declared_user_names_.contains(name)) {
             report(DiagnosticCode::DuplicateDeclaration,
                    "duplicate declaration of '" + name + "'", span);
             return false;
@@ -236,6 +343,25 @@ private:
             }
             indexes.push_back(found->second.id);
             index_types.push_back(found->second.type);
+        }
+
+        if (indexes.size() == sweeps_.size()) {
+            for (std::size_t i = 0; i < indexes.size(); ++i) {
+                const auto expected = std::visit([](const auto& sweep) { return sweep.symbol; },
+                                                 sweeps_[i]);
+                if (indexes[i] != expected) {
+                    report(DiagnosticCode::InvalidCalibrationDimensions,
+                           "calibration dimensions must list every sweep in declaration order",
+                           statement.span);
+                    valid = false;
+                    break;
+                }
+            }
+        } else {
+            report(DiagnosticCode::InvalidCalibrationDimensions,
+                   "calibration dimensions must list every sweep in declaration order",
+                   statement.span);
+            valid = false;
         }
 
         if (!valid) return;
@@ -358,7 +484,7 @@ private:
         if (!seen_reference_) {
             report(DiagnosticCode::MissingReference, "missing reference power declaration", span);
         }
-        if (!seen_sweep_) {
+        if (!seen_sweep_dimensions_.contains("frequency")) {
             report(DiagnosticCode::MissingSweep, "missing sweep frequency declaration", span);
         }
         if (!seen_measurement_) {
@@ -376,13 +502,15 @@ private:
     std::unordered_set<std::string> future_derived_;
     std::optional<Symbol> reference_symbol_;
     std::optional<ReferencePower> reference_;
-    std::optional<FrequencySweep> sweep_;
+    std::optional<FrequencySweep> frequency_sweep_;
+    std::vector<Sweep> sweeps_;
+    std::size_t total_point_count_{1};
     std::optional<PowerMeasurement> measurement_;
     std::vector<DerivedQuantity> derived_;
     std::optional<Calibration> calibration_;
     std::size_t next_symbol_{};
     bool seen_reference_{};
-    bool seen_sweep_{};
+    std::unordered_set<std::string> seen_sweep_dimensions_;
     bool seen_measurement_{};
     bool seen_calibration_{};
 };

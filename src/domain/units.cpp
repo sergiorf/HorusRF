@@ -14,6 +14,10 @@ std::string_view spelling(Unit unit) noexcept {
     case Unit::GHz: return "GHz";
     case Unit::DBm: return "dBm";
     case Unit::DB: return "dB";
+    case Unit::Kelvin: return "K";
+    case Unit::DegC: return "degC";
+    case Unit::DeltaK: return "deltaK";
+    case Unit::DeltaC: return "deltaC";
     }
     return {};
 }
@@ -26,6 +30,10 @@ Dimension dimension(Unit unit) noexcept {
     case Unit::GHz: return Dimension::Frequency;
     case Unit::DBm: return Dimension::AbsolutePower;
     case Unit::DB: return Dimension::RelativePower;
+    case Unit::Kelvin:
+    case Unit::DegC: return Dimension::Temperature;
+    case Unit::DeltaK:
+    case Unit::DeltaC: return Dimension::TemperatureDelta;
     }
     return Dimension::Frequency;
 }
@@ -37,7 +45,11 @@ double scale(Unit unit) noexcept {
     case Unit::MHz: return 1'000'000.0;
     case Unit::GHz: return 1'000'000'000.0;
     case Unit::DBm:
-    case Unit::DB: return 1.0;
+    case Unit::DB:
+    case Unit::Kelvin:
+    case Unit::DegC:
+    case Unit::DeltaK:
+    case Unit::DeltaC: return 1.0;
     }
     return 1.0;
 }
@@ -49,6 +61,10 @@ std::optional<Unit> parse_unit(std::string_view text) noexcept {
     if (text == "GHz") return Unit::GHz;
     if (text == "dBm") return Unit::DBm;
     if (text == "dB") return Unit::DB;
+    if (text == "K") return Unit::Kelvin;
+    if (text == "degC") return Unit::DegC;
+    if (text == "deltaK") return Unit::DeltaK;
+    if (text == "deltaC") return Unit::DeltaC;
     return std::nullopt;
 }
 
@@ -67,7 +83,8 @@ QuantityConversionResult convert_quantity(std::string_view number, std::string_v
         return {{}, QuantityConversionError::InvalidNumber};
     }
 
-    const double canonical = parsed * scale(*unit);
+    double canonical = parsed * scale(*unit);
+    if (*unit == Unit::DegC) canonical += 273.15;
     if (!std::isfinite(parsed) || !std::isfinite(canonical)) {
         return {{}, QuantityConversionError::NumberOutOfRange};
     }
@@ -79,6 +96,11 @@ QuantityConversionResult convert_quantity(std::string_view number, std::string_v
         return {CanonicalQuantity{Power::from_dbm(canonical)}, {}};
     case Dimension::RelativePower:
         return {CanonicalQuantity{PowerDelta::from_db(canonical)}, {}};
+    case Dimension::Temperature:
+        if (canonical < 0.0) return {{}, QuantityConversionError::BelowAbsoluteZero};
+        return {CanonicalQuantity{Temperature::from_kelvin(canonical)}, {}};
+    case Dimension::TemperatureDelta:
+        return {CanonicalQuantity{TemperatureDelta::from_kelvin(canonical)}, {}};
     }
     return {{}, QuantityConversionError::UnknownUnit};
 }

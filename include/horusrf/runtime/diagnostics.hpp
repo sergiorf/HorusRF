@@ -15,6 +15,7 @@ enum class DiagnosticCode {
     InvalidOperation,
     InvalidSweep,
     SweepTooLarge,
+    UnsupportedSweepShape,
     InvalidCalibrationBinding,
 };
 

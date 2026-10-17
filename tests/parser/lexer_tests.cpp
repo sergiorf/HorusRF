@@ -12,12 +12,12 @@ using horusrf::parser::lex;
 void run_lexer_tests() {
     {
         constexpr std::string_view source =
-            "characterize reference power sweep frequency step measure derive "
+            "characterize reference power sweep frequency temperature step measure derive "
             "calibration correction over name abc_123";
         const auto tokens = lex(source);
         const std::array expected{
             TokenKind::Characterize, TokenKind::Reference, TokenKind::Power,
-            TokenKind::Sweep, TokenKind::Frequency, TokenKind::Step,
+            TokenKind::Sweep, TokenKind::Frequency, TokenKind::Temperature, TokenKind::Step,
             TokenKind::Measure, TokenKind::Derive, TokenKind::Calibration,
             TokenKind::Correction, TokenKind::Over, TokenKind::Identifier,
             TokenKind::Identifier, TokenKind::EndOfFile};
@@ -26,11 +26,13 @@ void run_lexer_tests() {
             CHECK_EQ(tokens[index].kind, expected[index]);
     }
     {
-        const auto tokens = lex("0 42 2.40 Hz kHz MHz GHz dBm dB");
+        const auto tokens = lex("0 42 2.40 Hz kHz MHz GHz dBm dB K degC deltaK deltaC");
         const std::array expected{
             TokenKind::Number, TokenKind::Number, TokenKind::Number,
             TokenKind::UnitHz, TokenKind::UnitKHz, TokenKind::UnitMHz,
             TokenKind::UnitGHz, TokenKind::UnitDBm, TokenKind::UnitDB,
+            TokenKind::UnitK, TokenKind::UnitDegC, TokenKind::UnitDeltaK,
+            TokenKind::UnitDeltaC,
             TokenKind::EndOfFile};
         CHECK_EQ(tokens.size(), expected.size());
         for (std::size_t index = 0; index < expected.size(); ++index)

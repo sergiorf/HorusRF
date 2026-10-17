@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -38,6 +39,8 @@ public:
                   ValueId{},
                   Sweep{ValueId{}, input.sweep.start, input.sweep.end, input.sweep.step,
                         input.sweep.span},
+                  {},
+                  input.total_point_count,
                   ValueId{},
                   {},
                   {},
@@ -53,12 +56,34 @@ public:
                   input_.reference.span)) return failure();
         output_.reference = reference;
 
-        const auto frequency = emit(ValueType::Frequency, SweepFrequency{}, input_.sweep.span);
-        if (!bind(input_.sweep.symbol, {frequency, ValueType::Frequency}, input_.sweep.span)) {
-            return failure();
+        for (const auto& input_sweep : input_.sweeps) {
+            const bool lowered = std::visit(
+                [this](const auto& sweep) {
+                    using T = std::decay_t<decltype(sweep)>;
+                    if constexpr (std::is_same_v<T, semantic::FrequencySweep>) {
+                        const auto value = emit(ValueType::Frequency, SweepFrequency{}, sweep.span);
+                        if (!bind(sweep.symbol, {value, ValueType::Frequency}, sweep.span)) {
+                            return false;
+                        }
+                        output_.sweeps.push_back(TypedSweep{
+                            value, "frequency", SweepDimension::Frequency, sweep.start,
+                            sweep.end, sweep.step, sweep.point_count, sweep.span});
+                        output_.sweep = Sweep{value, sweep.start, sweep.end, sweep.step, sweep.span};
+                    } else {
+                        const auto value =
+                            emit(ValueType::Temperature, SweepTemperature{}, sweep.span);
+                        if (!bind(sweep.symbol, {value, ValueType::Temperature}, sweep.span)) {
+                            return false;
+                        }
+                        output_.sweeps.push_back(TypedSweep{
+                            value, "temperature", SweepDimension::Temperature, sweep.start,
+                            sweep.end, sweep.step, sweep.point_count, sweep.span});
+                    }
+                    return true;
+                },
+                input_sweep);
+            if (!lowered) return failure();
         }
-        output_.sweep = Sweep{frequency, input_.sweep.start, input_.sweep.end,
-                              input_.sweep.step, input_.sweep.span};
 
         const auto measurement = emit(ValueType::Power, MeasurePower{}, input_.measurement.span);
         if (!bind(input_.measurement.symbol, {measurement, ValueType::Power},
@@ -133,16 +158,18 @@ public:
                        "calibration contains a duplicate index", calibration.span);
                 return failure();
             }
-            if (!semantic_type || *semantic_type != ValueType::Frequency ||
-                found->second.type != ValueType::Frequency ||
-                found->second.value != output_.sweep.frequency) {
+            if (!semantic_type || i >= output_.sweeps.size() ||
+                found->second.type != *semantic_type ||
+                found->second.value != output_.sweeps[i].value ||
+                (*semantic_type != ValueType::Frequency &&
+                 *semantic_type != ValueType::Temperature)) {
                 report(DiagnosticCode::InvalidCalibrationIndex,
                        "calibration index is not the active frequency sweep",
                        calibration.span);
                 return failure();
             }
             lowered.indexes.push_back(found->second.value);
-            lowered.index_types.push_back(ValueType::Frequency);
+            lowered.index_types.push_back(*semantic_type);
         }
         output_.calibration = std::move(lowered);
 
@@ -164,6 +191,8 @@ private:
     static std::optional<ValueType> convert_type(semantic::SemanticType type) {
         switch (type) {
         case semantic::SemanticType::Frequency: return ValueType::Frequency;
+        case semantic::SemanticType::Temperature: return ValueType::Temperature;
+        case semantic::SemanticType::TemperatureDelta: return ValueType::TemperatureDelta;
         case semantic::SemanticType::Power: return ValueType::Power;
         case semantic::SemanticType::PowerDelta: return ValueType::PowerDelta;
         }
@@ -209,6 +238,10 @@ private:
         ValueType actual = ValueType::PowerDelta;
         if (std::holds_alternative<domain::Frequency>(quantity.value)) {
             actual = ValueType::Frequency;
+        } else if (std::holds_alternative<domain::Temperature>(quantity.value)) {
+            actual = ValueType::Temperature;
+        } else if (std::holds_alternative<domain::TemperatureDelta>(quantity.value)) {
+            actual = ValueType::TemperatureDelta;
         } else if (std::holds_alternative<domain::Power>(quantity.value)) {
             actual = ValueType::Power;
         }
@@ -218,7 +251,9 @@ private:
                    "quantity expression type does not match its value", outer_span);
             return std::nullopt;
         }
-        return TypedValue{emit(actual, Constant{quantity.value}, quantity.span), actual};
+        const auto constant = std::visit(
+            [](const auto& value) { return ConstantValue{value}; }, quantity.value);
+        return TypedValue{emit(actual, Constant{constant}, quantity.span), actual};
     }
 
     template <typename Leaf>

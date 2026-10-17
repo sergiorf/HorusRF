@@ -121,6 +121,8 @@ Acceptance:
 
 ### M1 - Typed sweep model and compiler support
 
+Status: complete on 2026-10-17.
+
 Add multiple typed sweep declarations through grammar, lexer, AST, semantic
 analysis, and IR. Add `Temperature` and `TemperatureDelta` domain types with the
 absolute/delta conversions selected in M0. Support signed endpoints where valid,

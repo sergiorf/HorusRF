@@ -35,11 +35,11 @@ SyntaxHighlighter::SyntaxHighlighter(QTextDocument* document)
                       number});
     rules_.push_back({QRegularExpression{QStringLiteral("[+\\-]")}, operation});
     rules_.push_back({QRegularExpression{QStringLiteral(
-                          "\\b(?:characterize|reference|power|sweep|frequency|step|"
+                          "\\b(?:characterize|reference|power|sweep|frequency|temperature|step|"
                           "measure|derive|calibration|correction|over)\\b")},
                       keyword});
     rules_.push_back({QRegularExpression{
-                          QStringLiteral("\\b(?:Hz|kHz|MHz|GHz|dBm|dB)\\b")},
+                          QStringLiteral("\\b(?:Hz|kHz|MHz|GHz|dBm|dB|K|degC|deltaK|deltaC)\\b")},
                       unit});
 }
 

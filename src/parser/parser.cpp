@@ -67,7 +67,7 @@ const Token& Parser::consume_expression_name(std::string message) {
     // These words introduce statement syntax, but the grammar also uses them
     // as names in expressions, references, and calibration indexes.
     if (check(TokenKind::Identifier) || check(TokenKind::Power) ||
-        check(TokenKind::Frequency)) {
+        check(TokenKind::Frequency) || check(TokenKind::Temperature)) {
         ++index_;
         return previous();
     }
@@ -133,16 +133,21 @@ ast::ReferenceStatement Parser::parse_reference_statement() {
 ast::SweepStatement Parser::parse_sweep_statement() {
     const auto& start = consume(TokenKind::Sweep, DiagnosticCode::UnexpectedToken,
                                 "expected 'sweep'");
-    consume(TokenKind::Frequency, DiagnosticCode::UnexpectedToken,
-            "expected 'frequency' after 'sweep'");
-    auto range_start = parse_quantity();
+    reject_invalid();
+    if (!check(TokenKind::Frequency) && !check(TokenKind::Temperature)) {
+        fail(DiagnosticCode::ExpectedIdentifier,
+             "expected sweep dimension after 'sweep'");
+    }
+    const auto dimension = current();
+    ++index_;
+    auto range_start = parse_quantity(true);
     consume(TokenKind::Range, DiagnosticCode::UnexpectedToken,
             "expected '..' between sweep endpoints");
-    auto range_end = parse_quantity();
+    auto range_end = parse_quantity(true);
     consume(TokenKind::Step, DiagnosticCode::UnexpectedToken,
             "expected 'step' after sweep range");
-    auto step = parse_quantity();
-    return ast::SweepStatement{range_start, range_end, step,
+    auto step = parse_quantity(true);
+    return ast::SweepStatement{dimension.lexeme, range_start, range_end, step,
                                joined(start.span.begin, step.span.end)};
 }
 
@@ -260,7 +265,7 @@ ast::Expression Parser::parse_primary() {
         return ast::Expression{ast::ReferenceExpression{"reference", member.lexeme, span}, span};
     }
     if (check(TokenKind::Identifier) || check(TokenKind::Power) ||
-        check(TokenKind::Frequency)) {
+        check(TokenKind::Frequency) || check(TokenKind::Temperature)) {
         const auto& identifier = current();
         ++index_;
         return ast::Expression{ast::IdentifierExpression{identifier.lexeme, identifier.span},

@@ -17,6 +17,17 @@ Frequency Frequency::from_hertz(double value) {
     return Frequency(value);
 }
 
+Temperature Temperature::from_kelvin(double value) {
+    require_finite(value);
+    if (value < 0.0) throw std::invalid_argument("absolute temperature must not be below 0 K");
+    return Temperature(value);
+}
+
+TemperatureDelta TemperatureDelta::from_kelvin(double value) {
+    require_finite(value);
+    return TemperatureDelta(value);
+}
+
 Power Power::from_dbm(double value) {
     require_finite(value);
     return Power(value);
@@ -40,5 +51,29 @@ PowerDelta operator+(PowerDelta lhs, PowerDelta rhs) {
 }
 
 PowerDelta operator-(PowerDelta value) { return PowerDelta::from_db(-value.db()); }
+
+TemperatureDelta operator-(Temperature lhs, Temperature rhs) {
+    return TemperatureDelta::from_kelvin(lhs.kelvin() - rhs.kelvin());
+}
+
+Temperature operator+(Temperature lhs, TemperatureDelta rhs) {
+    return Temperature::from_kelvin(lhs.kelvin() + rhs.kelvin());
+}
+
+Temperature operator-(Temperature lhs, TemperatureDelta rhs) {
+    return Temperature::from_kelvin(lhs.kelvin() - rhs.kelvin());
+}
+
+TemperatureDelta operator+(TemperatureDelta lhs, TemperatureDelta rhs) {
+    return TemperatureDelta::from_kelvin(lhs.kelvin() + rhs.kelvin());
+}
+
+TemperatureDelta operator-(TemperatureDelta lhs, TemperatureDelta rhs) {
+    return TemperatureDelta::from_kelvin(lhs.kelvin() - rhs.kelvin());
+}
+
+TemperatureDelta operator-(TemperatureDelta value) {
+    return TemperatureDelta::from_kelvin(-value.kelvin());
+}
 
 } // namespace horusrf::domain

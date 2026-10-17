@@ -243,6 +243,12 @@ only after all points succeed.
 IR and sweep validation happen before equipment calls. Equipment exceptions propagate:
 there is no retry and no partial `CharacterizationResult` is returned.
 
+M1 generalizes the compiler representation to declaration-ordered frequency and
+temperature sweeps with checked axis and product counts. The execution sequence
+above remains the legacy single-frequency path; a multidimensional IR plan returns
+`runtime.unsupported_sweep_shape` before equipment access until M2 adds the
+environment controller and Cartesian runtime orchestration.
+
 ## Dependencies, determinism, and extension points
 
 The target-level dependency rules are:
@@ -285,8 +291,9 @@ desktop application outside the Apache-2.0 core and CLI target graph.
 ## Approved Phase 1 evolution boundaries
 
 The accepted M0 design is specified in
-[`docs/dsl-evolution.md`](dsl-evolution.md). These are boundaries for M1-M6, not a
-claim that the features are already implemented.
+[`docs/dsl-evolution.md`](dsl-evolution.md). M1's typed sweep compiler
+representation and runtime gate are implemented; the remaining items are
+boundaries for M2-M6, not a claim that those features are already implemented.
 
 - Parser, AST, semantic analysis, and IR generalize in their existing order. AST
   remains syntactic; semantic analysis resolves typed names and operations; IR

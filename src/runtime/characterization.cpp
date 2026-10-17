@@ -104,6 +104,14 @@ CharacterizationExecutionResult execute_characterization(const ir::Program& prog
                                                           device::MeasurementDevice& measurement) {
     auto diagnostics = detail::validate_program(program);
     if (!diagnostics.empty()) return {std::nullopt, std::move(diagnostics)};
+    if (program.sweeps.size() != 1 ||
+        program.sweeps.front().dimension != ir::SweepDimension::Frequency) {
+        diagnostics.push_back(diagnostic(
+            DiagnosticCode::UnsupportedSweepShape,
+            "multidimensional sweep execution is not available in this milestone",
+            program.span));
+        return {std::nullopt, std::move(diagnostics)};
+    }
 
     const auto& calibration = program.calibration;
     if (calibration.name.empty()) {
