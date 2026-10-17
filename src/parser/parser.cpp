@@ -113,9 +113,10 @@ ast::Statement Parser::parse_statement() {
         if (index_ + 1 < tokens_.size() && tokens_[index_ + 1].kind == TokenKind::Calibration)
             return parse_calibration_statement();
         return parse_derive_statement();
+    case TokenKind::Assert: return parse_assertion_statement();
     default:
         fail(DiagnosticCode::UnexpectedToken,
-             "expected reference, sweep, measure, or derive statement");
+             "expected reference, sweep, measure, derive, or assert statement");
     }
 }
 
@@ -180,6 +181,14 @@ ast::DeriveStatement Parser::parse_derive_statement() {
                                 joined(start.span.begin, expression.span.end)};
 }
 
+ast::AssertionStatement Parser::parse_assertion_statement() {
+    const auto& start = consume(TokenKind::Assert, DiagnosticCode::UnexpectedToken,
+                                "expected 'assert'");
+    auto expression = parse_expression();
+    return ast::AssertionStatement{expression,
+                                   joined(start.span.begin, expression.span.end)};
+}
+
 ast::CalibrationStatement Parser::parse_calibration_statement() {
     const auto& start = consume(TokenKind::Derive, DiagnosticCode::UnexpectedToken,
                                 "expected 'derive'");
@@ -229,7 +238,30 @@ ast::QuantityLiteral Parser::parse_quantity(bool allow_sign) {
                                 joined(begin, unit.span.end)};
 }
 
-ast::Expression Parser::parse_expression() { return parse_additive(); }
+ast::Expression Parser::parse_expression() { return parse_comparison(); }
+
+ast::Expression Parser::parse_comparison() {
+    auto expression = parse_additive();
+    if (!check(TokenKind::Less) && !check(TokenKind::LessEqual) &&
+        !check(TokenKind::Greater) && !check(TokenKind::GreaterEqual) &&
+        !check(TokenKind::EqualEqual) && !check(TokenKind::NotEqual)) return expression;
+    const auto token = current().kind;
+    ++index_;
+    auto right = parse_additive();
+    const auto span = joined(expression.span.begin, right.span.end);
+    ast::ComparisonOperator op = ast::ComparisonOperator::Equal;
+    switch (token) {
+    case TokenKind::Less: op = ast::ComparisonOperator::Less; break;
+    case TokenKind::LessEqual: op = ast::ComparisonOperator::LessEqual; break;
+    case TokenKind::Greater: op = ast::ComparisonOperator::Greater; break;
+    case TokenKind::GreaterEqual: op = ast::ComparisonOperator::GreaterEqual; break;
+    case TokenKind::NotEqual: op = ast::ComparisonOperator::NotEqual; break;
+    default: break;
+    }
+    return ast::Expression{ast::ComparisonExpression{
+        op, std::make_shared<ast::Expression>(std::move(expression)),
+        std::make_shared<ast::Expression>(std::move(right)), span}, span};
+}
 
 ast::Expression Parser::parse_additive() {
     auto expression = parse_unary();
@@ -277,6 +309,15 @@ ast::Expression Parser::parse_primary() {
         check(TokenKind::Frequency) || check(TokenKind::Temperature)) {
         const auto& identifier = current();
         ++index_;
+        if (match(TokenKind::LeftParen)) {
+            auto argument = parse_expression();
+            const auto& end = consume(TokenKind::RightParen, DiagnosticCode::UnexpectedToken,
+                                      "expected ')' after function argument");
+            const auto span = joined(identifier.span.begin, end.span.end);
+            return ast::Expression{ast::CallExpression{
+                identifier.lexeme, std::make_shared<ast::Expression>(std::move(argument)), span},
+                span};
+        }
         return ast::Expression{ast::IdentifierExpression{identifier.lexeme, identifier.span},
                                identifier.span};
     }

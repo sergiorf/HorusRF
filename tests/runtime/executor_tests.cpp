@@ -32,6 +32,7 @@ void diagnostic_code_name_tests() {
         std::pair{runtime::DiagnosticCode::UnsupportedSweepShape, "runtime.unsupported_sweep_shape"},
         std::pair{runtime::DiagnosticCode::CapabilityUnavailable, "runtime.capability_unavailable"},
         std::pair{runtime::DiagnosticCode::InvalidCalibrationBinding, "runtime.invalid_calibration_binding"},
+        std::pair{runtime::DiagnosticCode::NonFiniteValue, "runtime.non_finite_value"},
     };
     for (const auto& [code, name] : mappings) {
         CHECK_EQ(runtime::diagnostic_code_name(code), name);

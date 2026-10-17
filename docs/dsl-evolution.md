@@ -6,7 +6,8 @@ explicitly says otherwise, the described additions are not implemented yet.
 
 Implementation status: M1 (typed frequency/temperature sweep compiler support), M2
 (typed Cartesian runtime execution and environmental control), and M3 (multiple
-named measurements) were completed on 2026-10-17. M4-M6 remain forward-looking.
+named measurements) were completed on 2026-10-17. M4 (assertions and qualification)
+was completed on 2026-10-18. M5-M6 remain forward-looking.
 
 ## Scope and audited baseline
 

@@ -325,7 +325,8 @@ desktop application outside the Apache-2.0 core and CLI target graph.
 The accepted M0 design is specified in
 [`docs/dsl-evolution.md`](dsl-evolution.md). M1's typed sweep compiler
 representation, M2's typed Cartesian runtime, and M3's named measurement pipeline
-are implemented; the remaining items are boundaries for M4-M6.
+are implemented; assertions and qualification were added in M4, and the remaining
+items are boundaries for M5-M6.
 
 - Parser, AST, semantic analysis, and IR generalize in their existing order. AST
   remains syntactic; semantic analysis resolves typed names and operations; IR

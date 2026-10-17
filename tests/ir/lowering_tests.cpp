@@ -113,6 +113,32 @@ void model_test() {
     CHECK_EQ(apply.delta, ir::ValueId{4});
 }
 
+void assertion_lowering_test() {
+    const auto program = lower_source(R"(
+characterize qualified {
+ reference power = 0 dBm sweep frequency 1 Hz .. 1 Hz step 1 Hz
+ measure output = power derive error = output - reference.power
+ derive within_limit = abs(error) <= 1 dB
+ derive aliased_limit = within_limit
+ assert aliased_limit
+ derive calibration cal { correction = -error over frequency }
+})");
+    CHECK_EQ(program.assertions.size(), std::size_t{1});
+    const auto& assertion = program.assertions.front();
+    CHECK_EQ(assertion.id, std::string{"assertion-1"});
+    CHECK_EQ(assertion.ordinal, std::size_t{1});
+    CHECK_EQ(value_at(program, assertion.value).type, ir::ValueType::Boolean);
+    CHECK(std::holds_alternative<ir::Alias>(value_at(program, assertion.value).definition));
+    const auto alias = definition_as<ir::Alias>(value_at(program, assertion.value));
+    const auto& comparison = definition_as<ir::Compare>(value_at(program, alias.value));
+    CHECK_EQ(comparison.op, ir::ComparisonOperator::LessEqual);
+    CHECK_EQ(comparison.operand_type, ir::ValueType::PowerDelta);
+    CHECK(std::holds_alternative<ir::AbsoluteValue>(
+        value_at(program, comparison.left).definition));
+    CHECK_EQ(assertion.left, comparison.left);
+    CHECK_EQ(assertion.right, comparison.right);
+}
+
 void typed_sweep_lowering_test() {
     const auto program = lower_source(R"(
 characterize typed_sweeps {
@@ -397,6 +423,7 @@ int main() {
     try {
         diagnostic_code_name_tests();
         model_test();
+        assertion_lowering_test();
         canonical_pipeline_test();
         typed_sweep_lowering_test();
         focused_lowering_test();

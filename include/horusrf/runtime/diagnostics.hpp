@@ -18,6 +18,7 @@ enum class DiagnosticCode {
     UnsupportedSweepShape,
     CapabilityUnavailable,
     InvalidCalibrationBinding,
+    NonFiniteValue,
 };
 
 [[nodiscard]] std::string_view diagnostic_code_name(DiagnosticCode code) noexcept;

@@ -11,7 +11,7 @@
 
 namespace horusrf::ir {
 
-enum class ValueType { Frequency, FrequencyDelta, Ratio, Temperature, TemperatureDelta, Power, PowerDelta };
+enum class ValueType { Frequency, FrequencyDelta, Ratio, Temperature, TemperatureDelta, Power, PowerDelta, Boolean };
 
 [[nodiscard]] constexpr std::string_view type_name(ValueType type) noexcept {
     switch (type) {
@@ -22,6 +22,7 @@ enum class ValueType { Frequency, FrequencyDelta, Ratio, Temperature, Temperatur
     case ValueType::TemperatureDelta: return "TemperatureDelta";
     case ValueType::Power: return "Power";
     case ValueType::PowerDelta: return "PowerDelta";
+    case ValueType::Boolean: return "Boolean";
     }
     return "unknown";
 }
@@ -34,7 +35,7 @@ struct ValueId {
 using ConstantValue =
     std::variant<domain::Frequency, domain::FrequencyDelta, domain::Ratio,
                  domain::Temperature, domain::TemperatureDelta, domain::Power,
-                 domain::PowerDelta>;
+                 domain::PowerDelta, bool>;
 
 struct Constant {
     ConstantValue value;
@@ -96,12 +97,24 @@ struct PowerDifference {
     ValueId right;
     friend bool operator==(PowerDifference, PowerDifference) = default;
 };
+struct AbsoluteValue {
+    ValueId operand;
+    friend bool operator==(AbsoluteValue, AbsoluteValue) = default;
+};
+enum class ComparisonOperator { Less, LessEqual, Greater, GreaterEqual, Equal, NotEqual };
+struct Compare {
+    ComparisonOperator op{ComparisonOperator::Equal};
+    ValueId left;
+    ValueId right;
+    ValueType operand_type{ValueType::PowerDelta};
+    friend bool operator==(Compare, Compare) = default;
+};
 
 using Definition = std::variant<Constant, ReferencePower, SweepFrequency, SweepTemperature,
                                 MeasurePower, MeasureEvm, MeasureFrequencyError,
                                 NegateDelta, AddDelta, SubtractDelta,
                                 Alias, NegatePowerDelta, AddPowerDelta,
-                                ApplyPowerDelta, PowerDifference>;
+                                ApplyPowerDelta, PowerDifference, AbsoluteValue, Compare>;
 
 struct Value {
     ValueId id;
@@ -165,6 +178,18 @@ struct Calibration {
     friend bool operator==(const Calibration&, const Calibration&) = default;
 };
 
+struct Assertion {
+    std::string id;
+    std::size_t ordinal{};
+    ValueId value;
+    ValueId left;
+    ValueId right;
+    ValueType operand_type{ValueType::PowerDelta};
+    ComparisonOperator op{ComparisonOperator::Equal};
+    parser::SourceSpan span;
+    friend bool operator==(const Assertion&, const Assertion&) = default;
+};
+
 struct Program {
     std::string characterization_name;
     parser::SourceSpan span;
@@ -176,6 +201,7 @@ struct Program {
     std::vector<Measurement> measurements;
     std::vector<Value> values;
     std::vector<NamedValue> named_values;
+    std::vector<Assertion> assertions;
     Calibration calibration;
     friend bool operator==(const Program&, const Program&) = default;
 };

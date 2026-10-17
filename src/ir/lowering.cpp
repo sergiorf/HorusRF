@@ -45,6 +45,7 @@ public:
                   {},
                   {},
                   {},
+                  {},
                   {}} {}
 
     LoweringResult run() {
@@ -127,6 +128,25 @@ public:
             symbols_.emplace(derived.symbol.value, Binding{root->id, root->type});
             output_.named_values.push_back(
                 NamedValue{derived.name, root->id, root->type, derived.span});
+        }
+
+        for (const auto& assertion : input_.assertions) {
+            auto root = lower_expression(assertion.expression);
+            if (!root || root->type != ValueType::Boolean) {
+                report(DiagnosticCode::TypeMismatch,
+                       "assertion expression must lower to Boolean", assertion.span);
+                return failure();
+            }
+            const auto* definition = comparison_definition(root->id);
+            if (!definition) {
+                report(DiagnosticCode::UnsupportedExpression,
+                       "assertion must be backed by a comparison", assertion.span);
+                return failure();
+            }
+            output_.assertions.push_back(Assertion{
+                assertion.id, assertion.ordinal, root->id, definition->left,
+                definition->right, definition->operand_type, definition->op,
+                assertion.span});
         }
 
         const auto& calibration = input_.calibration;
@@ -212,6 +232,7 @@ private:
         case semantic::SemanticType::TemperatureDelta: return ValueType::TemperatureDelta;
         case semantic::SemanticType::Power: return ValueType::Power;
         case semantic::SemanticType::PowerDelta: return ValueType::PowerDelta;
+        case semantic::SemanticType::Boolean: return ValueType::Boolean;
         }
         return std::nullopt;
     }
@@ -241,6 +262,19 @@ private:
                std::holds_alternative<semantic::ReferenceValue>(expression.value);
     }
 
+    const Compare* comparison_definition(ValueId value) const {
+        while (value.value < output_.values.size()) {
+            const auto& definition = output_.values[value.value].definition;
+            if (const auto* comparison = std::get_if<Compare>(&definition)) {
+                return comparison;
+            }
+            const auto* alias = std::get_if<Alias>(&definition);
+            if (!alias || alias->value.value >= value.value) return nullptr;
+            value = alias->value;
+        }
+        return nullptr;
+    }
+
     std::optional<TypedValue> lower_expression(const semantic::Expression& expression) {
         return std::visit(
             [this, &expression](const auto& value) {
@@ -255,6 +289,8 @@ private:
         ValueType actual = ValueType::PowerDelta;
         if (std::holds_alternative<domain::Frequency>(quantity.value)) {
             actual = ValueType::Frequency;
+        } else if (std::holds_alternative<domain::FrequencyDelta>(quantity.value)) {
+            actual = ValueType::FrequencyDelta;
         } else if (std::holds_alternative<domain::Ratio>(quantity.value)) {
             actual = ValueType::Ratio;
         } else if (std::holds_alternative<domain::Temperature>(quantity.value)) {
@@ -390,6 +426,53 @@ private:
             return std::nullopt;
         }
         return TypedValue{emit(*result_type, std::move(*definition), binary.span), *result_type};
+    }
+
+    std::optional<TypedValue> lower_value(const semantic::CallValue& call,
+                                          semantic::SemanticType outer_type,
+                                          parser::SourceSpan outer_span) {
+        if (call.function != "abs" || !call.argument) {
+            report(DiagnosticCode::UnsupportedExpression, "unsupported function call",
+                   outer_span);
+            return std::nullopt;
+        }
+        auto argument = lower_expression(*call.argument);
+        const auto expected = convert_type(call.type);
+        const auto outer = convert_type(outer_type);
+        if (!argument || !expected || !outer || argument->type != *expected ||
+            *expected != *outer || *expected == ValueType::Boolean ||
+            *expected == ValueType::Frequency || *expected == ValueType::Temperature ||
+            *expected == ValueType::Power) {
+            report(DiagnosticCode::TypeMismatch, "invalid abs() argument type", outer_span);
+            return std::nullopt;
+        }
+        return TypedValue{emit(*expected, AbsoluteValue{argument->id}, call.span), *expected};
+    }
+
+    std::optional<TypedValue> lower_value(const semantic::ComparisonValue& comparison,
+                                          semantic::SemanticType outer_type,
+                                          parser::SourceSpan outer_span) {
+        if (!comparison.left || !comparison.right) return std::nullopt;
+        auto left = lower_expression(*comparison.left);
+        auto right = lower_expression(*comparison.right);
+        const auto outer = convert_type(outer_type);
+        if (!left || !right || !outer || *outer != ValueType::Boolean ||
+            left->type != right->type || left->type == ValueType::Boolean) {
+            report(DiagnosticCode::TypeMismatch, "invalid comparison operand types", outer_span);
+            return std::nullopt;
+        }
+        ComparisonOperator op = ComparisonOperator::Equal;
+        switch (comparison.op) {
+        case semantic::ComparisonOperator::Less: op = ComparisonOperator::Less; break;
+        case semantic::ComparisonOperator::LessEqual: op = ComparisonOperator::LessEqual; break;
+        case semantic::ComparisonOperator::Greater: op = ComparisonOperator::Greater; break;
+        case semantic::ComparisonOperator::GreaterEqual: op = ComparisonOperator::GreaterEqual; break;
+        case semantic::ComparisonOperator::NotEqual: op = ComparisonOperator::NotEqual; break;
+        default: break;
+        }
+        return TypedValue{emit(ValueType::Boolean,
+                               Compare{op, left->id, right->id, left->type},
+                               comparison.span), ValueType::Boolean};
     }
 
     const semantic::AnalyzedProgram& input_;

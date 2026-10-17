@@ -58,9 +58,11 @@ private:
     [[nodiscard]] ast::SweepStatement parse_sweep_statement();
     [[nodiscard]] ast::MeasurementStatement parse_measurement_statement();
     [[nodiscard]] ast::DeriveStatement parse_derive_statement();
+    [[nodiscard]] ast::AssertionStatement parse_assertion_statement();
     [[nodiscard]] ast::CalibrationStatement parse_calibration_statement();
     [[nodiscard]] ast::QuantityLiteral parse_quantity(bool allow_sign = false);
     [[nodiscard]] ast::Expression parse_expression();
+    [[nodiscard]] ast::Expression parse_comparison();
     [[nodiscard]] ast::Expression parse_additive();
     [[nodiscard]] ast::Expression parse_unary();
     [[nodiscard]] ast::Expression parse_primary();

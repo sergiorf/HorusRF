@@ -13,7 +13,8 @@ underscores. Keywords are lowercase and unit spelling is exact. Decimal numbers
 require a leading digit and, when a decimal point is present, digits after it;
 scientific notation and leading-dot forms are rejected.
 
-Punctuation is `{ } = .. . + - ( ) , %`. Units are `Hz`, `kHz`, `MHz`, `GHz`, `dBm`,
+Punctuation is `{ } = .. . + - ( ) , % < <= > >= == !=`. A lone `!` is invalid.
+Units are `Hz`, `kHz`, `MHz`, `GHz`, `dBm`,
 `dB`, `%`, `K`, `degC`, `deltaK`, and `deltaC`. Source locations are one-based line and
 column numbers; spans use byte offsets internally.
 
@@ -75,12 +76,14 @@ reserved sweep or measurement name are rejected.
 ## Expressions and quantities
 
 Expressions contain quantities, identifiers, `reference.power`, parentheses, unary
-minus, and binary `+` and `-`. Binary operators have equal precedence and associate
-left to right. Unary minus binds more tightly. Quantities normalize as follows:
+minus, binary `+` and `-`, the built-in `abs()` function, and one optional comparison.
+Arithmetic operators have equal precedence and associate left to right; unary minus
+binds more tightly, and a comparison has lower precedence. Comparisons do not chain.
+Quantities normalize as follows:
 
 | Source unit | Semantic type | Canonical storage |
 |---|---|---|
-| `Hz`, `kHz`, `MHz`, `GHz` | `Frequency` | Hz |
+| `Hz`, `kHz`, `MHz`, `GHz` | `Frequency` (or contextual `FrequencyDelta`) | Hz |
 | `dBm` | `Power` | dBm |
 | `dB` | `PowerDelta` | dB |
 | `%` | `Ratio` | ratio (source value divided by 100) |
@@ -113,6 +116,33 @@ The language rejects `Power + Power`, `PowerDelta + Power`,
 Results retain every observation's declaration name, strong type, and canonical
 value. The fixed legacy CSV remains available only to the original single-frequency,
 legacy-`measure power` shape; richer result serialization is introduced by M5.
+
+## Assertions and qualification
+
+An assertion is a per-operating-point specification result:
+
+```horusrf
+derive power_error = output_power - reference.power
+assert abs(power_error) <= 1.5 dB
+assert evm_result <= 5 %
+assert abs(carrier_error) <= 20 kHz
+```
+
+`abs()` accepts `PowerDelta`, `FrequencyDelta`, `TemperatureDelta`, and `Ratio` and
+returns the same type. It does not accept absolute quantities or Boolean values.
+The operators `<`, `<=`, `>`, `>=`, `==`, and `!=` require operands of the same
+non-Boolean type and produce `Boolean`. A frequency literal directly compared with
+a known `FrequencyDelta` is contextually treated as a delta; named `Frequency`
+values are never converted this way. An `assert` expression must be Boolean.
+`abs` is reserved as the built-in function name and cannot be redeclared as a
+measurement or derived value.
+
+Assertions receive stable IDs `assertion-1`, `assertion-2`, and so on in source
+order. Every assertion is evaluated once at every successfully completed point.
+A false outcome does not stop later assertions or points. Each outcome retains its
+source span, typed operands, comparison, coordinates, and pass/fail state. A point
+passes only if all its assertions pass; the experiment passes only if every point
+passes. Programs with no assertions have `not_evaluated` qualification status.
 
 ## Calibration artifacts
 
@@ -151,6 +181,12 @@ Parse, semantic, lowering, and runtime codes begin with `parse.`, `semantic.`,
 status 4, writes to standard error, emits no success output, and does not create a
 requested CSV. Usage errors exit 2 and file I/O errors exit 3.
 
+A completed run with a false assertion prints its qualification summary, emits a
+source-positioned `qualification.assertion_failed` diagnostic for each failed
+outcome, and exits with status 6. This is not an execution failure. Legacy programs
+have no qualification lines added to their console summary. The legacy CSV cannot
+represent assertions and rejects such a request before execution.
+
 `horusrf-run <source.hrf> --check` performs parsing, semantic analysis, and lowering
 without constructing devices or executing the characterization. A successful check
 is silent and exits with status 0. `--check` and `--csv` are mutually exclusive.
@@ -161,7 +197,7 @@ over `power` rather than `frequency`.
 
 ## Current limitations
 
-The demonstration has no conditionals, general loops, functions, arrays, strings,
+The demonstration has no conditionals, general loops, user-defined functions, arrays, strings,
 interpolation, multiple characterizations, phase/gain dimensions, instrument
 declarations, procedural DSL statements,
 calibration import or persistence, or explicit calibration application. These

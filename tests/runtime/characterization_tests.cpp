@@ -442,6 +442,54 @@ characterize named {
              std::size_t{378});
 }
 
+void qualification_execution_test() {
+    const auto program = lower_source(R"(
+characterize qualified {
+ reference power = -10 dBm
+ sweep frequency 0 Hz .. 1 Hz step 1 Hz
+ measure output_power = power
+ measure evm_result = evm
+ measure carrier_error = frequency_error
+ derive error = output_power - reference.power
+ derive power_ok = abs(error) <= 0.5 dB
+ derive aliased_power_ok = power_ok
+ assert aliased_power_ok
+ assert evm_result < 2 %
+ assert abs(carrier_error) <= 2 kHz
+ assert 1 dB < 2 dB
+ assert 1 dB <= 1 dB
+ assert 2 dB > 1 dB
+ assert 2 dB >= 2 dB
+ assert 2 dB == 2 dB
+ assert 1 dB != 2 dB
+ assert abs(-1 deltaC) == 1 deltaK
+ derive calibration cal { correction = -error over frequency }
+})");
+    RecordingSetup setup;
+    RecordingExtendedMeasurements extended{setup.tester};
+    const auto execution = runtime::execute_characterization(
+        program, runtime::DeviceCapabilities{setup.tester, &setup.measurement,
+                                             &setup.temperature, &extended, &extended});
+    CHECK(execution.ok());
+    CHECK_EQ(execution.result->samples.size(), std::size_t{2});
+    CHECK_EQ(execution.result->qualification.status, domain::QualificationStatus::Fail);
+    CHECK_EQ(execution.result->qualification.passed_points, std::size_t{0});
+    CHECK_EQ(execution.result->qualification.failed_points, std::size_t{2});
+    CHECK_EQ(execution.result->qualification.assertions.size(), std::size_t{10});
+    CHECK_EQ(execution.result->qualification.assertions[0].failed, std::size_t{1});
+    CHECK_EQ(execution.result->qualification.assertions[1].failed, std::size_t{2});
+    CHECK_EQ(execution.result->qualification.assertions[2].passed, std::size_t{2});
+    CHECK_EQ(execution.result->samples[0].assertions.size(), std::size_t{10});
+    CHECK(execution.result->samples[0].assertions[0].passed);
+    CHECK(!execution.result->samples[1].assertions[0].passed);
+    CHECK_EQ(execution.result->samples[0].assertions[0].operating_point,
+             execution.result->samples[0].operating_point);
+    CHECK_EQ(setup.measurement.measurements, std::size_t{2});
+    CHECK_EQ(extended.evm_count, std::size_t{2});
+    CHECK_EQ(extended.frequency_error_count, std::size_t{2});
+
+}
+
 } // namespace
 
 int main() {
@@ -453,6 +501,7 @@ int main() {
         multidimensional_execution_test();
         canonical_pipeline_test();
         named_measurement_execution_test();
+        qualification_execution_test();
         std::cout << "All HorusRF characterization tests passed\n";
         return 0;
     } catch (const std::exception& error) {

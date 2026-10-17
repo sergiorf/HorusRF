@@ -1,7 +1,7 @@
 program = characterization , end_of_file ;
 characterization = "characterize" , identifier , "{" , statement* , "}" ;
 statement = reference_statement | sweep_statement | measurement_statement
-          | derive_statement | calibration_statement ;
+          | derive_statement | assertion_statement | calibration_statement ;
 reference_statement = "reference" , "power" , "=" , signed_quantity ;
 sweep_statement = "sweep" , sweep_dimension , signed_quantity , ".."
                 , signed_quantity , "step" , signed_quantity ;
@@ -9,14 +9,19 @@ sweep_dimension = "frequency" | "temperature" ;
 measurement_statement = "measure" , ( "power" | identifier , "=" , measurement_operation ) ;
 measurement_operation = "power" | "evm" | "frequency_error" ;
 derive_statement = "derive" , identifier , "=" , expression ;
+assertion_statement = "assert" , expression ;
 calibration_statement = "derive" , "calibration" , identifier , "{"
           , "correction" , "=" , expression
           , "over" , identifier , { "," , identifier } , "}" ;
-expression = additive_expression ;
+expression = comparison_expression ;
+comparison_expression = additive_expression
+          , [ comparison_operator , additive_expression ] ;
+comparison_operator = "<" | "<=" | ">" | ">=" | "==" | "!=" ;
 additive_expression = unary_expression , { ("+" | "-") , unary_expression } ;
 unary_expression = [ "-" ] , primary_expression ;
-primary_expression = quantity | reference | identifier
+primary_expression = quantity | reference | identifier | call
           | "(" , expression , ")" ;
+call = identifier , "(" , expression , ")" ;
 reference = "reference" , "." , identifier ;
 signed_quantity = [ "-" ] , quantity ;
 quantity = number , unit ;

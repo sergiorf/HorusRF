@@ -21,7 +21,8 @@ TokenKind word_kind(std::string_view word) {
         {"temperature", TokenKind::Temperature},
         {"measure", TokenKind::Measure}, {"derive", TokenKind::Derive},
         {"calibration", TokenKind::Calibration}, {"correction", TokenKind::Correction},
-        {"over", TokenKind::Over}, {"Hz", TokenKind::UnitHz},
+        {"over", TokenKind::Over}, {"assert", TokenKind::Assert},
+        {"Hz", TokenKind::UnitHz},
         {"kHz", TokenKind::UnitKHz}, {"MHz", TokenKind::UnitMHz},
         {"GHz", TokenKind::UnitGHz}, {"dBm", TokenKind::UnitDBm},
         {"dB", TokenKind::UnitDB},
@@ -51,9 +52,16 @@ std::string_view token_kind_name(TokenKind kind) noexcept {
     case TokenKind::Calibration: return "calibration";
     case TokenKind::Correction: return "correction";
     case TokenKind::Over: return "over";
+    case TokenKind::Assert: return "assert";
     case TokenKind::LeftBrace: return "{";
     case TokenKind::RightBrace: return "}";
     case TokenKind::Equal: return "=";
+    case TokenKind::EqualEqual: return "==";
+    case TokenKind::NotEqual: return "!=";
+    case TokenKind::Less: return "<";
+    case TokenKind::LessEqual: return "<=";
+    case TokenKind::Greater: return ">";
+    case TokenKind::GreaterEqual: return ">=";
     case TokenKind::Range: return "..";
     case TokenKind::Dot: return ".";
     case TokenKind::Plus: return "+";
@@ -182,7 +190,21 @@ std::vector<Token> Lexer::tokenize() {
         switch (c) {
         case '{': kind = TokenKind::LeftBrace; break;
         case '}': kind = TokenKind::RightBrace; break;
-        case '=': kind = TokenKind::Equal; break;
+        case '=':
+            if (peek() == '=') { advance(); kind = TokenKind::EqualEqual; }
+            else kind = TokenKind::Equal;
+            break;
+        case '!':
+            if (peek() == '=') { advance(); kind = TokenKind::NotEqual; }
+            break;
+        case '<':
+            if (peek() == '=') { advance(); kind = TokenKind::LessEqual; }
+            else kind = TokenKind::Less;
+            break;
+        case '>':
+            if (peek() == '=') { advance(); kind = TokenKind::GreaterEqual; }
+            else kind = TokenKind::Greater;
+            break;
         case '+': kind = TokenKind::Plus; break;
         case '-': kind = TokenKind::Minus; break;
         case '(': kind = TokenKind::LeftParen; break;

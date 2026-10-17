@@ -28,6 +28,12 @@ std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
     case DiagnosticCode::ReferenceNotAvailable: return "semantic.reference_not_available";
     case DiagnosticCode::InvalidUnaryOperand: return "semantic.invalid_unary_operand";
     case DiagnosticCode::InvalidBinaryOperands: return "semantic.invalid_binary_operands";
+    case DiagnosticCode::UnknownFunction: return "semantic.unknown_function";
+    case DiagnosticCode::InvalidFunctionArgument: return "semantic.invalid_function_argument";
+    case DiagnosticCode::InvalidComparisonOperands:
+        return "semantic.invalid_comparison_operands";
+    case DiagnosticCode::AssertionRequiresBoolean:
+        return "semantic.assertion_requires_boolean";
     case DiagnosticCode::InvalidSweepRange: return "semantic.invalid_sweep_range";
     case DiagnosticCode::InvalidSweepStep: return "semantic.invalid_sweep_step";
     case DiagnosticCode::SweepTooLarge: return "semantic.sweep_too_large";
@@ -56,6 +62,7 @@ struct Symbol {
 
 SemanticType canonical_type(const domain::CanonicalQuantity& value) {
     if (std::holds_alternative<domain::Frequency>(value)) return SemanticType::Frequency;
+    if (std::holds_alternative<domain::FrequencyDelta>(value)) return SemanticType::FrequencyDelta;
     if (std::holds_alternative<domain::Ratio>(value)) return SemanticType::Ratio;
     if (std::holds_alternative<domain::Temperature>(value)) return SemanticType::Temperature;
     if (std::holds_alternative<domain::TemperatureDelta>(value)) {
@@ -123,7 +130,7 @@ public:
                 std::move(*reference_), std::move(*frequency_sweep_), std::move(sweeps_),
                 total_point_count_, std::move(*measurement_),
                 std::move(measurements_),
-                std::move(derived_), std::move(*calibration_)});
+                std::move(derived_), std::move(assertions_), std::move(*calibration_)});
         }
         return result;
     }
@@ -313,6 +320,7 @@ private:
 
     bool user_name_available(const std::string& name, parser::SourceSpan span) {
         if (name == "frequency" || name == "temperature" || name == "power" ||
+            name == "abs" ||
             declared_user_names_.contains(name)) {
             report(DiagnosticCode::DuplicateDeclaration,
                    "duplicate declaration of '" + name + "'", span);
@@ -332,6 +340,20 @@ private:
         derived_.push_back(DerivedQuantity{id, statement.name, std::move(*expression), type,
                                            statement.span});
         symbols_.emplace(statement.name, Symbol{id, type, false, true});
+    }
+
+    void analyze_statement(const ast::AssertionStatement& statement) {
+        auto expression = analyze_expression(statement.expression);
+        if (!expression) return;
+        if (expression->type != SemanticType::Boolean) {
+            report(DiagnosticCode::AssertionRequiresBoolean,
+                   "assert expression must have type Boolean, got " +
+                       std::string(type_name(expression->type)), statement.expression.span);
+            return;
+        }
+        const auto ordinal = assertions_.size() + 1;
+        assertions_.push_back(Assertion{"assertion-" + std::to_string(ordinal), ordinal,
+                                        std::move(*expression), statement.expression.span});
     }
 
     void analyze_statement(const ast::CalibrationStatement& statement) {
@@ -528,6 +550,71 @@ private:
                           *result, span};
     }
 
+    std::optional<Expression> analyze_expression_value(const ast::CallExpression& call,
+                                                       parser::SourceSpan span) {
+        if (call.function != "abs") {
+            report(DiagnosticCode::UnknownFunction,
+                   "unknown function '" + call.function + "'", call.span);
+            return std::nullopt;
+        }
+        if (!call.argument) return std::nullopt;
+        auto argument = analyze_expression(*call.argument);
+        if (!argument) return std::nullopt;
+        if (argument->type != SemanticType::PowerDelta &&
+            argument->type != SemanticType::FrequencyDelta &&
+            argument->type != SemanticType::TemperatureDelta &&
+            argument->type != SemanticType::Ratio) {
+            report(DiagnosticCode::InvalidFunctionArgument,
+                   "abs() does not accept " + std::string(type_name(argument->type)),
+                   call.span);
+            return std::nullopt;
+        }
+        const auto type = argument->type;
+        return Expression{CallValue{"abs", std::make_shared<Expression>(std::move(*argument)),
+                                    type, call.span}, type, span};
+    }
+
+    static bool contextualize_frequency_delta(Expression& expression) {
+        auto* quantity = std::get_if<QuantityValue>(&expression.value);
+        if (!quantity) return false;
+        auto* frequency = std::get_if<domain::Frequency>(&quantity->value);
+        if (!frequency) return false;
+        quantity->value = domain::FrequencyDelta::from_hertz(frequency->hertz());
+        expression.type = SemanticType::FrequencyDelta;
+        return true;
+    }
+
+    std::optional<Expression> analyze_expression_value(
+        const ast::ComparisonExpression& comparison, parser::SourceSpan span) {
+        if (!comparison.left || !comparison.right) return std::nullopt;
+        auto left = analyze_expression(*comparison.left);
+        auto right = analyze_expression(*comparison.right);
+        if (!left || !right) return std::nullopt;
+        if (left->type == SemanticType::FrequencyDelta &&
+            right->type == SemanticType::Frequency) contextualize_frequency_delta(*right);
+        if (right->type == SemanticType::FrequencyDelta &&
+            left->type == SemanticType::Frequency) contextualize_frequency_delta(*left);
+        if (left->type != right->type || left->type == SemanticType::Boolean) {
+            report(DiagnosticCode::InvalidComparisonOperands,
+                   "cannot compare " + std::string(type_name(left->type)) + " and " +
+                       type_name(right->type), comparison.span);
+            return std::nullopt;
+        }
+        ComparisonOperator op = ComparisonOperator::Equal;
+        switch (comparison.op) {
+        case ast::ComparisonOperator::Less: op = ComparisonOperator::Less; break;
+        case ast::ComparisonOperator::LessEqual: op = ComparisonOperator::LessEqual; break;
+        case ast::ComparisonOperator::Greater: op = ComparisonOperator::Greater; break;
+        case ast::ComparisonOperator::GreaterEqual: op = ComparisonOperator::GreaterEqual; break;
+        case ast::ComparisonOperator::NotEqual: op = ComparisonOperator::NotEqual; break;
+        default: break;
+        }
+        return Expression{ComparisonValue{
+            op, std::make_shared<Expression>(std::move(*left)),
+            std::make_shared<Expression>(std::move(*right)), comparison.span},
+            SemanticType::Boolean, span};
+    }
+
     void add_missing_declarations() {
         const auto span = input_.characterization.span;
         if (!seen_reference_) {
@@ -558,6 +645,7 @@ private:
     std::optional<PowerMeasurement> measurement_;
     std::vector<Measurement> measurements_;
     std::vector<DerivedQuantity> derived_;
+    std::vector<Assertion> assertions_;
     std::optional<Calibration> calibration_;
     std::size_t next_symbol_{};
     bool seen_reference_{};

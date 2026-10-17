@@ -45,9 +45,24 @@ struct BinaryExpression {
     SourceSpan span;
 };
 
+struct CallExpression {
+    std::string function;
+    std::shared_ptr<Expression> argument;
+    SourceSpan span;
+};
+
+enum class ComparisonOperator { Less, LessEqual, Greater, GreaterEqual, Equal, NotEqual };
+struct ComparisonExpression {
+    ComparisonOperator op{ComparisonOperator::Equal};
+    std::shared_ptr<Expression> left;
+    std::shared_ptr<Expression> right;
+    SourceSpan span;
+};
+
 using ExpressionValue = std::variant<QuantityLiteral, IdentifierExpression,
                                      ReferenceExpression, UnaryExpression,
-                                     BinaryExpression>;
+                                     BinaryExpression, CallExpression,
+                                     ComparisonExpression>;
 struct Expression {
     ExpressionValue value;
     SourceSpan span;
@@ -75,6 +90,10 @@ struct DeriveStatement {
     Expression expression;
     SourceSpan span;
 };
+struct AssertionStatement {
+    Expression expression;
+    SourceSpan span;
+};
 struct CalibrationStatement {
     std::string name;
     Expression correction;
@@ -84,7 +103,7 @@ struct CalibrationStatement {
 
 using Statement = std::variant<ReferenceStatement, SweepStatement,
                                MeasurementStatement, DeriveStatement,
-                               CalibrationStatement>;
+                               AssertionStatement, CalibrationStatement>;
 
 struct Characterization {
     std::string name;

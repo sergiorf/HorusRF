@@ -82,7 +82,7 @@ private slots:
         QTextDocument document;
         horusrf::studio::SyntaxHighlighter highlighter(&document);
         const QString source = QStringLiteral(
-            "characterize sample { sweep temperature -20 degC // power 20 GHz");
+            "characterize sample { sweep temperature -20 degC assert abs(error) <= 1 dB // power 20 GHz");
         document.setPlainText(source);
         highlighter.rehighlight();
 
@@ -93,12 +93,16 @@ private slots:
         const auto unit = formatAt(block, source.indexOf(QStringLiteral("degC")));
         const auto temperature =
             formatAt(block, source.indexOf(QStringLiteral("temperature")));
+        const auto assertion = formatAt(block, source.indexOf(QStringLiteral("assert")));
+        const auto comparison = formatAt(block, source.indexOf(QStringLiteral("<=")));
         const int comment = source.indexOf(QStringLiteral("//"));
 
         QVERIFY(keyword.foreground().color() != identifier.foreground().color());
         QVERIFY(number.foreground().color() != identifier.foreground().color());
         QVERIFY(unit.foreground().color() != identifier.foreground().color());
         QCOMPARE(temperature.foreground().color(), keyword.foreground().color());
+        QCOMPARE(assertion.foreground().color(), keyword.foreground().color());
+        QVERIFY(comparison.foreground().color() != identifier.foreground().color());
         QCOMPARE(formatAt(block, comment + 3).foreground().color(),
                  formatAt(block, source.lastIndexOf(QStringLiteral("GHz"))).foreground().color());
         QVERIFY(formatAt(block, comment + 3).foreground().color() !=

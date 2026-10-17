@@ -3,6 +3,7 @@
 #include "executor_internal.hpp"
 
 #include <cstddef>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -25,6 +26,7 @@ std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
         return "runtime.capability_unavailable";
     case DiagnosticCode::InvalidCalibrationBinding:
         return "runtime.invalid_calibration_binding";
+    case DiagnosticCode::NonFiniteValue: return "runtime.non_finite_value";
     }
     return "runtime.unknown";
 }
@@ -53,6 +55,7 @@ public:
         }
         if (!validate_base_bindings()) return std::move(diagnostics_);
         if (!validate_named_values()) return std::move(diagnostics_);
+        if (!validate_assertions()) return std::move(diagnostics_);
         validate_calibration();
         return std::move(diagnostics_);
     }
@@ -100,7 +103,8 @@ private:
                                 return ir::ValueType::TemperatureDelta;
                             },
                             [](domain::Power) { return ir::ValueType::Power; },
-                            [](domain::PowerDelta) { return ir::ValueType::PowerDelta; }},
+                            [](domain::PowerDelta) { return ir::ValueType::PowerDelta; },
+                            [](bool) { return ir::ValueType::Boolean; }},
                         operation.value);
                     return actual == value.type ||
                            report(DiagnosticCode::TypeMismatch,
@@ -216,6 +220,25 @@ private:
                     }
                     return operand(operation.left, index, ir::ValueType::Power, value.span) &&
                            operand(operation.right, index, ir::ValueType::Power, value.span);
+                },
+                [&](const ir::AbsoluteValue& operation) {
+                    if (value.type != ir::ValueType::PowerDelta &&
+                        value.type != ir::ValueType::FrequencyDelta &&
+                        value.type != ir::ValueType::Ratio &&
+                        value.type != ir::ValueType::TemperatureDelta) {
+                        return report(DiagnosticCode::TypeMismatch,
+                                      "abs() has an invalid value type", value.span);
+                    }
+                    return operand(operation.operand, index, value.type, value.span);
+                },
+                [&](const ir::Compare& operation) {
+                    if (value.type != ir::ValueType::Boolean ||
+                        operation.operand_type == ir::ValueType::Boolean) {
+                        return report(DiagnosticCode::TypeMismatch,
+                                      "comparison must produce Boolean", value.span);
+                    }
+                    return operand(operation.left, index, operation.operand_type, value.span) &&
+                           operand(operation.right, index, operation.operand_type, value.span);
                 }},
             value.definition);
     }
@@ -344,6 +367,37 @@ private:
             if (program_.values[named.value.value].type != named.type) {
                 return report(DiagnosticCode::TypeMismatch,
                               "named value metadata does not match its value", named.span);
+            }
+        }
+        return true;
+    }
+
+    bool validate_assertions() {
+        for (std::size_t index = 0; index < program_.assertions.size(); ++index) {
+            const auto& assertion = program_.assertions[index];
+            if (assertion.id != "assertion-" + std::to_string(index + 1) ||
+                assertion.ordinal != index + 1 ||
+                assertion.value.value >= program_.values.size()) {
+                return report(DiagnosticCode::InvalidProgramBinding,
+                              "assertion metadata is inconsistent", assertion.span);
+            }
+            const auto& value = program_.values[assertion.value.value];
+            auto comparison_value = assertion.value;
+            const ir::Compare* comparison = nullptr;
+            while (comparison_value.value < program_.values.size()) {
+                const auto& definition = program_.values[comparison_value.value].definition;
+                comparison = std::get_if<ir::Compare>(&definition);
+                if (comparison) break;
+                const auto* alias = std::get_if<ir::Alias>(&definition);
+                if (!alias || alias->value.value >= comparison_value.value) break;
+                comparison_value = alias->value;
+            }
+            if (value.type != ir::ValueType::Boolean || comparison == nullptr ||
+                comparison->left != assertion.left || comparison->right != assertion.right ||
+                comparison->operand_type != assertion.operand_type ||
+                comparison->op != assertion.op) {
+                return report(DiagnosticCode::InvalidProgramBinding,
+                              "assertion does not match its comparison value", assertion.span);
             }
         }
         return true;
@@ -479,8 +533,64 @@ RuntimeValue evaluate_definition(const ir::Definition& definition,
             [&](const ir::PowerDifference& operation) -> RuntimeValue {
                 return slot<domain::Power>(values, operation.left) -
                        slot<domain::Power>(values, operation.right);
+            },
+            [&](const ir::AbsoluteValue& operation) -> RuntimeValue {
+                return std::visit(
+                    Overloaded{
+                        [](domain::FrequencyDelta value) -> RuntimeValue {
+                            return domain::FrequencyDelta::from_hertz(std::abs(value.hertz()));
+                        },
+                        [](domain::Ratio value) -> RuntimeValue {
+                            return domain::Ratio::from_ratio(std::abs(value.ratio()));
+                        },
+                        [](domain::TemperatureDelta value) -> RuntimeValue {
+                            return domain::TemperatureDelta::from_kelvin(std::abs(value.kelvin()));
+                        },
+                        [](domain::PowerDelta value) -> RuntimeValue {
+                            return domain::PowerDelta::from_db(std::abs(value.db()));
+                        },
+                        [](const auto&) -> RuntimeValue {
+                            throw std::logic_error("invalid abs() operand");
+                        }}, values[operation.operand.value]);
+            },
+            [&](const ir::Compare& operation) -> RuntimeValue {
+                const auto scalar = [](const RuntimeValue& value) {
+                    return std::visit(Overloaded{
+                        [](domain::Frequency v) { return v.hertz(); },
+                        [](domain::FrequencyDelta v) { return v.hertz(); },
+                        [](domain::Ratio v) { return v.ratio(); },
+                        [](domain::Temperature v) { return v.kelvin(); },
+                        [](domain::TemperatureDelta v) { return v.kelvin(); },
+                        [](domain::Power v) { return v.dbm(); },
+                        [](domain::PowerDelta v) { return v.db(); },
+                        [](bool) -> double { throw std::logic_error("invalid comparison operand"); }
+                    }, value);
+                };
+                const auto left = scalar(values[operation.left.value]);
+                const auto right = scalar(values[operation.right.value]);
+                switch (operation.op) {
+                case ir::ComparisonOperator::Less: return left < right;
+                case ir::ComparisonOperator::LessEqual: return left <= right;
+                case ir::ComparisonOperator::Greater: return left > right;
+                case ir::ComparisonOperator::GreaterEqual: return left >= right;
+                case ir::ComparisonOperator::Equal: return left == right;
+                case ir::ComparisonOperator::NotEqual: return left != right;
+                }
+                throw std::logic_error("invalid comparison operator");
             }},
         definition);
+}
+
+bool finite_value(const RuntimeValue& value) {
+    return std::visit(Overloaded{
+        [](domain::Frequency v) { return std::isfinite(v.hertz()); },
+        [](domain::FrequencyDelta v) { return std::isfinite(v.hertz()); },
+        [](domain::Ratio v) { return std::isfinite(v.ratio()); },
+        [](domain::Temperature v) { return std::isfinite(v.kelvin()); },
+        [](domain::TemperatureDelta v) { return std::isfinite(v.kelvin()); },
+        [](domain::Power v) { return std::isfinite(v.dbm()); },
+        [](domain::PowerDelta v) { return std::isfinite(v.db()); },
+        [](bool) { return true; }}, value);
 }
 
 } // namespace
@@ -589,8 +699,16 @@ ExecutionResult execute_point(const ir::Program& program,
         }
     }
 
-    return ExecutionResult{
-        detail::evaluate_validated_point(program, std::move(point), devices), {}};
+    auto evaluation = detail::evaluate_validated_point(program, std::move(point), devices);
+    for (std::size_t index = 0; index < evaluation.values.size(); ++index) {
+        if (!finite_value(evaluation.values[index])) {
+            return ExecutionResult{
+                std::nullopt,
+                {Diagnostic{DiagnosticCode::NonFiniteValue,
+                            "runtime value is not finite", program.values[index].span}}};
+        }
+    }
+    return ExecutionResult{std::move(evaluation), {}};
 }
 
 } // namespace horusrf::runtime

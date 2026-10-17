@@ -26,6 +26,13 @@ std::string fixture() {
     return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
 }
 
+std::string qualified_fixture() {
+    std::ifstream input(std::string{HORUSRF_SOURCE_DIR} +
+                        "/examples/qualified_measurements.hrf", std::ios::binary);
+    CHECK(input.good());
+    return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+}
+
 void run_test() {
     const auto syntax = parser::parse(fixture());
     const auto analyzed = semantic::analyze(syntax);
@@ -53,6 +60,8 @@ void run_test() {
     CHECK(execution.ok());
     const auto& result = *execution.result;
     CHECK_EQ(result.samples.size(), std::size_t{101});
+    CHECK_EQ(result.qualification.status, domain::QualificationStatus::NotEvaluated);
+    CHECK(result.qualification.assertions.empty());
     const std::array<std::size_t, 5> indexes{0, 25, 50, 75, 100};
     const std::array<double, 5> errors{0.35, 0.55, 0.35, 0.15, 0.35};
     for (std::size_t index = 0; index < result.samples.size(); ++index) {
@@ -93,11 +102,40 @@ void run_test() {
     CHECK(lines.back().starts_with("2500000000,-10,"));
 }
 
+void qualification_test() {
+    const auto analyzed = semantic::analyze(parser::parse(qualified_fixture()));
+    CHECK(analyzed.ok());
+    const auto lowered = ir::lower(*analyzed.program);
+    CHECK(lowered.ok());
+    CHECK_EQ(lowered.program->assertions.size(), std::size_t{3});
+
+    device::SimulatedRfConnection rf_output;
+    device::SimulatedRfTester tester{rf_output};
+    device::SimulatedMeasurementDevice measurement{rf_output};
+    const auto execution = runtime::execute_characterization(
+        *lowered.program,
+        runtime::DeviceCapabilities{tester, &measurement, nullptr,
+                                    &measurement, &measurement});
+    CHECK(execution.ok());
+    CHECK_EQ(execution.result->samples.size(), std::size_t{21});
+    CHECK_EQ(execution.result->qualification.status,
+             domain::QualificationStatus::Fail);
+    CHECK_EQ(execution.result->qualification.failed_points, std::size_t{21});
+    CHECK_EQ(execution.result->qualification.assertions[0].passed, std::size_t{21});
+    CHECK_EQ(execution.result->qualification.assertions[1].failed, std::size_t{21});
+    CHECK_EQ(execution.result->qualification.assertions[2].passed, std::size_t{21});
+    for (const auto& sample : execution.result->samples) {
+        CHECK_EQ(sample.assertions.size(), std::size_t{3});
+        CHECK_EQ(sample.qualification, domain::QualificationStatus::Fail);
+    }
+}
+
 } // namespace
 
 int main() {
     try {
         run_test();
+        qualification_test();
         std::cout << "HorusRF end-to-end test passed\n";
         return 0;
     } catch (const std::exception& error) {

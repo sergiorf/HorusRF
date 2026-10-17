@@ -33,10 +33,10 @@ SyntaxHighlighter::SyntaxHighlighter(QTextDocument* document)
                       identifier});
     rules_.push_back({QRegularExpression{QStringLiteral("\\b\\d+(?:\\.\\d+)?\\b")},
                       number});
-    rules_.push_back({QRegularExpression{QStringLiteral("[+\\-]")}, operation});
+    rules_.push_back({QRegularExpression{QStringLiteral("(?:<=|>=|==|!=|[+\\-<>])")}, operation});
     rules_.push_back({QRegularExpression{QStringLiteral(
                           "\\b(?:characterize|reference|power|sweep|frequency|temperature|step|"
-                          "measure|derive|calibration|correction|over|evm|frequency_error)\\b")},
+                          "measure|derive|calibration|correction|over|assert|evm|frequency_error)\\b")},
                       keyword});
     rules_.push_back({QRegularExpression{
                           QStringLiteral("(?:\\b(?:Hz|kHz|MHz|GHz|dBm|dB|K|degC|deltaK|deltaC)\\b|%)")},

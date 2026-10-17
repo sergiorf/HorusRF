@@ -312,6 +312,7 @@ if(BUILD_TESTING)
             -DSOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/tx_path_characterization.hrf
             -DMULTIDIMENSIONAL_SOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/multidimensional_check.hrf
             -DNAMED_MEASUREMENTS_SOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/named_measurements.hrf
+            -DQUALIFIED_SOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/qualified_measurements.hrf
             -DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/cli-acceptance-output.csv
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/cli_acceptance.cmake
     )

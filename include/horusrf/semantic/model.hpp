@@ -11,7 +11,7 @@
 
 namespace horusrf::semantic {
 
-enum class SemanticType { Frequency, FrequencyDelta, Ratio, Temperature, TemperatureDelta, Power, PowerDelta };
+enum class SemanticType { Frequency, FrequencyDelta, Ratio, Temperature, TemperatureDelta, Power, PowerDelta, Boolean };
 
 [[nodiscard]] constexpr const char* type_name(SemanticType type) noexcept {
     switch (type) {
@@ -22,6 +22,7 @@ enum class SemanticType { Frequency, FrequencyDelta, Ratio, Temperature, Tempera
     case SemanticType::TemperatureDelta: return "TemperatureDelta";
     case SemanticType::Power: return "Power";
     case SemanticType::PowerDelta: return "PowerDelta";
+    case SemanticType::Boolean: return "Boolean";
     }
     return "unknown";
 }
@@ -72,8 +73,24 @@ struct BinaryValue {
     SourceSpan span;
 };
 
+struct CallValue {
+    std::string function;
+    std::shared_ptr<Expression> argument;
+    SemanticType type;
+    SourceSpan span;
+};
+
+enum class ComparisonOperator { Less, LessEqual, Greater, GreaterEqual, Equal, NotEqual };
+struct ComparisonValue {
+    ComparisonOperator op{ComparisonOperator::Equal};
+    std::shared_ptr<Expression> left;
+    std::shared_ptr<Expression> right;
+    SourceSpan span;
+};
+
 using ExpressionValue =
-    std::variant<QuantityValue, SymbolValue, ReferenceValue, UnaryValue, BinaryValue>;
+    std::variant<QuantityValue, SymbolValue, ReferenceValue, UnaryValue, BinaryValue,
+                 CallValue, ComparisonValue>;
 
 struct Expression {
     ExpressionValue value;
@@ -131,6 +148,13 @@ struct DerivedQuantity {
     SourceSpan span;
 };
 
+struct Assertion {
+    std::string id;
+    std::size_t ordinal{};
+    Expression expression;
+    SourceSpan span;
+};
+
 struct CalibrationType {
     std::vector<SemanticType> index_types;
     SemanticType correction_type{SemanticType::PowerDelta};
@@ -155,6 +179,7 @@ struct AnalyzedProgram {
     PowerMeasurement measurement;
     std::vector<Measurement> measurements;
     std::vector<DerivedQuantity> derived_quantities;
+    std::vector<Assertion> assertions;
     Calibration calibration;
 };
 

@@ -125,7 +125,7 @@ minus reference. These report fields are not implicit DSL declarations.
 devices or executing the experiment. It is mutually exclusive with `--csv` and
 produces no output when validation succeeds.
 
-M1 through M3 support declaration-ordered frequency and temperature sweeps plus
+M1 through M4 support declaration-ordered frequency and temperature sweeps plus
 named `power`, `evm`, and `frequency_error` measurements. Temperature
 endpoints use `K` or `degC`; steps use `deltaK` or `deltaC`. For example,
 [`multidimensional_check.hrf`](examples/multidimensional_check.hrf) has 21 × 6 =
@@ -134,10 +134,19 @@ ordered by sweep declaration and the last dimension varies fastest. The legacy
 single-frequency CSV schema is unchanged; requesting CSV for a multidimensional
 program exits 4 with `output.csv_unrepresentable` before any equipment call.
 
+[`qualified_measurements.hrf`](examples/qualified_measurements.hrf) demonstrates
+typed comparisons, `abs()`, and per-point assertions. Assertions are all evaluated;
+a false result does not stop the experiment. Qualified runs report point and
+per-assertion totals. A completed experiment with any failed assertion emits
+`qualification.assertion_failed` diagnostics and exits 6. Programs without
+assertions retain the legacy summary exactly, and assertion results are not written
+to the legacy CSV schema.
+
 Source failures are written without color as
 `path:line:column: diagnostic.code: message`. Exit status is 0 for success, 2 for
 usage, 3 for file I/O, 4 for source/compiler/runtime diagnostics, and 5 for an
-unexpected failure. `horusrf-run --help` prints the accepted command forms.
+unexpected failure. Status 6 means execution completed but qualification failed.
+`horusrf-run --help` prints the accepted command forms.
 
 ## Semantic failure showcase
 

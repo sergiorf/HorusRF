@@ -9,6 +9,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -119,6 +120,43 @@ const T& slot(const PointEvaluation& evaluation, ir::ValueId id) {
     return std::get<T>(evaluation.at(id));
 }
 
+domain::QualificationValue qualification_value(const RuntimeValue& value) {
+    return std::visit([](const auto& typed) -> domain::QualificationValue {
+        using T = std::decay_t<decltype(typed)>;
+        if constexpr (std::is_same_v<T, bool>) {
+            throw std::logic_error("Boolean is not an assertion operand");
+        } else {
+            return typed;
+        }
+    }, value);
+}
+
+domain::ComparisonOperator comparison_operator(ir::ComparisonOperator op) {
+    switch (op) {
+    case ir::ComparisonOperator::Less: return domain::ComparisonOperator::Less;
+    case ir::ComparisonOperator::LessEqual: return domain::ComparisonOperator::LessEqual;
+    case ir::ComparisonOperator::Greater: return domain::ComparisonOperator::Greater;
+    case ir::ComparisonOperator::GreaterEqual: return domain::ComparisonOperator::GreaterEqual;
+    case ir::ComparisonOperator::Equal: return domain::ComparisonOperator::Equal;
+    case ir::ComparisonOperator::NotEqual: return domain::ComparisonOperator::NotEqual;
+    }
+    throw std::logic_error("invalid comparison operator");
+}
+
+bool finite_value(const RuntimeValue& value) {
+    return std::visit([](const auto& typed) {
+        using T = std::decay_t<decltype(typed)>;
+        if constexpr (std::is_same_v<T, bool>) return true;
+        else if constexpr (std::is_same_v<T, domain::Frequency> ||
+                           std::is_same_v<T, domain::FrequencyDelta>) return std::isfinite(typed.hertz());
+        else if constexpr (std::is_same_v<T, domain::Ratio>) return std::isfinite(typed.ratio());
+        else if constexpr (std::is_same_v<T, domain::Temperature> ||
+                           std::is_same_v<T, domain::TemperatureDelta>) return std::isfinite(typed.kelvin());
+        else if constexpr (std::is_same_v<T, domain::Power>) return std::isfinite(typed.dbm());
+        else return std::isfinite(typed.db());
+    }, value);
+}
+
 } // namespace
 
 CharacterizationExecutionResult execute_characterization(const ir::Program& program,
@@ -224,6 +262,12 @@ CharacterizationExecutionResult execute_characterization(
     result.calibration.dimensions.reserve(point_count);
     result.calibration.corrections.reserve(point_count);
     result.calibration.operating_points.reserve(point_count);
+    result.qualification.total_points = point_count;
+    result.qualification.assertions.reserve(program.assertions.size());
+    for (const auto& assertion : program.assertions) {
+        result.qualification.assertions.push_back(
+            domain::AssertionSummary{assertion.id, point_count, 0, 0});
+    }
 
     for (std::size_t flat_index = 0; flat_index < point_count; ++flat_index) {
         domain::OperatingPoint point;
@@ -241,6 +285,15 @@ CharacterizationExecutionResult execute_characterization(
         const auto frequency = point_frequency(point);
         const auto evaluation = detail::evaluate_validated_point(
             program, std::move(point), devices);
+        for (std::size_t value_index = 0; value_index < evaluation.values.size();
+             ++value_index) {
+            if (!finite_value(evaluation.values[value_index])) {
+                diagnostics.push_back(diagnostic(
+                    DiagnosticCode::NonFiniteValue, "runtime value is not finite",
+                    program.values[value_index].span));
+                return {std::nullopt, std::move(diagnostics)};
+            }
+        }
         const auto reference = slot<domain::Power>(evaluation, program.reference);
         const auto measured = slot<domain::Power>(evaluation, program.measurement);
         const auto correction =
@@ -264,6 +317,36 @@ CharacterizationExecutionResult execute_characterization(
                     slot<domain::FrequencyDelta>(evaluation, measurement.value), "Hz"});
             }
         }
+        sample.assertions.reserve(program.assertions.size());
+        bool point_passed = true;
+        for (std::size_t index = 0; index < program.assertions.size(); ++index) {
+            const auto& assertion = program.assertions[index];
+            const bool passed = slot<bool>(evaluation, assertion.value);
+            point_passed = point_passed && passed;
+            auto& summary = result.qualification.assertions[index];
+            if (passed) ++summary.passed;
+            else ++summary.failed;
+            sample.assertions.push_back(domain::AssertionOutcome{
+                assertion.id,
+                domain::ResultSourceSpan{
+                    {assertion.span.begin.line, assertion.span.begin.column,
+                     assertion.span.begin.offset},
+                    {assertion.span.end.line, assertion.span.end.column,
+                     assertion.span.end.offset}},
+                evaluation.operating_point,
+                comparison_operator(assertion.op),
+                qualification_value(evaluation.at(assertion.left)),
+                qualification_value(evaluation.at(assertion.right)), passed});
+        }
+        if (program.assertions.empty()) {
+            sample.qualification = domain::QualificationStatus::NotEvaluated;
+        } else if (point_passed) {
+            sample.qualification = domain::QualificationStatus::Pass;
+            ++result.qualification.passed_points;
+        } else {
+            sample.qualification = domain::QualificationStatus::Fail;
+            ++result.qualification.failed_points;
+        }
         result.samples.push_back(std::move(sample));
         result.calibration.dimensions.push_back(frequency);
         result.calibration.corrections.push_back(correction);
@@ -271,6 +354,11 @@ CharacterizationExecutionResult execute_characterization(
     }
 
     result.metrics = domain::calculate_metrics(result.samples);
+    result.qualification.status = program.assertions.empty()
+                                      ? domain::QualificationStatus::NotEvaluated
+                                      : result.qualification.failed_points == 0
+                                            ? domain::QualificationStatus::Pass
+                                            : domain::QualificationStatus::Fail;
     return {std::move(result), {}};
 }
 

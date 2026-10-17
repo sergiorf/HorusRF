@@ -209,6 +209,8 @@ Acceptance:
 
 ### M4 - Assertions and qualification
 
+Status: complete on 2026-10-18.
+
 Add comparison operators, boolean semantic and IR types, typed function calls with
 an initially small `abs()` overload set, and assertion statements evaluated at each
 operating point.

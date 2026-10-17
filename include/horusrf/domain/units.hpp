@@ -17,7 +17,8 @@ enum class Unit { Hz, KHz, MHz, GHz, DBm, DB, Percent, Kelvin, DegC, DeltaK, Del
 [[nodiscard]] std::optional<Unit> parse_unit(std::string_view text) noexcept;
 
 using CanonicalQuantity =
-    std::variant<Frequency, Power, PowerDelta, Ratio, Temperature, TemperatureDelta>;
+    std::variant<Frequency, FrequencyDelta, Power, PowerDelta, Ratio, Temperature,
+                 TemperatureDelta>;
 
 enum class QuantityConversionError {
     InvalidNumber,

@@ -100,6 +100,62 @@ characterize expressions {
     CHECK_EQ(inverse.type, semantic::SemanticType::PowerDelta);
 }
 
+void assertion_tests() {
+    const auto result = analyze_source(R"(
+characterize qualified {
+  reference power = -10 dBm
+  sweep frequency 1 GHz .. 1 GHz step 1 MHz
+  measure output_power = power
+  measure evm_result = evm
+  measure carrier_error = frequency_error
+  derive power_error = output_power - reference.power
+  assert abs(power_error) <= 1.5 dB
+  assert evm_result <= 5 %
+  assert abs(carrier_error) <= 20 kHz
+  derive calibration cal { correction = -power_error over frequency }
+})");
+    CHECK(result.ok());
+    CHECK_EQ(result.program->assertions.size(), std::size_t{3});
+    CHECK_EQ(result.program->assertions[0].id, std::string{"assertion-1"});
+    CHECK_EQ(result.program->assertions[2].expression.type, semantic::SemanticType::Boolean);
+    const auto& comparison = expression_as<semantic::ComparisonValue>(
+        result.program->assertions[2].expression);
+    CHECK_EQ(comparison.right->type, semantic::SemanticType::FrequencyDelta);
+
+    auto invalid = analyze_source(R"(
+characterize invalid {
+ reference power = 0 dBm sweep frequency 1 Hz .. 1 Hz step 1 Hz
+ measure power derive error = power - reference.power
+ assert error
+ derive calibration cal { correction = -error over frequency }
+})");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::AssertionRequiresBoolean));
+
+    invalid = analyze_source(R"(
+characterize invalid {
+ reference power = 0 dBm sweep frequency 1 Hz .. 1 Hz step 1 Hz
+ measure power assert power <= 1 dB
+ derive calibration cal { correction = reference.power - power over frequency }
+})");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::InvalidComparisonOperands));
+
+    invalid = analyze_source(R"(
+characterize invalid {
+ reference power = 0 dBm sweep frequency 1 Hz .. 1 Hz step 1 Hz
+ measure power assert abs(reference.power) <= 1 dBm
+ derive calibration cal { correction = reference.power - power over frequency }
+})");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::InvalidFunctionArgument));
+
+    invalid = analyze_source(R"(
+characterize invalid {
+ reference power = 0 dBm sweep frequency 1 Hz .. 1 Hz step 1 Hz
+ measure power assert magnitude(1 dB) <= 1 dB
+ derive calibration cal { correction = reference.power - power over frequency }
+})");
+    CHECK(has_code(invalid, semantic::DiagnosticCode::UnknownFunction));
+}
+
 void frequency_unit_tests() {
     for (const auto* range : {"1000 Hz .. 2000 Hz step 100 Hz",
                               "1 kHz .. 2 kHz step 0.1 kHz",
@@ -344,6 +400,10 @@ void diagnostic_code_name_tests() {
         std::pair{semantic::DiagnosticCode::ReferenceNotAvailable, "semantic.reference_not_available"},
         std::pair{semantic::DiagnosticCode::InvalidUnaryOperand, "semantic.invalid_unary_operand"},
         std::pair{semantic::DiagnosticCode::InvalidBinaryOperands, "semantic.invalid_binary_operands"},
+        std::pair{semantic::DiagnosticCode::UnknownFunction, "semantic.unknown_function"},
+        std::pair{semantic::DiagnosticCode::InvalidFunctionArgument, "semantic.invalid_function_argument"},
+        std::pair{semantic::DiagnosticCode::InvalidComparisonOperands, "semantic.invalid_comparison_operands"},
+        std::pair{semantic::DiagnosticCode::AssertionRequiresBoolean, "semantic.assertion_requires_boolean"},
         std::pair{semantic::DiagnosticCode::InvalidSweepRange, "semantic.invalid_sweep_range"},
         std::pair{semantic::DiagnosticCode::InvalidSweepStep, "semantic.invalid_sweep_step"},
         std::pair{semantic::DiagnosticCode::SweepTooLarge, "semantic.sweep_too_large"},
@@ -407,6 +467,7 @@ int main() {
     try {
         canonical_fixture_test();
         supported_expression_tests();
+        assertion_tests();
         frequency_unit_tests();
         typed_sweep_tests();
         rejection_tests();

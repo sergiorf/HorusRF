@@ -139,6 +139,22 @@ void named_measurement_test() {
     CHECK_EQ(expression_as<ast::QuantityLiteral>(ratio.expression).unit, "%");
 }
 
+void assertion_test() {
+    const auto program = parser::parse(
+        "characterize c { assert abs(error) <= 1.5 dB }");
+    const auto& assertion = alternative<ast::AssertionStatement>(
+        program.characterization.statements.front());
+    const auto& comparison = expression_as<ast::ComparisonExpression>(assertion.expression);
+    CHECK_EQ(comparison.op, ast::ComparisonOperator::LessEqual);
+    const auto& call = expression_as<ast::CallExpression>(*comparison.left);
+    CHECK_EQ(call.function, "abs");
+    CHECK_EQ(expression_as<ast::IdentifierExpression>(*call.argument).name, "error");
+    CHECK_EQ(expression_as<ast::QuantityLiteral>(*comparison.right).unit, "dB");
+    const auto diagnostic = parse_failure(
+        "characterize c { assert 1 dB < 2 dB < 3 dB }");
+    CHECK_EQ(diagnostic.code, parser::DiagnosticCode::UnexpectedToken);
+}
+
 void diagnostic_tests() {
     constexpr std::array mappings{
         std::pair{parser::DiagnosticCode::UnexpectedToken, "parse.unexpected_token"},
@@ -197,6 +213,7 @@ int main() {
         expression_tests();
         multiple_dimensions_test();
         named_measurement_test();
+        assertion_test();
         typed_sweep_test();
         diagnostic_tests();
         std::cout << "All HorusRF parser tests passed\n";

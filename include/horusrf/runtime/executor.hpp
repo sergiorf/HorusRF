@@ -17,7 +17,7 @@ namespace horusrf::runtime {
 using RuntimeValue =
     std::variant<domain::Frequency, domain::FrequencyDelta, domain::Ratio,
                  domain::Temperature, domain::TemperatureDelta, domain::Power,
-                 domain::PowerDelta>;
+                 domain::PowerDelta, bool>;
 
 struct PointEvaluation {
     domain::Frequency frequency;

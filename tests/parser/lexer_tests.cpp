@@ -77,6 +77,19 @@ void run_lexer_tests() {
         CHECK_EQ(tokens[4].kind, TokenKind::Number);
     }
     {
+        const auto tokens = lex("assert a < b <= c > d >= e == f != g !");
+        const std::array expected{
+            TokenKind::Assert, TokenKind::Identifier, TokenKind::Less,
+            TokenKind::Identifier, TokenKind::LessEqual, TokenKind::Identifier,
+            TokenKind::Greater, TokenKind::Identifier, TokenKind::GreaterEqual,
+            TokenKind::Identifier, TokenKind::EqualEqual, TokenKind::Identifier,
+            TokenKind::NotEqual, TokenKind::Identifier, TokenKind::Invalid,
+            TokenKind::EndOfFile};
+        CHECK_EQ(tokens.size(), expected.size());
+        for (std::size_t index = 0; index < expected.size(); ++index)
+            CHECK_EQ(tokens[index].kind, expected[index]);
+    }
+    {
         const auto tokens = lex("Characterize hz DBM");
         CHECK_EQ(tokens[0].kind, TokenKind::Identifier);
         CHECK_EQ(tokens[1].kind, TokenKind::Identifier);

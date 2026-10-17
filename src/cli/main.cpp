@@ -26,6 +26,7 @@ constexpr int usage_error = 2;
 constexpr int io_error = 3;
 constexpr int diagnostic_error = 4;
 constexpr int unexpected_error = 5;
+constexpr int qualification_failure = 6;
 constexpr std::string_view usage =
     "usage: horusrf-run <source.hrf> [--check | --csv <output.csv>]";
 
@@ -140,6 +141,33 @@ void print_summary(const ir::Program& program,
               << metrics.corrected_maximum_absolute_error_db << '\n'
               << "rms_improvement_ratio: " << metrics.rms_improvement_ratio << '\n';
     if (csv) std::cout << "csv: " << csv->string() << '\n';
+    if (!program.assertions.empty()) {
+        const auto& qualification = result.qualification;
+        std::cout << "qualification: "
+                  << (qualification.status == domain::QualificationStatus::Pass ? "pass" : "fail")
+                  << '\n'
+                  << "qualification_points: " << qualification.total_points << '\n'
+                  << "qualification_passed_points: " << qualification.passed_points << '\n'
+                  << "qualification_failed_points: " << qualification.failed_points << '\n';
+        for (const auto& assertion : qualification.assertions) {
+            std::cout << assertion.id << ": total=" << assertion.total
+                      << " passed=" << assertion.passed
+                      << " failed=" << assertion.failed << '\n';
+        }
+    }
+}
+
+void print_qualification_failures(const fs::path& source,
+                                  const domain::CharacterizationResult& result) {
+    for (const auto& sample : result.samples) {
+        for (const auto& assertion : sample.assertions) {
+            if (assertion.passed) continue;
+            std::cerr << source.string() << ':' << assertion.source.begin.line << ':'
+                      << assertion.source.begin.column
+                      << ": qualification.assertion_failed: " << assertion.id
+                      << " failed\n";
+        }
+    }
 }
 
 int run(const Arguments& arguments) {
@@ -181,7 +209,8 @@ int run(const Arguments& arguments) {
         (lowered.program->sweeps.size() != 1 ||
          lowered.program->sweeps.front().dimension != ir::SweepDimension::Frequency ||
          lowered.program->measurements.size() != 1 ||
-         !lowered.program->measurements.front().legacy)) {
+         !lowered.program->measurements.front().legacy ||
+         !lowered.program->assertions.empty())) {
         const auto& position = lowered.program->span.begin;
         std::cerr << arguments.source.string() << ':' << position.line << ':'
                   << position.column
@@ -211,6 +240,10 @@ int run(const Arguments& arguments) {
         return io_error;
     }
     print_summary(*lowered.program, *execution.result, arguments.csv);
+    if (execution.result->qualification.status == domain::QualificationStatus::Fail) {
+        print_qualification_failures(arguments.source, *execution.result);
+        return qualification_failure;
+    }
     return 0;
 }
 

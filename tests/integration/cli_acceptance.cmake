@@ -4,6 +4,56 @@ if(NOT DEFINED HORUSRF_RUN OR NOT DEFINED SOURCE_FILE OR
     message(FATAL_ERROR "CLI acceptance paths were not provided")
 endif()
 
+if(NOT DEFINED QUALIFIED_SOURCE_FILE)
+    message(FATAL_ERROR "qualified CLI acceptance path was not provided")
+endif()
+
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${QUALIFIED_SOURCE_FILE}" --check
+    RESULT_VARIABLE qualified_check_result OUTPUT_VARIABLE qualified_check_output
+    ERROR_VARIABLE qualified_check_error
+)
+if(NOT qualified_check_result EQUAL 0 OR NOT qualified_check_output STREQUAL "" OR
+   NOT qualified_check_error STREQUAL "")
+    message(FATAL_ERROR "qualified check failed: ${qualified_check_result}: ${qualified_check_error}")
+endif()
+
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${QUALIFIED_SOURCE_FILE}"
+    RESULT_VARIABLE qualified_result OUTPUT_VARIABLE qualified_output
+    ERROR_VARIABLE qualified_error
+)
+if(NOT qualified_result EQUAL 6)
+    message(FATAL_ERROR "qualification failure returned ${qualified_result}: ${qualified_error}")
+endif()
+foreach(expected IN ITEMS "qualification: fail" "qualification_points: 21"
+        "assertion-1: total=21" "assertion-2: total=21")
+    string(FIND "${qualified_output}" "${expected}" found)
+    if(found EQUAL -1)
+        message(FATAL_ERROR "qualified summary is missing '${expected}': ${qualified_output}")
+    endif()
+endforeach()
+string(FIND "${qualified_error}" "qualification.assertion_failed: assertion-2 failed"
+    qualified_diagnostic)
+if(qualified_diagnostic EQUAL -1)
+    message(FATAL_ERROR "qualified diagnostic missing: ${qualified_error}")
+endif()
+
+set(qualified_csv "${OUTPUT_FILE}.qualified")
+file(REMOVE "${qualified_csv}")
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${QUALIFIED_SOURCE_FILE}" --csv "${qualified_csv}"
+    RESULT_VARIABLE qualified_csv_result OUTPUT_VARIABLE qualified_csv_output
+    ERROR_VARIABLE qualified_csv_error
+)
+if(NOT qualified_csv_result EQUAL 4 OR EXISTS "${qualified_csv}")
+    message(FATAL_ERROR "qualified CSV gate failed: ${qualified_csv_result}: ${qualified_csv_error}")
+endif()
+string(FIND "${qualified_csv_error}" "output.csv_unrepresentable" qualified_csv_diagnostic)
+if(qualified_csv_diagnostic EQUAL -1)
+    message(FATAL_ERROR "qualified CSV diagnostic missing: ${qualified_csv_error}")
+endif()
+
 execute_process(
     COMMAND "${HORUSRF_RUN}" "${NAMED_MEASUREMENTS_SOURCE_FILE}"
     RESULT_VARIABLE named_result OUTPUT_VARIABLE named_output ERROR_VARIABLE named_error
@@ -220,5 +270,5 @@ foreach(case IN ITEMS parse semantic)
     endif()
 endforeach()
 
-file(REMOVE "${OUTPUT_FILE}" "${multidimensional_csv}" "${named_csv}"
+file(REMOVE "${OUTPUT_FILE}" "${multidimensional_csv}" "${named_csv}" "${qualified_csv}"
     "${parse_invalid}" "${semantic_invalid}")
