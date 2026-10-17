@@ -12,12 +12,14 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QKeySequence>
+#include <QLabel>
 #include <QListWidget>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QSaveFile>
 #include <QSplitter>
 #include <QStringDecoder>
+#include <QStatusBar>
 #include <QTabWidget>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -50,6 +52,9 @@ MainWindow::MainWindow(QWidget* parent, const QString& runnerExecutable)
                 setWindowModified(modified);
                 updateWindowTitle();
             });
+    connect(editor_, &QPlainTextEdit::cursorPositionChanged, this,
+            &MainWindow::updateCursorPosition);
+    updateCursorPosition();
     connect(runner_, &ExperimentRunner::completed, this,
             &MainWindow::experimentCompleted);
 }
@@ -90,6 +95,14 @@ void MainWindow::createLayout() {
     workspace->setStretchFactor(0, 4);
     workspace->setStretchFactor(1, 1);
     setCentralWidget(workspace);
+
+    cursor_position_ = new QLabel(this);
+    cursor_position_->setObjectName(QStringLiteral("cursorPositionLabel"));
+    cursor_position_->setMinimumWidth(
+        cursor_position_->fontMetrics().horizontalAdvance(
+            QStringLiteral("Ln 9999, Col 999")));
+    cursor_position_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    statusBar()->addPermanentWidget(cursor_position_);
 }
 
 void MainWindow::createActions() {
@@ -317,6 +330,13 @@ void MainWindow::updateWindowTitle() {
                              ? tr("Untitled")
                              : QFileInfo(current_file_path_).fileName();
     setWindowTitle(tr("%1[*] - HorusRF Studio").arg(name));
+}
+
+void MainWindow::updateCursorPosition() {
+    const QTextCursor cursor = editor_->textCursor();
+    cursor_position_->setText(tr("Ln %1, Col %2")
+                                  .arg(cursor.blockNumber() + 1)
+                                  .arg(cursor.positionInBlock() + 1));
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {

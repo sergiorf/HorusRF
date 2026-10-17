@@ -8,6 +8,7 @@ class QCloseEvent;
 class QAction;
 class QListWidget;
 class QListWidgetItem;
+class QLabel;
 class QPlainTextEdit;
 
 namespace horusrf::studio {
@@ -40,6 +41,7 @@ private:
     bool confirmSaveIfModified();
     void setCurrentFile(const QString& path);
     void updateWindowTitle();
+    void updateCursorPosition();
     void validateExperiment();
     void runExperiment();
     void experimentCompleted();
@@ -51,6 +53,7 @@ private:
     QListWidget* diagnostics_ = nullptr;
     QPlainTextEdit* standard_output_ = nullptr;
     QPlainTextEdit* standard_error_ = nullptr;
+    QLabel* cursor_position_ = nullptr;
     QAction* validate_action_ = nullptr;
     QAction* run_action_ = nullptr;
     QString current_file_path_;

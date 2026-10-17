@@ -9,6 +9,19 @@
 #include <QTextBlock>
 
 namespace horusrf::studio {
+namespace {
+
+QColor currentLineColor(const QPalette& palette) {
+    constexpr qreal accent_weight = 0.10;
+    const QColor base = palette.color(QPalette::Base);
+    const QColor accent = palette.color(QPalette::Highlight);
+    return QColor::fromRgbF(
+        base.redF() * (1.0 - accent_weight) + accent.redF() * accent_weight,
+        base.greenF() * (1.0 - accent_weight) + accent.greenF() * accent_weight,
+        base.blueF() * (1.0 - accent_weight) + accent.blueF() * accent_weight);
+}
+
+} // namespace
 
 class LineNumberArea final : public QWidget {
 public:
@@ -44,7 +57,10 @@ DslEditor::DslEditor(QWidget* parent)
 
 void DslEditor::changeEvent(QEvent* event) {
     QPlainTextEdit::changeEvent(event);
-    if (event->type() == QEvent::ReadOnlyChange) highlightCurrentLine();
+    if (event->type() == QEvent::ReadOnlyChange ||
+        event->type() == QEvent::PaletteChange) {
+        highlightCurrentLine();
+    }
 }
 
 int DslEditor::lineNumberAreaWidth() const {
@@ -77,13 +93,14 @@ void DslEditor::highlightCurrentLine() {
     QList<QTextEdit::ExtraSelection> selections;
     if (!isReadOnly()) {
         QTextEdit::ExtraSelection selection;
-        selection.format.setBackground(QColor{246, 248, 250});
+        selection.format.setBackground(currentLineColor(palette()));
         selection.format.setProperty(QTextFormat::FullWidthSelection, true);
         selection.cursor = textCursor();
         selection.cursor.clearSelection();
         selections.append(selection);
     }
     setExtraSelections(selections);
+    line_number_area_->update();
 }
 
 void DslEditor::paintLineNumberArea(QPaintEvent* event) {
@@ -97,7 +114,12 @@ void DslEditor::paintLineNumberArea(QPaintEvent* event) {
 
     while (block.isValid() && top <= event->rect().bottom()) {
         if (block.isVisible() && bottom >= event->rect().top()) {
-            painter.setPen(palette().color(QPalette::PlaceholderText));
+            const bool is_current_line = number == textCursor().blockNumber();
+            QFont number_font = font();
+            number_font.setBold(is_current_line);
+            painter.setFont(number_font);
+            painter.setPen(palette().color(is_current_line ? QPalette::Highlight
+                                                           : QPalette::PlaceholderText));
             painter.drawText(0, top, line_number_area_->width() - 4,
                              fontMetrics().height(), Qt::AlignRight,
                              QString::number(number + 1));

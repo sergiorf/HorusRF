@@ -57,6 +57,23 @@ private slots:
         QCOMPARE(editor.blockCount(), 4);
         QCOMPARE(editor.extraSelections().size(), 1);
 
+        QPalette palette = editor.palette();
+        const QColor base{24, 26, 28};
+        const QColor accent{44, 124, 204};
+        palette.setColor(QPalette::Base, base);
+        palette.setColor(QPalette::Highlight, accent);
+        editor.setPalette(palette);
+        const QColor currentLine =
+            editor.extraSelections().front().format.background().color();
+        QVERIFY(currentLine != base);
+        QVERIFY(currentLine != accent);
+        QVERIFY(qAbs(currentLine.red() - base.red()) <
+                qAbs(accent.red() - base.red()));
+        QVERIFY(qAbs(currentLine.green() - base.green()) <
+                qAbs(accent.green() - base.green()));
+        QVERIFY(qAbs(currentLine.blue() - base.blue()) <
+                qAbs(accent.blue() - base.blue()));
+
         editor.setReadOnly(true);
         QCOMPARE(editor.extraSelections().size(), 0);
     }
@@ -106,6 +123,19 @@ private slots:
 
         window.editor()->document()->setModified(false);
         QVERIFY(!window.isWindowModified());
+    }
+
+    void statusBarTracksOneBasedCursorLineAndColumn() {
+        horusrf::studio::MainWindow window;
+        auto* position =
+            window.findChild<QLabel*>(QStringLiteral("cursorPositionLabel"));
+        QVERIFY(position != nullptr);
+
+        window.editor()->setPlainText(QStringLiteral("first\nsecond"));
+        QTextCursor cursor(window.editor()->document()->findBlockByNumber(1));
+        cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, 3);
+        window.editor()->setTextCursor(cursor);
+        QCOMPARE(position->text(), QStringLiteral("Ln 2, Col 4"));
     }
 
     void diagnosticParserHandlesWindowsPathsAndColonsInMessages() {

@@ -57,8 +57,9 @@ build/horusrf-studio
 
 For a multi-config generator, launch `build/<Configuration>/horusrf-studio`
 instead. Studio provides a resizable editor workspace, HorusRF syntax highlighting,
-line numbers, standard file and undo/redo actions, and the canonical example as an
-initially unmodified, untitled template. F5 validates the current editor buffer and
+line numbers with an emphasized current line, a live line-and-column status indicator,
+standard file and undo/redo actions, and the canonical example as an initially
+unmodified, untitled template. F5 validates the current editor buffer and
 F6 runs it, including unsaved changes, by invoking the sibling `horusrf-run`
 executable. Compiler diagnostics are clickable, and raw standard output and standard
 error remain available in separate panes. Successful runs plot measured, reference,
