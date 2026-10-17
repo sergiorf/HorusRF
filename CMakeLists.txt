@@ -263,6 +263,7 @@ if(BUILD_TESTING)
             add_test(NAME horusrf_studio_tests
                 COMMAND ${CMAKE_COMMAND} -E env
                     "QT_QPA_PLATFORM=offscreen"
+                    "QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QOffscreenIntegrationPlugin>"
                     "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
                     $<TARGET_FILE:horusrf_studio_tests>
             )
