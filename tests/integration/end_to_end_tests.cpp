@@ -36,14 +36,13 @@ void run_test() {
     CHECK_NEAR(semantic_program.sweep.start.hertz(), 2.40e9, 1e-3);
     CHECK_NEAR(semantic_program.sweep.end.hertz(), 2.50e9, 1e-3);
     CHECK_NEAR(semantic_program.sweep.step.hertz(), 1.0e6, 1e-3);
-    CHECK_EQ(semantic_program.calibrations.size(), std::size_t{1});
-    CHECK_EQ(semantic_program.calibrations[0].name, std::string{"tx_power"});
-    CHECK_EQ(semantic_program.calibrations[0].indexes.size(), std::size_t{1});
-    CHECK_EQ(semantic_program.calibrations[0].indexes[0], semantic_program.sweep.symbol);
+    CHECK_EQ(semantic_program.calibration.name, std::string{"tx_power"});
+    CHECK_EQ(semantic_program.calibration.indexes.size(), std::size_t{1});
+    CHECK_EQ(semantic_program.calibration.indexes[0], semantic_program.sweep.symbol);
 
     const auto lowered = ir::lower(semantic_program);
     CHECK(lowered.ok());
-    CHECK_EQ(lowered.program->calibrations[0].indexes[0],
+    CHECK_EQ(lowered.program->calibration.indexes[0],
              lowered.program->sweep.frequency);
 
     device::SimulatedRfConnection rf_output;

@@ -125,7 +125,7 @@ struct AnalyzedProgram {
     FrequencySweep sweep;
     PowerMeasurement measurement;
     std::vector<DerivedQuantity> derived_quantities;
-    std::vector<Calibration> calibrations;
+    Calibration calibration;
 };
 
 } // namespace horusrf::semantic

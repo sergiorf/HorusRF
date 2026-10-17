@@ -25,3 +25,21 @@ endif()
 if(EXISTS "${OUTPUT_FILE}")
     message(FATAL_ERROR "semantic failure created CSV: ${OUTPUT_FILE}")
 endif()
+
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${SOURCE_FILE}" --check
+    RESULT_VARIABLE check_result
+    OUTPUT_VARIABLE check_output
+    ERROR_VARIABLE check_error
+)
+
+if(NOT check_result EQUAL 4)
+    message(FATAL_ERROR "check returned ${check_result}, expected 4: ${check_error}")
+endif()
+if(NOT check_output STREQUAL "")
+    message(FATAL_ERROR "semantic check failure wrote stdout: ${check_output}")
+endif()
+string(FIND "${check_error}" "${EXPECTED_CODE}" check_code_position)
+if(check_code_position EQUAL -1)
+    message(FATAL_ERROR "check diagnostic did not contain '${EXPECTED_CODE}': ${check_error}")
+endif()

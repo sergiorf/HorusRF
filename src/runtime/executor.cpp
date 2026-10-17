@@ -49,7 +49,7 @@ public:
         }
         if (!validate_base_bindings()) return std::move(diagnostics_);
         if (!validate_named_values()) return std::move(diagnostics_);
-        validate_calibrations();
+        validate_calibration();
         return std::move(diagnostics_);
     }
 
@@ -218,28 +218,27 @@ private:
         return true;
     }
 
-    bool validate_calibrations() {
-        for (const auto& calibration : program_.calibrations) {
-            if (calibration.correction.value >= program_.values.size()) {
-                return report(DiagnosticCode::InvalidValueId,
-                              "calibration correction has an invalid value ID",
-                              calibration.span);
-            }
-            if (calibration.correction_type != ir::ValueType::PowerDelta ||
-                program_.values[calibration.correction.value].type !=
-                    ir::ValueType::PowerDelta) {
-                return report(DiagnosticCode::TypeMismatch,
-                              "calibration correction must have type PowerDelta",
-                              calibration.span);
-            }
-            if (calibration.indexes.size() != 1 ||
-                calibration.index_types.size() != 1 ||
-                calibration.indexes.front() != program_.sweep.frequency ||
-                calibration.index_types.front() != ir::ValueType::Frequency) {
-                return report(DiagnosticCode::InvalidProgramBinding,
-                              "calibration must be indexed by the active frequency sweep",
-                              calibration.span);
-            }
+    bool validate_calibration() {
+        const auto& calibration = program_.calibration;
+        if (calibration.correction.value >= program_.values.size()) {
+            return report(DiagnosticCode::InvalidValueId,
+                          "calibration correction has an invalid value ID",
+                          calibration.span);
+        }
+        if (calibration.correction_type != ir::ValueType::PowerDelta ||
+            program_.values[calibration.correction.value].type !=
+                ir::ValueType::PowerDelta) {
+            return report(DiagnosticCode::TypeMismatch,
+                          "calibration correction must have type PowerDelta",
+                          calibration.span);
+        }
+        if (calibration.indexes.size() != 1 ||
+            calibration.index_types.size() != 1 ||
+            calibration.indexes.front() != program_.sweep.frequency ||
+            calibration.index_types.front() != ir::ValueType::Frequency) {
+            return report(DiagnosticCode::InvalidProgramBinding,
+                          "calibration must be indexed by the active frequency sweep",
+                          calibration.span);
         }
         return true;
     }

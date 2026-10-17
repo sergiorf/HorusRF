@@ -115,7 +115,7 @@ struct Program {
     ValueId measurement;
     std::vector<Value> values;
     std::vector<NamedValue> named_values;
-    std::vector<Calibration> calibrations;
+    Calibration calibration;
     friend bool operator==(const Program&, const Program&) = default;
 };
 

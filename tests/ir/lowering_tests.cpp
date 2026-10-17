@@ -144,8 +144,7 @@ void canonical_pipeline_test() {
 
     CHECK(program.named_values.empty());
 
-    CHECK_EQ(program.calibrations.size(), std::size_t{1});
-    const auto& calibration = program.calibrations.front();
+    const auto& calibration = program.calibration;
     CHECK_EQ(calibration.name, "tx_power");
     CHECK_EQ(calibration.correction_type, ir::ValueType::PowerDelta);
     CHECK_EQ(calibration.indexes.size(), std::size_t{1});
@@ -211,7 +210,7 @@ void focused_lowering_test() {
     CHECK(std::holds_alternative<ir::ApplyPowerDelta>(
         value_at(first, first.named_values[10].value).definition));
 
-    const auto& calibration = first.calibrations.front();
+    const auto& calibration = first.calibration;
     CHECK_EQ(calibration.correction, first.named_values[9].value);
     CHECK_EQ(calibration.indexes.front(), first.sweep.frequency);
     for (const auto& value : first.values) {
@@ -277,6 +276,7 @@ characterize unary_failure {
   measure power
   derive delta = power - reference.power
   derive inverse = -delta
+  derive calibration cal { correction = inverse over frequency }
 })");
     auto& unary =
         std::get<semantic::UnaryValue>(unary_program.derived_quantities[1].expression.value);
@@ -293,12 +293,12 @@ characterize unary_failure {
     CHECK(has_code(result, ir::DiagnosticCode::UnknownSymbol));
 
     broken = make_base();
-    broken.calibrations[0].type.correction_type = semantic::SemanticType::Power;
+    broken.calibration.type.correction_type = semantic::SemanticType::Power;
     result = ir::lower(broken);
     CHECK(has_code(result, ir::DiagnosticCode::TypeMismatch));
 
     broken = make_base();
-    broken.calibrations[0].correction = semantic::Expression{
+    broken.calibration.correction = semantic::Expression{
         semantic::SymbolValue{broken.measurement.symbol, "power",
                               semantic::SemanticType::Power,
                               broken.measurement.span},
@@ -308,25 +308,25 @@ characterize unary_failure {
     CHECK(has_code(result, ir::DiagnosticCode::TypeMismatch));
 
     broken = make_base();
-    broken.calibrations[0].indexes[0] = semantic::SymbolId{999};
+    broken.calibration.indexes[0] = semantic::SymbolId{999};
     result = ir::lower(broken);
     CHECK(has_code(result, ir::DiagnosticCode::InvalidCalibrationIndex));
 
     broken = make_base();
-    broken.calibrations[0].indexes[0] = broken.measurement.symbol;
-    broken.calibrations[0].type.index_types[0] = semantic::SemanticType::Power;
+    broken.calibration.indexes[0] = broken.measurement.symbol;
+    broken.calibration.type.index_types[0] = semantic::SemanticType::Power;
     result = ir::lower(broken);
     CHECK(has_code(result, ir::DiagnosticCode::InvalidCalibrationIndex));
 
     broken = make_base();
-    broken.calibrations[0].indexes.push_back(broken.sweep.symbol);
-    broken.calibrations[0].type.index_types.push_back(semantic::SemanticType::Frequency);
+    broken.calibration.indexes.push_back(broken.sweep.symbol);
+    broken.calibration.type.index_types.push_back(semantic::SemanticType::Frequency);
     result = ir::lower(broken);
     CHECK(has_code(result, ir::DiagnosticCode::InvalidCalibrationIndex));
 
     broken = make_base();
-    broken.calibrations[0].indexes.clear();
-    broken.calibrations[0].type.index_types.clear();
+    broken.calibration.indexes.clear();
+    broken.calibration.type.index_types.clear();
     result = ir::lower(broken);
     CHECK(has_code(result, ir::DiagnosticCode::InvalidCalibrationIndex));
 

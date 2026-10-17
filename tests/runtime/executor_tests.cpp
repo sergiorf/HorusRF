@@ -139,7 +139,7 @@ void operation_matrix_and_device_order_test() {
     CHECK_NEAR(std::get<domain::Power>(named(program, *result.evaluation, "nested")).dbm(),
                -6.5, 1e-12);
     CHECK_NEAR(std::get<domain::PowerDelta>(result.evaluation->at(
-                   program.calibrations.front().correction)).db(),
+                   program.calibration.correction)).db(),
                0.75, 1e-12);
 
     try {
@@ -202,14 +202,14 @@ void defensive_validation_test() {
                    broken.named_values.front().span);
 
     broken = base;
-    broken.calibrations.front().indexes.clear();
+    broken.calibration.indexes.clear();
     expect_failure(broken, runtime::DiagnosticCode::InvalidProgramBinding,
-                   broken.calibrations.front().span);
+                   broken.calibration.span);
 
     broken = base;
-    broken.calibrations.front().correction = ir::ValueId{999};
+    broken.calibration.correction = ir::ValueId{999};
     expect_failure(broken, runtime::DiagnosticCode::InvalidValueId,
-                   broken.calibrations.front().span);
+                   broken.calibration.span);
 }
 
 struct ThrowingMeasurement final : device::MeasurementDevice {
@@ -254,9 +254,9 @@ void canonical_pipeline_test() {
     CHECK_NEAR(std::get<domain::Power>(result.evaluation->at(program.measurement)).dbm(),
                -9.45, 1e-12);
     CHECK(program.named_values.empty());
-    CHECK_EQ(program.calibrations.front().indexes.front(), program.sweep.frequency);
+    CHECK_EQ(program.calibration.indexes.front(), program.sweep.frequency);
     CHECK_NEAR(std::get<domain::PowerDelta>(result.evaluation->at(
-                   program.calibrations.front().correction)).db(),
+                   program.calibration.correction)).db(),
                -0.55, 1e-12);
 }
 

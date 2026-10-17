@@ -180,19 +180,11 @@ void validation_test() {
     expect_preflight_failure(broken, runtime::DiagnosticCode::InvalidValueId);
 
     broken = base;
-    broken.calibrations.clear();
+    broken.calibration.name.clear();
     expect_preflight_failure(broken, runtime::DiagnosticCode::InvalidCalibrationBinding);
 
     broken = base;
-    broken.calibrations.push_back(broken.calibrations.front());
-    expect_preflight_failure(broken, runtime::DiagnosticCode::InvalidCalibrationBinding);
-
-    broken = base;
-    broken.calibrations.front().name.clear();
-    expect_preflight_failure(broken, runtime::DiagnosticCode::InvalidCalibrationBinding);
-
-    broken = base;
-    broken.calibrations.front().indexes.clear();
+    broken.calibration.indexes.clear();
     expect_preflight_failure(broken, runtime::DiagnosticCode::InvalidProgramBinding);
 
     broken = base;
@@ -240,7 +232,7 @@ void canonical_pipeline_test() {
     const std::string source{std::istreambuf_iterator<char>{input},
                              std::istreambuf_iterator<char>{}};
     const auto program = lower_source(source);
-    CHECK_EQ(program.calibrations.front().indexes.front(), program.sweep.frequency);
+    CHECK_EQ(program.calibration.indexes.front(), program.sweep.frequency);
 
     device::SimulatedRfConnection rf_output;
     device::SimulatedRfTester tester{rf_output};

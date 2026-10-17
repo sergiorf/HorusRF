@@ -62,8 +62,7 @@ void canonical_fixture_test() {
 
     CHECK(program.derived_quantities.empty());
 
-    CHECK_EQ(program.calibrations.size(), std::size_t{1});
-    const auto& calibration = program.calibrations.front();
+    const auto& calibration = program.calibration;
     CHECK_EQ(calibration.correction.type, semantic::SemanticType::PowerDelta);
     const auto& correction = expression_as<semantic::BinaryValue>(calibration.correction);
     CHECK_EQ(correction.type, semantic::SemanticType::PowerDelta);
@@ -89,6 +88,7 @@ characterize expressions {
   derive combined = delta + 2 dB
   derive inverse = -combined
   derive later = inverse + delta
+  derive calibration cal { correction = later over frequency }
 })");
     CHECK(result.ok());
     CHECK_EQ(result.program->derived_quantities.size(), std::size_t{5});
@@ -105,8 +105,10 @@ void frequency_unit_tests() {
                               "1 kHz .. 2 kHz step 0.1 kHz",
                               "0.001 MHz .. 0.002 MHz step 0.0001 MHz",
                               "0.000001 GHz .. 0.000002 GHz step 0.0000001 GHz"}) {
-        const auto source = std::string{"characterize c { reference power = 0 dBm sweep frequency "} +
-                            range + " measure power }";
+        const auto source =
+            std::string{"characterize c { reference power = 0 dBm sweep frequency "} +
+            range +
+            " measure power derive calibration cal { correction = 0 dB over frequency } }";
         const auto result = analyze_source(source);
         CHECK(result.ok());
         CHECK_NEAR(result.program->sweep.start.hertz(), 1000.0, 1e-8);
@@ -202,6 +204,15 @@ void rejection_tests() {
     CHECK(has_code(result, semantic::DiagnosticCode::MissingReference));
     CHECK(has_code(result, semantic::DiagnosticCode::MissingSweep));
     CHECK(has_code(result, semantic::DiagnosticCode::MissingMeasurement));
+    CHECK(has_code(result, semantic::DiagnosticCode::MissingCalibration));
+
+    result = analyze_source(
+        "characterize c { reference power = 0 dBm "
+        "sweep frequency 1 Hz .. 2 Hz step 1 Hz measure power "
+        "derive d = power - reference.power "
+        "derive calibration first { correction = d over frequency } "
+        "derive calibration second { correction = d over frequency } }");
+    CHECK(has_code(result, semantic::DiagnosticCode::DuplicateDeclaration));
 
     auto program = parser::parse(
         "characterize c { reference power = 0 dBm sweep frequency 1 Hz .. 2 Hz step 1 Hz "
@@ -249,6 +260,7 @@ void diagnostic_code_name_tests() {
         std::pair{semantic::DiagnosticCode::MissingReference, "semantic.missing_reference"},
         std::pair{semantic::DiagnosticCode::MissingSweep, "semantic.missing_sweep"},
         std::pair{semantic::DiagnosticCode::MissingMeasurement, "semantic.missing_measurement"},
+        std::pair{semantic::DiagnosticCode::MissingCalibration, "semantic.missing_calibration"},
         std::pair{semantic::DiagnosticCode::UnknownIdentifier, "semantic.unknown_identifier"},
         std::pair{semantic::DiagnosticCode::UnknownReferenceMember, "semantic.unknown_reference_member"},
         std::pair{semantic::DiagnosticCode::ReferenceNotAvailable, "semantic.reference_not_available"},

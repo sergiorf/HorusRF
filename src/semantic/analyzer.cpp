@@ -18,6 +18,7 @@ std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
     case DiagnosticCode::MissingReference: return "semantic.missing_reference";
     case DiagnosticCode::MissingSweep: return "semantic.missing_sweep";
     case DiagnosticCode::MissingMeasurement: return "semantic.missing_measurement";
+    case DiagnosticCode::MissingCalibration: return "semantic.missing_calibration";
     case DiagnosticCode::UnknownIdentifier: return "semantic.unknown_identifier";
     case DiagnosticCode::UnknownReferenceMember: return "semantic.unknown_reference_member";
     case DiagnosticCode::ReferenceNotAvailable: return "semantic.reference_not_available";
@@ -74,7 +75,7 @@ public:
             result.program.emplace(AnalyzedProgram{
                 input_.characterization.name, input_.characterization.span,
                 std::move(*reference_), std::move(*sweep_), std::move(*measurement_),
-                std::move(derived_), std::move(calibrations_)});
+                std::move(derived_), std::move(*calibration_)});
         }
         return result;
     }
@@ -193,6 +194,12 @@ private:
     }
 
     void analyze_statement(const ast::CalibrationStatement& statement) {
+        if (seen_calibration_) {
+            report(DiagnosticCode::DuplicateDeclaration, "duplicate calibration declaration",
+                   statement.span);
+            return;
+        }
+        seen_calibration_ = true;
         const bool name_valid = user_name_available(statement.name, statement.span);
         auto correction = analyze_expression(statement.correction);
         bool valid = name_valid && correction.has_value();
@@ -233,7 +240,7 @@ private:
 
         if (!valid) return;
         const auto id = next_symbol();
-        calibrations_.push_back(Calibration{
+        calibration_.emplace(Calibration{
             id, statement.name, std::move(*correction), std::move(indexes),
             CalibrationType{std::move(index_types), SemanticType::PowerDelta}, statement.span});
         symbols_.emplace(statement.name,
@@ -357,6 +364,9 @@ private:
         if (!seen_measurement_) {
             report(DiagnosticCode::MissingMeasurement, "missing measure power declaration", span);
         }
+        if (!seen_calibration_) {
+            report(DiagnosticCode::MissingCalibration, "missing calibration declaration", span);
+        }
     }
 
     const ast::Program& input_;
@@ -369,11 +379,12 @@ private:
     std::optional<FrequencySweep> sweep_;
     std::optional<PowerMeasurement> measurement_;
     std::vector<DerivedQuantity> derived_;
-    std::vector<Calibration> calibrations_;
+    std::optional<Calibration> calibration_;
     std::size_t next_symbol_{};
     bool seen_reference_{};
     bool seen_sweep_{};
     bool seen_measurement_{};
+    bool seen_calibration_{};
 };
 
 } // namespace

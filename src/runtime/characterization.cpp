@@ -105,14 +105,7 @@ CharacterizationExecutionResult execute_characterization(const ir::Program& prog
     auto diagnostics = detail::validate_program(program);
     if (!diagnostics.empty()) return {std::nullopt, std::move(diagnostics)};
 
-    if (program.calibrations.size() != 1) {
-        diagnostics.push_back(diagnostic(
-            DiagnosticCode::InvalidCalibrationBinding,
-            "complete characterization requires exactly one calibration",
-            program.span));
-        return {std::nullopt, std::move(diagnostics)};
-    }
-    const auto& calibration = program.calibrations.front();
+    const auto& calibration = program.calibration;
     if (calibration.name.empty()) {
         diagnostics.push_back(diagnostic(DiagnosticCode::InvalidCalibrationBinding,
                                          "calibration name must not be empty",

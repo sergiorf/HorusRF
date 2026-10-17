@@ -89,63 +89,62 @@ public:
                 NamedValue{derived.name, root->id, root->type, derived.span});
         }
 
-        for (const auto& calibration : input_.calibrations) {
-            if (!reserve_symbol(calibration.symbol, calibration.span)) return failure();
-            const auto correction_type = convert_type(calibration.type.correction_type);
-            if (!correction_type || *correction_type != ValueType::PowerDelta ||
-                calibration.correction.type != semantic::SemanticType::PowerDelta) {
-                report(DiagnosticCode::TypeMismatch,
-                       "calibration correction must have type PowerDelta", calibration.span);
-                return failure();
-            }
-            auto correction = lower_expression(calibration.correction);
-            if (!correction) return failure();
-            if (correction->type != ValueType::PowerDelta) {
-                report(DiagnosticCode::TypeMismatch,
-                       "calibration correction value is not PowerDelta",
-                       calibration.correction.span);
-                return failure();
-            }
-            if (calibration.indexes.size() != calibration.type.index_types.size()) {
-                report(DiagnosticCode::InvalidCalibrationIndex,
-                       "calibration index metadata has inconsistent lengths", calibration.span);
-                return failure();
-            }
-            if (calibration.indexes.empty()) {
-                report(DiagnosticCode::InvalidCalibrationIndex,
-                       "calibration must have an active sweep index", calibration.span);
-                return failure();
-            }
-            Calibration lowered{calibration.name, correction->id, {}, {}, ValueType::PowerDelta,
-                                calibration.span};
-            std::unordered_set<std::size_t> indexes;
-            for (std::size_t i = 0; i < calibration.indexes.size(); ++i) {
-                const auto symbol = calibration.indexes[i];
-                const auto found = symbols_.find(symbol.value);
-                const auto semantic_type = convert_type(calibration.type.index_types[i]);
-                if (found == symbols_.end()) {
-                    report(DiagnosticCode::InvalidCalibrationIndex,
-                           "calibration index refers to an unknown symbol", calibration.span);
-                    return failure();
-                }
-                if (!indexes.insert(symbol.value).second) {
-                    report(DiagnosticCode::InvalidCalibrationIndex,
-                           "calibration contains a duplicate index", calibration.span);
-                    return failure();
-                }
-                if (!semantic_type || *semantic_type != ValueType::Frequency ||
-                    found->second.type != ValueType::Frequency ||
-                    found->second.value != output_.sweep.frequency) {
-                    report(DiagnosticCode::InvalidCalibrationIndex,
-                           "calibration index is not the active frequency sweep",
-                           calibration.span);
-                    return failure();
-                }
-                lowered.indexes.push_back(found->second.value);
-                lowered.index_types.push_back(ValueType::Frequency);
-            }
-            output_.calibrations.push_back(std::move(lowered));
+        const auto& calibration = input_.calibration;
+        if (!reserve_symbol(calibration.symbol, calibration.span)) return failure();
+        const auto correction_type = convert_type(calibration.type.correction_type);
+        if (!correction_type || *correction_type != ValueType::PowerDelta ||
+            calibration.correction.type != semantic::SemanticType::PowerDelta) {
+            report(DiagnosticCode::TypeMismatch,
+                   "calibration correction must have type PowerDelta", calibration.span);
+            return failure();
         }
+        auto correction = lower_expression(calibration.correction);
+        if (!correction) return failure();
+        if (correction->type != ValueType::PowerDelta) {
+            report(DiagnosticCode::TypeMismatch,
+                   "calibration correction value is not PowerDelta",
+                   calibration.correction.span);
+            return failure();
+        }
+        if (calibration.indexes.size() != calibration.type.index_types.size()) {
+            report(DiagnosticCode::InvalidCalibrationIndex,
+                   "calibration index metadata has inconsistent lengths", calibration.span);
+            return failure();
+        }
+        if (calibration.indexes.empty()) {
+            report(DiagnosticCode::InvalidCalibrationIndex,
+                   "calibration must have an active sweep index", calibration.span);
+            return failure();
+        }
+        Calibration lowered{calibration.name, correction->id, {}, {}, ValueType::PowerDelta,
+                            calibration.span};
+        std::unordered_set<std::size_t> indexes;
+        for (std::size_t i = 0; i < calibration.indexes.size(); ++i) {
+            const auto symbol = calibration.indexes[i];
+            const auto found = symbols_.find(symbol.value);
+            const auto semantic_type = convert_type(calibration.type.index_types[i]);
+            if (found == symbols_.end()) {
+                report(DiagnosticCode::InvalidCalibrationIndex,
+                       "calibration index refers to an unknown symbol", calibration.span);
+                return failure();
+            }
+            if (!indexes.insert(symbol.value).second) {
+                report(DiagnosticCode::InvalidCalibrationIndex,
+                       "calibration contains a duplicate index", calibration.span);
+                return failure();
+            }
+            if (!semantic_type || *semantic_type != ValueType::Frequency ||
+                found->second.type != ValueType::Frequency ||
+                found->second.value != output_.sweep.frequency) {
+                report(DiagnosticCode::InvalidCalibrationIndex,
+                       "calibration index is not the active frequency sweep",
+                       calibration.span);
+                return failure();
+            }
+            lowered.indexes.push_back(found->second.value);
+            lowered.index_types.push_back(ValueType::Frequency);
+        }
+        output_.calibration = std::move(lowered);
 
         return LoweringResult{std::move(output_), {}};
     }

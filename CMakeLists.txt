@@ -339,6 +339,9 @@ if(BUILD_TESTING)
     horusrf_add_invalid_semantic_fixture(
         calibration_over_power semantic.non_sweep_calibration_dimension
     )
+    horusrf_add_invalid_semantic_fixture(
+        missing_calibration semantic.missing_calibration
+    )
 
     set_tests_properties(
         horusrf_parser_tests
@@ -364,6 +367,7 @@ if(BUILD_TESTING)
         horusrf_invalid_power_plus_power
         horusrf_invalid_use_before_measurement
         horusrf_invalid_calibration_over_power
+        horusrf_invalid_missing_calibration
         PROPERTIES LABELS cli
     )
 endif()

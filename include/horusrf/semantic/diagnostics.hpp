@@ -14,6 +14,7 @@ enum class DiagnosticCode {
     MissingReference,
     MissingSweep,
     MissingMeasurement,
+    MissingCalibration,
     UnknownIdentifier,
     UnknownReferenceMember,
     ReferenceNotAvailable,

@@ -36,8 +36,8 @@ characterize tx_path {
 
 `reference power` declares the sole nominal comparison power. Its expression name
 is `reference.power`. A program requires exactly one reference, frequency sweep,
-and power measurement. Duplicate required declarations are errors; a missing one is
-reported after statement analysis.
+power measurement, and calibration. Duplicate required declarations are errors; a
+missing one is reported after statement analysis.
 
 The sweep endpoints and step must be frequency quantities. The step is strictly
 positive and the end must not precede the start. Runtime generates points in
