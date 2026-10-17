@@ -71,6 +71,10 @@ AI use is allowed; building AI infrastructure during Phase 1 is not.
 
 ### M0 - Architecture and language design
 
+Status: complete on 2026-10-17. The accepted contracts are recorded in
+[`docs/dsl-evolution.md`](dsl-evolution.md) and the approved boundary changes are
+summarized in [`docs/architecture.md`](architecture.md).
+
 Inspect the current grammar, compiler layers, runtime validation and evaluation,
 device contracts, simulator, result types, CSV/CLI behavior, Studio CSV model, and
 test suites. Record the accepted design in `docs/dsl-evolution.md` and update

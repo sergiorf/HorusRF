@@ -282,6 +282,43 @@ This path does not introduce a core or output-library link. The most recent vali
 results remain visible if a later run or CSV load fails. This keeps the GPL-3.0-only
 desktop application outside the Apache-2.0 core and CLI target graph.
 
+## Approved Phase 1 evolution boundaries
+
+The accepted M0 design is specified in
+[`docs/dsl-evolution.md`](dsl-evolution.md). These are boundaries for M1-M6, not a
+claim that the features are already implemented.
+
+- Parser, AST, semantic analysis, and IR generalize in their existing order. AST
+  remains syntactic; semantic analysis resolves typed names and operations; IR
+  remains a typed, device-independent plan.
+- Sweep and result coordinates retain their declaration-ordered name, stable type,
+  and strong `Frequency` or `Temperature` value. They are never flattened to
+  untyped numbers. The last declared sweep dimension varies fastest.
+- Environmental control is a separate `TemperatureController` interface. Optional
+  EVM and frequency-error observations use explicit public capability interfaces.
+  `RfDevice` remains TX control, `MeasurementDevice::measurePower()` remains the
+  legacy power contract, and existing execution overloads remain as adapters.
+- Runtime validates the whole plan, sweep product, and required capabilities before
+  any equipment call. At a point it applies sweep controls in declaration order,
+  sets output power, performs measurements in declaration order, and then evaluates
+  pure derived values, assertions, and calibration data.
+- Assertions produce owned qualification outcomes and do not control execution.
+  Non-finite observations or computations remain execution failures rather than
+  failed assertions.
+- Multidimensional and qualification results use versioned JSON. The original CSV
+  remains a terminal, exact schema for only the legacy experiment shape. Studio
+  consumes JSON through the existing CLI process boundary and continues to own all
+  presentation models.
+- Calibration-fit, qualification, and independent-validation metrics are distinct.
+  No in-sample calibration statistic is labeled as validation.
+
+The generalized dependency direction is therefore unchanged. New device contracts
+belong to `horusrf_device`, their strong values and owned result structures belong
+to `horusrf_domain`, execution belongs to `horusrf_runtime`, JSON serialization
+belongs to `horusrf_output`, and the CLI remains the composition root. Simulator
+implementations may satisfy the new device interfaces but are never runtime
+dependencies.
+
 Fresh simulator instances with the same calls produce identical observations. The
 simulator model remains private. Console and CSV output use the classic locale and
 round-trip-capable numeric precision, so results do not vary with host locale.
