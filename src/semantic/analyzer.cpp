@@ -20,6 +20,8 @@ std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
     case DiagnosticCode::MissingReference: return "semantic.missing_reference";
     case DiagnosticCode::MissingSweep: return "semantic.missing_sweep";
     case DiagnosticCode::MissingMeasurement: return "semantic.missing_measurement";
+    case DiagnosticCode::UnknownMeasurementOperation:
+        return "semantic.unknown_measurement_operation";
     case DiagnosticCode::MissingCalibration: return "semantic.missing_calibration";
     case DiagnosticCode::UnknownIdentifier: return "semantic.unknown_identifier";
     case DiagnosticCode::UnknownReferenceMember: return "semantic.unknown_reference_member";
@@ -54,6 +56,7 @@ struct Symbol {
 
 SemanticType canonical_type(const domain::CanonicalQuantity& value) {
     if (std::holds_alternative<domain::Frequency>(value)) return SemanticType::Frequency;
+    if (std::holds_alternative<domain::Ratio>(value)) return SemanticType::Ratio;
     if (std::holds_alternative<domain::Temperature>(value)) return SemanticType::Temperature;
     if (std::holds_alternative<domain::TemperatureDelta>(value)) {
         return SemanticType::TemperatureDelta;
@@ -99,6 +102,9 @@ public:
         for (const auto& statement : input_.characterization.statements) {
             if (const auto* derive = std::get_if<ast::DeriveStatement>(&statement)) {
                 future_derived_.insert(derive->name);
+            } else if (const auto* measurement =
+                           std::get_if<ast::MeasurementStatement>(&statement)) {
+                future_measurements_.insert(measurement->name);
             }
         }
     }
@@ -116,6 +122,7 @@ public:
                 input_.characterization.name, input_.characterization.span,
                 std::move(*reference_), std::move(*frequency_sweep_), std::move(sweeps_),
                 total_point_count_, std::move(*measurement_),
+                std::move(measurements_),
                 std::move(derived_), std::move(*calibration_)});
         }
         return result;
@@ -183,9 +190,9 @@ private:
                    statement.span);
             return;
         }
-        if (seen_measurement_) {
+        if (seen_any_measurement_) {
             report(DiagnosticCode::ReferenceNotAvailable,
-                   "sweep declarations must precede measure power", statement.span);
+                   "sweep declarations must precede measurements", statement.span);
             return;
         }
         seen_sweep_dimensions_.insert(statement.dimension);
@@ -262,19 +269,46 @@ private:
     }
 
     void analyze_statement(const ast::MeasurementStatement& statement) {
-        if (seen_measurement_) {
-            report(DiagnosticCode::DuplicateDeclaration, "duplicate measure power declaration",
+        future_measurements_.erase(statement.name);
+        seen_any_measurement_ = true;
+        if (!seen_reference_) {
+            report(DiagnosticCode::ReferenceNotAvailable,
+                   "reference power must precede measurements", statement.span);
+        }
+        const bool name_valid = statement.legacy
+                                    ? !symbols_.contains("power")
+                                    : user_name_available(statement.name, statement.span);
+        if (!name_valid) {
+            if (statement.legacy) {
+                report(DiagnosticCode::DuplicateDeclaration,
+                       "duplicate declaration of 'power'", statement.span);
+            }
+            return;
+        }
+        MeasurementOperation operation{};
+        SemanticType type{};
+        if (statement.operation == "power") {
+            operation = MeasurementOperation::Power;
+            type = SemanticType::Power;
+        } else if (statement.operation == "evm") {
+            operation = MeasurementOperation::Evm;
+            type = SemanticType::Ratio;
+        } else if (statement.operation == "frequency_error") {
+            operation = MeasurementOperation::FrequencyError;
+            type = SemanticType::FrequencyDelta;
+        } else {
+            report(DiagnosticCode::UnknownMeasurementOperation,
+                   "unknown measurement operation '" + statement.operation + "'",
                    statement.span);
             return;
         }
-        seen_measurement_ = true;
-        if (!seen_reference_) {
-            report(DiagnosticCode::ReferenceNotAvailable,
-                   "reference power must precede measure power", statement.span);
-        }
         const auto id = next_symbol();
-        measurement_.emplace(PowerMeasurement{id, statement.span});
-        symbols_.emplace("power", Symbol{id, SemanticType::Power, false, true});
+        measurements_.push_back(Measurement{id, statement.name, operation, type,
+                                            statement.legacy, statement.span});
+        symbols_.emplace(statement.name, Symbol{id, type, false, true});
+        if (operation == MeasurementOperation::Power && !measurement_) {
+            measurement_.emplace(PowerMeasurement{id, statement.span});
+        }
     }
 
     bool user_name_available(const std::string& name, parser::SourceSpan span) {
@@ -398,7 +432,8 @@ private:
                               found->second.type, span};
         }
         if (identifier.name == "power" || identifier.name == "frequency" ||
-            future_derived_.contains(identifier.name)) {
+            future_derived_.contains(identifier.name) ||
+            future_measurements_.contains(identifier.name)) {
             report(DiagnosticCode::ReferenceNotAvailable,
                    "'" + identifier.name + "' is not available at this point", identifier.span);
         } else {
@@ -431,15 +466,19 @@ private:
         if (!unary.operand) return std::nullopt;
         auto operand = analyze_expression(*unary.operand);
         if (!operand) return std::nullopt;
-        if (operand->type != SemanticType::PowerDelta) {
+        if (operand->type != SemanticType::PowerDelta &&
+            operand->type != SemanticType::FrequencyDelta &&
+            operand->type != SemanticType::Ratio &&
+            operand->type != SemanticType::TemperatureDelta) {
             report(DiagnosticCode::InvalidUnaryOperand,
                    "cannot negate " + std::string(type_name(operand->type)), unary.span);
             return std::nullopt;
         }
+        const auto type = operand->type;
         auto pointer = std::make_shared<Expression>(std::move(*operand));
         return Expression{UnaryValue{UnaryOperator::Negate, std::move(pointer),
-                                     SemanticType::PowerDelta, unary.span},
-                          SemanticType::PowerDelta, span};
+                                     type, unary.span},
+                          type, span};
     }
 
     std::optional<Expression> analyze_expression_value(const ast::BinaryExpression& binary,
@@ -456,9 +495,19 @@ private:
             } else if (left->type == SemanticType::PowerDelta &&
                        right->type == SemanticType::PowerDelta) {
                 result = SemanticType::PowerDelta;
+            } else if (left->type == right->type &&
+                       (left->type == SemanticType::FrequencyDelta ||
+                        left->type == SemanticType::Ratio ||
+                        left->type == SemanticType::TemperatureDelta)) {
+                result = left->type;
             }
         } else if (left->type == SemanticType::Power && right->type == SemanticType::Power) {
             result = SemanticType::PowerDelta;
+        } else if (left->type == right->type &&
+                   (left->type == SemanticType::FrequencyDelta ||
+                    left->type == SemanticType::Ratio ||
+                    left->type == SemanticType::TemperatureDelta)) {
+            result = left->type;
         }
 
         if (!result) {
@@ -487,8 +536,8 @@ private:
         if (!seen_sweep_dimensions_.contains("frequency")) {
             report(DiagnosticCode::MissingSweep, "missing sweep frequency declaration", span);
         }
-        if (!seen_measurement_) {
-            report(DiagnosticCode::MissingMeasurement, "missing measure power declaration", span);
+        if (!measurement_) {
+            report(DiagnosticCode::MissingMeasurement, "missing power measurement declaration", span);
         }
         if (!seen_calibration_) {
             report(DiagnosticCode::MissingCalibration, "missing calibration declaration", span);
@@ -500,18 +549,20 @@ private:
     std::unordered_map<std::string, Symbol> symbols_;
     std::unordered_set<std::string> declared_user_names_;
     std::unordered_set<std::string> future_derived_;
+    std::unordered_set<std::string> future_measurements_;
     std::optional<Symbol> reference_symbol_;
     std::optional<ReferencePower> reference_;
     std::optional<FrequencySweep> frequency_sweep_;
     std::vector<Sweep> sweeps_;
     std::size_t total_point_count_{1};
     std::optional<PowerMeasurement> measurement_;
+    std::vector<Measurement> measurements_;
     std::vector<DerivedQuantity> derived_;
     std::optional<Calibration> calibration_;
     std::size_t next_symbol_{};
     bool seen_reference_{};
     std::unordered_set<std::string> seen_sweep_dimensions_;
-    bool seen_measurement_{};
+    bool seen_any_measurement_{};
     bool seen_calibration_{};
 };
 

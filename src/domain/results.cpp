@@ -25,7 +25,7 @@ CharacterizationSample make_characterization_sample(
     const auto residual_error = corrected_power - reference_power;
     return CharacterizationSample{frequency, reference_power, measured_power, error,
                                   correction, corrected_power, residual_error,
-                                  std::move(operating_point)};
+                                  std::move(operating_point), {}};
 }
 
 CharacterizationMetrics calculate_metrics(

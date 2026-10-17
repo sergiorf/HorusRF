@@ -8,8 +8,8 @@
 
 namespace horusrf::domain {
 
-enum class Dimension { Frequency, AbsolutePower, RelativePower, Temperature, TemperatureDelta };
-enum class Unit { Hz, KHz, MHz, GHz, DBm, DB, Kelvin, DegC, DeltaK, DeltaC };
+enum class Dimension { Frequency, AbsolutePower, RelativePower, Ratio, Temperature, TemperatureDelta };
+enum class Unit { Hz, KHz, MHz, GHz, DBm, DB, Percent, Kelvin, DegC, DeltaK, DeltaC };
 
 [[nodiscard]] std::string_view spelling(Unit unit) noexcept;
 [[nodiscard]] Dimension dimension(Unit unit) noexcept;
@@ -17,7 +17,7 @@ enum class Unit { Hz, KHz, MHz, GHz, DBm, DB, Kelvin, DegC, DeltaK, DeltaC };
 [[nodiscard]] std::optional<Unit> parse_unit(std::string_view text) noexcept;
 
 using CanonicalQuantity =
-    std::variant<Frequency, Power, PowerDelta, Temperature, TemperatureDelta>;
+    std::variant<Frequency, Power, PowerDelta, Ratio, Temperature, TemperatureDelta>;
 
 enum class QuantityConversionError {
     InvalidNumber,

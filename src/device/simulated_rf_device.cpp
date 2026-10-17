@@ -53,4 +53,24 @@ domain::Power SimulatedMeasurementDevice::measurePower() {
                                temperature);
 }
 
+domain::Ratio SimulatedMeasurementDevice::measureEvm() {
+    if (!connection_.frequency_ || !connection_.requested_power_) {
+        throw std::logic_error(
+            "RF tester frequency and output power must be configured before measurement");
+    }
+    const double normalized = (connection_.frequency_->hertz() - 2.40e9) / 100.0e6;
+    return domain::Ratio::from_ratio(0.018 + 0.006 * std::abs(normalized - 0.5));
+}
+
+domain::FrequencyDelta SimulatedMeasurementDevice::measureFrequencyError() {
+    if (!connection_.frequency_ || !connection_.requested_power_) {
+        throw std::logic_error(
+            "RF tester frequency and output power must be configured before measurement");
+    }
+    const auto temperature = connection_.temperature_.value_or(
+        domain::Temperature::from_kelvin(293.15));
+    return domain::FrequencyDelta::from_hertz(
+        1250.0 + 20.0 * (temperature.kelvin() - 293.15));
+}
+
 } // namespace horusrf::device

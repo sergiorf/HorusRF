@@ -11,11 +11,13 @@
 
 namespace horusrf::ir {
 
-enum class ValueType { Frequency, Temperature, TemperatureDelta, Power, PowerDelta };
+enum class ValueType { Frequency, FrequencyDelta, Ratio, Temperature, TemperatureDelta, Power, PowerDelta };
 
 [[nodiscard]] constexpr std::string_view type_name(ValueType type) noexcept {
     switch (type) {
     case ValueType::Frequency: return "Frequency";
+    case ValueType::FrequencyDelta: return "FrequencyDelta";
+    case ValueType::Ratio: return "Ratio";
     case ValueType::Temperature: return "Temperature";
     case ValueType::TemperatureDelta: return "TemperatureDelta";
     case ValueType::Power: return "Power";
@@ -30,8 +32,9 @@ struct ValueId {
 };
 
 using ConstantValue =
-    std::variant<domain::Frequency, domain::Temperature, domain::TemperatureDelta,
-                 domain::Power, domain::PowerDelta>;
+    std::variant<domain::Frequency, domain::FrequencyDelta, domain::Ratio,
+                 domain::Temperature, domain::TemperatureDelta, domain::Power,
+                 domain::PowerDelta>;
 
 struct Constant {
     ConstantValue value;
@@ -49,6 +52,26 @@ struct SweepTemperature {
 };
 struct MeasurePower {
     friend bool operator==(MeasurePower, MeasurePower) = default;
+};
+struct MeasureEvm {
+    friend bool operator==(MeasureEvm, MeasureEvm) = default;
+};
+struct MeasureFrequencyError {
+    friend bool operator==(MeasureFrequencyError, MeasureFrequencyError) = default;
+};
+struct NegateDelta {
+    ValueId operand;
+    friend bool operator==(NegateDelta, NegateDelta) = default;
+};
+struct AddDelta {
+    ValueId left;
+    ValueId right;
+    friend bool operator==(AddDelta, AddDelta) = default;
+};
+struct SubtractDelta {
+    ValueId left;
+    ValueId right;
+    friend bool operator==(SubtractDelta, SubtractDelta) = default;
 };
 struct Alias {
     ValueId value;
@@ -75,7 +98,8 @@ struct PowerDifference {
 };
 
 using Definition = std::variant<Constant, ReferencePower, SweepFrequency, SweepTemperature,
-                                MeasurePower,
+                                MeasurePower, MeasureEvm, MeasureFrequencyError,
+                                NegateDelta, AddDelta, SubtractDelta,
                                 Alias, NegatePowerDelta, AddPowerDelta,
                                 ApplyPowerDelta, PowerDifference>;
 
@@ -120,6 +144,17 @@ struct NamedValue {
     friend bool operator==(const NamedValue&, const NamedValue&) = default;
 };
 
+enum class MeasurementOperation { Power, Evm, FrequencyError };
+struct Measurement {
+    std::string name;
+    MeasurementOperation operation{MeasurementOperation::Power};
+    ValueId value;
+    ValueType type{ValueType::Power};
+    bool legacy{};
+    parser::SourceSpan span;
+    friend bool operator==(const Measurement&, const Measurement&) = default;
+};
+
 struct Calibration {
     std::string name;
     ValueId correction;
@@ -138,6 +173,7 @@ struct Program {
     std::vector<TypedSweep> sweeps;
     std::size_t total_point_count{};
     ValueId measurement;
+    std::vector<Measurement> measurements;
     std::vector<Value> values;
     std::vector<NamedValue> named_values;
     Calibration calibration;

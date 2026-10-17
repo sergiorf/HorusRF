@@ -37,6 +37,9 @@ static_assert(Subtractable<TemperatureDelta, TemperatureDelta>);
 static_assert(Negatable<TemperatureDelta>);
 static_assert(!Addable<TemperatureDelta, Temperature>);
 static_assert(!Negatable<Temperature>);
+static_assert(Addable<FrequencyDelta, FrequencyDelta>);
+static_assert(Subtractable<Ratio, Ratio>);
+static_assert(Negatable<Ratio>);
 
 const CanonicalQuantity& converted(std::string_view number, std::string_view unit) {
     static QuantityConversionResult result;
@@ -53,6 +56,7 @@ void conversion_tests() {
     CHECK_NEAR(std::get<Frequency>(converted("2.5", "GHz")).hertz(), 2.5e9, 1e-3);
     CHECK_NEAR(std::get<Power>(converted("-10", "dBm")).dbm(), -10.0, 1e-12);
     CHECK_NEAR(std::get<PowerDelta>(converted("3.25", "dB")).db(), 3.25, 1e-12);
+    CHECK_NEAR(std::get<Ratio>(converted("5", "%")).ratio(), 0.05, 1e-12);
     CHECK_NEAR(std::get<Temperature>(converted("0", "degC")).kelvin(), 273.15, 1e-12);
     CHECK_NEAR(std::get<Temperature>(converted("20", "K")).kelvin(), 20.0, 1e-12);
     CHECK_NEAR(std::get<TemperatureDelta>(converted("20", "deltaC")).kelvin(),
@@ -84,6 +88,10 @@ void arithmetic_tests() {
     CHECK_NEAR((room - freezing).kelvin(), 20.0, 1e-12);
     CHECK_NEAR((freezing + TemperatureDelta::from_kelvin(20.0)).kelvin(),
                293.15, 1e-12);
+    CHECK_NEAR((FrequencyDelta::from_hertz(20.0) -
+                FrequencyDelta::from_hertz(5.0)).hertz(), 15.0, 1e-12);
+    CHECK_NEAR((Ratio::from_ratio(0.05) + Ratio::from_ratio(0.02)).ratio(),
+               0.07, 1e-12);
 
     bool threw = false;
     try {

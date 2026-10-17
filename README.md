@@ -125,7 +125,8 @@ minus reference. These report fields are not implicit DSL declarations.
 devices or executing the experiment. It is mutually exclusive with `--csv` and
 produces no output when validation succeeds.
 
-M1 and M2 support declaration-ordered frequency and temperature sweeps. Temperature
+M1 through M3 support declaration-ordered frequency and temperature sweeps plus
+named `power`, `evm`, and `frequency_error` measurements. Temperature
 endpoints use `K` or `degC`; steps use `deltaK` or `deltaC`. For example,
 [`multidimensional_check.hrf`](examples/multidimensional_check.hrf) has 21 × 6 =
 126 points and succeeds both with `--check` and normal execution. Coordinates are

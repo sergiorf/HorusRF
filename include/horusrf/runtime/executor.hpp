@@ -15,8 +15,9 @@
 namespace horusrf::runtime {
 
 using RuntimeValue =
-    std::variant<domain::Frequency, domain::Temperature, domain::TemperatureDelta,
-                 domain::Power, domain::PowerDelta>;
+    std::variant<domain::Frequency, domain::FrequencyDelta, domain::Ratio,
+                 domain::Temperature, domain::TemperatureDelta, domain::Power,
+                 domain::PowerDelta>;
 
 struct PointEvaluation {
     domain::Frequency frequency;
@@ -30,6 +31,8 @@ struct DeviceCapabilities {
     device::RfDevice& rf;
     device::MeasurementDevice* power{};
     device::TemperatureController* temperature{};
+    device::EvmMeasurementDevice* evm{};
+    device::FrequencyErrorMeasurementDevice* frequency_error{};
 };
 
 struct ExecutionResult {

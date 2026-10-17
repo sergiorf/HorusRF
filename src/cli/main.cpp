@@ -179,7 +179,9 @@ int run(const Arguments& arguments) {
 
     if (arguments.csv &&
         (lowered.program->sweeps.size() != 1 ||
-         lowered.program->sweeps.front().dimension != ir::SweepDimension::Frequency)) {
+         lowered.program->sweeps.front().dimension != ir::SweepDimension::Frequency ||
+         lowered.program->measurements.size() != 1 ||
+         !lowered.program->measurements.front().legacy)) {
         const auto& position = lowered.program->span.begin;
         std::cerr << arguments.source.string() << ':' << position.line << ':'
                   << position.column
@@ -193,7 +195,8 @@ int run(const Arguments& arguments) {
     device::SimulatedTemperatureController temperature{rf_output};
     auto execution = runtime::execute_characterization(
         *lowered.program,
-        runtime::DeviceCapabilities{tester, &measurement, &temperature});
+        runtime::DeviceCapabilities{tester, &measurement, &temperature,
+                                    &measurement, &measurement});
     if (!execution.ok()) {
         print_diagnostics(arguments.source, execution.diagnostics,
                           runtime::diagnostic_code_name);

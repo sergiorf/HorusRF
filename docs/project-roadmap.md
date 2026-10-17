@@ -179,6 +179,8 @@ Acceptance:
 
 ### M3 - Multiple named measurements
 
+Status: complete on 2026-10-17.
+
 Add named measurement declarations while retaining `measure power` as a legacy
 spelling with its existing binding. For example:
 

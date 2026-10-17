@@ -126,6 +126,21 @@ void temperature_control_test() {
     CHECK_EQ(warm, measurement_device.measurePower());
 }
 
+void extended_measurement_test() {
+    device::SimulatedRfConnection connection;
+    device::SimulatedRfTester tester{connection};
+    device::SimulatedMeasurementDevice measurements{connection};
+    device::SimulatedTemperatureController temperature{connection};
+    tester.setFrequency(domain::Frequency::from_hertz(2.45e9));
+    tester.setOutputPower(domain::Power::from_dbm(-10.0));
+    temperature.setTemperature(domain::Temperature::from_kelvin(313.15));
+    device::EvmMeasurementDevice& evm = measurements;
+    device::FrequencyErrorMeasurementDevice& error = measurements;
+    CHECK_EQ(evm.measureEvm(), evm.measureEvm());
+    CHECK_NEAR(evm.measureEvm().ratio(), 0.018, 1e-12);
+    CHECK_NEAR(error.measureFrequencyError().hertz(), 1650.0, 1e-12);
+}
+
 struct DestructionProbe final : device::RfDevice {
     explicit DestructionProbe(bool& destroyed) : destroyed_(destroyed) {}
     ~DestructionProbe() override { destroyed_ = true; }
@@ -162,6 +177,7 @@ int main() {
         documented_model_test();
         determinism_and_reconfiguration_test();
         temperature_control_test();
+        extended_measurement_test();
         virtual_destruction_test();
         std::cout << "All HorusRF simulator tests passed\n";
         return 0;

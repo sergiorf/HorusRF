@@ -28,7 +28,7 @@ enum class TokenKind {
     LeftBrace, RightBrace, Equal, Range, Dot, Plus, Minus, LeftParen, RightParen,
     Comma,
     UnitHz, UnitKHz, UnitMHz, UnitGHz, UnitDBm, UnitDB,
-    UnitK, UnitDegC, UnitDeltaK, UnitDeltaC,
+    UnitK, UnitDegC, UnitDeltaK, UnitDeltaC, UnitPercent,
     Invalid
 };
 

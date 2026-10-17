@@ -17,6 +17,16 @@ Frequency Frequency::from_hertz(double value) {
     return Frequency(value);
 }
 
+FrequencyDelta FrequencyDelta::from_hertz(double value) {
+    require_finite(value);
+    return FrequencyDelta(value);
+}
+
+Ratio Ratio::from_ratio(double value) {
+    require_finite(value);
+    return Ratio(value);
+}
+
 Temperature Temperature::from_kelvin(double value) {
     require_finite(value);
     if (value < 0.0) throw std::invalid_argument("absolute temperature must not be below 0 K");
@@ -75,5 +85,27 @@ TemperatureDelta operator-(TemperatureDelta lhs, TemperatureDelta rhs) {
 TemperatureDelta operator-(TemperatureDelta value) {
     return TemperatureDelta::from_kelvin(-value.kelvin());
 }
+
+FrequencyDelta operator+(FrequencyDelta lhs, FrequencyDelta rhs) {
+    return FrequencyDelta::from_hertz(lhs.hertz() + rhs.hertz());
+}
+
+FrequencyDelta operator-(FrequencyDelta lhs, FrequencyDelta rhs) {
+    return FrequencyDelta::from_hertz(lhs.hertz() - rhs.hertz());
+}
+
+FrequencyDelta operator-(FrequencyDelta value) {
+    return FrequencyDelta::from_hertz(-value.hertz());
+}
+
+Ratio operator+(Ratio lhs, Ratio rhs) {
+    return Ratio::from_ratio(lhs.ratio() + rhs.ratio());
+}
+
+Ratio operator-(Ratio lhs, Ratio rhs) {
+    return Ratio::from_ratio(lhs.ratio() - rhs.ratio());
+}
+
+Ratio operator-(Ratio value) { return Ratio::from_ratio(-value.ratio()); }
 
 } // namespace horusrf::domain

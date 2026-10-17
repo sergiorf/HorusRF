@@ -45,12 +45,16 @@ private:
     SimulatedRfConnection& connection_;
 };
 
-class SimulatedMeasurementDevice final : public MeasurementDevice {
+class SimulatedMeasurementDevice final : public MeasurementDevice,
+                                         public EvmMeasurementDevice,
+                                         public FrequencyErrorMeasurementDevice {
 public:
     explicit SimulatedMeasurementDevice(
         const SimulatedRfConnection& connection) noexcept;
 
     [[nodiscard]] domain::Power measurePower() override;
+    [[nodiscard]] domain::Ratio measureEvm() override;
+    [[nodiscard]] domain::FrequencyDelta measureFrequencyError() override;
 
 private:
     const SimulatedRfConnection& connection_;

@@ -71,6 +71,7 @@ std::string_view token_kind_name(TokenKind kind) noexcept {
     case TokenKind::UnitDegC: return "degC";
     case TokenKind::UnitDeltaK: return "deltaK";
     case TokenKind::UnitDeltaC: return "deltaC";
+    case TokenKind::UnitPercent: return "%";
     case TokenKind::Invalid: return "invalid token";
     }
     return "unknown token";
@@ -81,7 +82,8 @@ bool is_unit(TokenKind kind) noexcept {
            kind == TokenKind::UnitMHz || kind == TokenKind::UnitGHz ||
            kind == TokenKind::UnitDBm || kind == TokenKind::UnitDB ||
            kind == TokenKind::UnitK || kind == TokenKind::UnitDegC ||
-           kind == TokenKind::UnitDeltaK || kind == TokenKind::UnitDeltaC;
+           kind == TokenKind::UnitDeltaK || kind == TokenKind::UnitDeltaC ||
+           kind == TokenKind::UnitPercent;
 }
 
 bool Lexer::at_end() const noexcept { return position_.offset >= source_.size(); }
@@ -186,6 +188,7 @@ std::vector<Token> Lexer::tokenize() {
         case '(': kind = TokenKind::LeftParen; break;
         case ')': kind = TokenKind::RightParen; break;
         case ',': kind = TokenKind::Comma; break;
+        case '%': kind = TokenKind::UnitPercent; break;
         case '.':
             if (peek() == '.') {
                 advance();

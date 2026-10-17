@@ -44,6 +44,7 @@ public:
                   ValueId{},
                   {},
                   {},
+                  {},
                   {}} {}
 
     LoweringResult run() {
@@ -85,10 +86,24 @@ public:
             if (!lowered) return failure();
         }
 
-        const auto measurement = emit(ValueType::Power, MeasurePower{}, input_.measurement.span);
-        if (!bind(input_.measurement.symbol, {measurement, ValueType::Power},
-                  input_.measurement.span)) return failure();
-        output_.measurement = measurement;
+        for (const auto& source : input_.measurements) {
+            const auto type = convert_type(source.type);
+            if (!type) return failure();
+            Definition definition = MeasurePower{};
+            MeasurementOperation operation = MeasurementOperation::Power;
+            if (source.operation == semantic::MeasurementOperation::Evm) {
+                definition = MeasureEvm{};
+                operation = MeasurementOperation::Evm;
+            } else if (source.operation == semantic::MeasurementOperation::FrequencyError) {
+                definition = MeasureFrequencyError{};
+                operation = MeasurementOperation::FrequencyError;
+            }
+            const auto value = emit(*type, std::move(definition), source.span);
+            if (!bind(source.symbol, {value, *type}, source.span)) return failure();
+            output_.measurements.push_back(
+                Measurement{source.name, operation, value, *type, source.legacy, source.span});
+            if (source.symbol == input_.measurement.symbol) output_.measurement = value;
+        }
 
         for (const auto& derived : input_.derived_quantities) {
             if (!reserve_symbol(derived.symbol, derived.span)) return failure();
@@ -191,6 +206,8 @@ private:
     static std::optional<ValueType> convert_type(semantic::SemanticType type) {
         switch (type) {
         case semantic::SemanticType::Frequency: return ValueType::Frequency;
+        case semantic::SemanticType::FrequencyDelta: return ValueType::FrequencyDelta;
+        case semantic::SemanticType::Ratio: return ValueType::Ratio;
         case semantic::SemanticType::Temperature: return ValueType::Temperature;
         case semantic::SemanticType::TemperatureDelta: return ValueType::TemperatureDelta;
         case semantic::SemanticType::Power: return ValueType::Power;
@@ -238,6 +255,8 @@ private:
         ValueType actual = ValueType::PowerDelta;
         if (std::holds_alternative<domain::Frequency>(quantity.value)) {
             actual = ValueType::Frequency;
+        } else if (std::holds_alternative<domain::Ratio>(quantity.value)) {
+            actual = ValueType::Ratio;
         } else if (std::holds_alternative<domain::Temperature>(quantity.value)) {
             actual = ValueType::Temperature;
         } else if (std::holds_alternative<domain::TemperatureDelta>(quantity.value)) {
@@ -305,14 +324,20 @@ private:
         const auto node_type = convert_type(unary.type);
         const auto outer = convert_type(outer_type);
         if (!operand) return std::nullopt;
-        if (!node_type || !outer || operand->type != ValueType::PowerDelta ||
-            *node_type != ValueType::PowerDelta || *outer != ValueType::PowerDelta) {
+        if (!node_type || !outer || operand->type != *node_type || *node_type != *outer ||
+            (*node_type != ValueType::PowerDelta &&
+             *node_type != ValueType::FrequencyDelta &&
+             *node_type != ValueType::Ratio &&
+             *node_type != ValueType::TemperatureDelta)) {
             report(DiagnosticCode::TypeMismatch,
-                   "negation requires and produces PowerDelta", outer_span);
+                   "negation requires and preserves a delta or ratio type", outer_span);
             return std::nullopt;
         }
-        return TypedValue{emit(ValueType::PowerDelta, NegatePowerDelta{operand->id}, unary.span),
-                          ValueType::PowerDelta};
+        if (*node_type == ValueType::PowerDelta) {
+            return TypedValue{emit(*node_type, NegatePowerDelta{operand->id}, unary.span),
+                              *node_type};
+        }
+        return TypedValue{emit(*node_type, NegateDelta{operand->id}, unary.span), *node_type};
     }
 
     std::optional<TypedValue> lower_value(const semantic::BinaryValue& binary,
@@ -343,6 +368,14 @@ private:
                    left->type == ValueType::Power && right->type == ValueType::Power) {
             result_type = ValueType::PowerDelta;
             definition = PowerDifference{left->id, right->id};
+        } else if (left->type == right->type &&
+                   (left->type == ValueType::FrequencyDelta ||
+                    left->type == ValueType::Ratio ||
+                    left->type == ValueType::TemperatureDelta)) {
+            result_type = left->type;
+            definition = binary.op == semantic::BinaryOperator::Add
+                             ? Definition{AddDelta{left->id, right->id}}
+                             : Definition{SubtractDelta{left->id, right->id}};
         } else {
             report(DiagnosticCode::UnsupportedExpression,
                    "unsupported binary operator and operand types", binary.span);

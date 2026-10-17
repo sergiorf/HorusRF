@@ -2,12 +2,22 @@
 
 #include <span>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "horusrf/domain/operating_point.hpp"
 #include "horusrf/domain/quantity.hpp"
 
 namespace horusrf::domain {
+
+enum class ObservationType { Power, Ratio, FrequencyDelta };
+using ObservationValue = std::variant<Power, Ratio, FrequencyDelta>;
+struct NamedObservation {
+    std::string name;
+    ObservationType type{ObservationType::Power};
+    ObservationValue value;
+    std::string canonical_unit;
+};
 
 struct CharacterizationSample {
     Frequency frequency;
@@ -18,6 +28,7 @@ struct CharacterizationSample {
     Power corrected_power;
     PowerDelta residual_error;
     OperatingPoint operating_point;
+    std::vector<NamedObservation> observations;
 };
 
 struct CalibrationArtifact {

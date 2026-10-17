@@ -246,6 +246,33 @@ void focused_lowering_test() {
     }
 }
 
+void named_measurement_lowering_test() {
+    const auto analyzed = analyze_source(R"(
+characterize named {
+ reference power = 0 dBm
+ sweep frequency 1 Hz .. 1 Hz step 1 Hz
+ measure output = power
+ measure quality = evm
+ measure offset = frequency_error
+ derive power_correction = reference.power - output
+ derive shifted = quality + 1 %
+ derive inverted = -offset
+ derive calibration cal { correction = power_correction over frequency }
+})");
+    const auto lowered = ir::lower(analyzed);
+    CHECK(lowered.ok());
+    const auto& program = *lowered.program;
+    CHECK_EQ(program.measurements.size(), std::size_t{3});
+    CHECK(std::holds_alternative<ir::MeasurePower>(
+        value_at(program, program.measurements[0].value).definition));
+    CHECK(std::holds_alternative<ir::MeasureEvm>(
+        value_at(program, program.measurements[1].value).definition));
+    CHECK(std::holds_alternative<ir::MeasureFrequencyError>(
+        value_at(program, program.measurements[2].value).definition));
+    CHECK_EQ(program.measurements[1].type, ir::ValueType::Ratio);
+    CHECK_EQ(program.measurements[2].type, ir::ValueType::FrequencyDelta);
+}
+
 void owning_result_test() {
     const auto result = lower_source(operation_source);
     CHECK_EQ(result.characterization_name, "operations");
@@ -373,6 +400,7 @@ int main() {
         canonical_pipeline_test();
         typed_sweep_lowering_test();
         focused_lowering_test();
+        named_measurement_lowering_test();
         owning_result_test();
         defensive_failure_tests();
         std::cout << "All HorusRF IR tests passed\n";

@@ -337,6 +337,7 @@ void diagnostic_code_name_tests() {
         std::pair{semantic::DiagnosticCode::MissingReference, "semantic.missing_reference"},
         std::pair{semantic::DiagnosticCode::MissingSweep, "semantic.missing_sweep"},
         std::pair{semantic::DiagnosticCode::MissingMeasurement, "semantic.missing_measurement"},
+        std::pair{semantic::DiagnosticCode::UnknownMeasurementOperation, "semantic.unknown_measurement_operation"},
         std::pair{semantic::DiagnosticCode::MissingCalibration, "semantic.missing_calibration"},
         std::pair{semantic::DiagnosticCode::UnknownIdentifier, "semantic.unknown_identifier"},
         std::pair{semantic::DiagnosticCode::UnknownReferenceMember, "semantic.unknown_reference_member"},
@@ -358,6 +359,48 @@ void diagnostic_code_name_tests() {
     CHECK_EQ(semantic::diagnostic_code_name(static_cast<semantic::DiagnosticCode>(999)),
              "semantic.unknown");
 }
+
+void named_measurement_tests() {
+    const auto result = analyze_source(R"(
+characterize named {
+  reference power = -10 dBm
+  sweep frequency 1 GHz .. 2 GHz step 1 GHz
+  measure output_power = power
+  measure evm_result = evm
+  measure carrier_error = frequency_error
+  derive power_error = output_power - reference.power
+  derive combined_evm = evm_result + 1 %
+  derive inverted_error = -carrier_error
+  derive calibration cal { correction = -power_error over frequency }
+})");
+    CHECK(result.ok());
+    CHECK_EQ(result.program->measurements.size(), std::size_t{3});
+    CHECK_EQ(result.program->measurements[0].type, semantic::SemanticType::Power);
+    CHECK_EQ(result.program->measurements[1].type, semantic::SemanticType::Ratio);
+    CHECK_EQ(result.program->measurements[2].type, semantic::SemanticType::FrequencyDelta);
+
+    auto rejected = analyze_source(R"(
+characterize bad {
+ reference power = 0 dBm
+ sweep frequency 1 Hz .. 1 Hz step 1 Hz
+ measure x = phase
+ derive early = later
+ measure later = power
+ derive calibration cal { correction = reference.power - later over frequency }
+})");
+    CHECK(has_code(rejected, semantic::DiagnosticCode::UnknownMeasurementOperation));
+    CHECK(has_code(rejected, semantic::DiagnosticCode::ReferenceNotAvailable));
+
+    rejected = analyze_source(R"(
+characterize duplicate {
+ reference power = 0 dBm
+ sweep frequency 1 Hz .. 1 Hz step 1 Hz
+ measure result = power
+ measure result = evm
+ derive calibration cal { correction = reference.power - result over frequency }
+})");
+    CHECK(has_code(rejected, semantic::DiagnosticCode::DuplicateDeclaration));
+}
 } // namespace
 
 int main() {
@@ -368,6 +411,7 @@ int main() {
         typed_sweep_tests();
         rejection_tests();
         calibration_rejection_tests();
+        named_measurement_tests();
         diagnostic_code_name_tests();
         std::cout << "All HorusRF semantic tests passed\n";
         return 0;

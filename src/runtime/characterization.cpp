@@ -189,11 +189,24 @@ CharacterizationExecutionResult execute_characterization(
             "computed sweep product does not match the IR metadata", program.span));
         return {std::nullopt, std::move(diagnostics)};
     }
-    if (devices.power == nullptr) {
-        diagnostics.push_back(diagnostic(DiagnosticCode::CapabilityUnavailable,
-                                         "power measurement capability is required",
-                                         program.span));
-        return {std::nullopt, std::move(diagnostics)};
+    for (const auto& measurement : program.measurements) {
+        const bool missing =
+            (measurement.operation == ir::MeasurementOperation::Power && devices.power == nullptr) ||
+            (measurement.operation == ir::MeasurementOperation::Evm && devices.evm == nullptr) ||
+            (measurement.operation == ir::MeasurementOperation::FrequencyError &&
+             devices.frequency_error == nullptr);
+        if (missing) {
+            const char* capability = measurement.operation == ir::MeasurementOperation::Power
+                                         ? "power"
+                                     : measurement.operation == ir::MeasurementOperation::Evm
+                                         ? "EVM"
+                                         : "frequency-error";
+            diagnostics.push_back(diagnostic(
+                DiagnosticCode::CapabilityUnavailable,
+                std::string{capability} + " measurement capability is required",
+                measurement.span));
+            return {std::nullopt, std::move(diagnostics)};
+        }
     }
     for (const auto& sweep : program.sweeps) {
         if (sweep.dimension == ir::SweepDimension::Temperature &&
@@ -233,8 +246,25 @@ CharacterizationExecutionResult execute_characterization(
         const auto correction =
             slot<domain::PowerDelta>(evaluation, calibration.correction);
 
-        result.samples.push_back(domain::make_characterization_sample(
-            evaluation.operating_point, frequency, reference, measured, correction));
+        auto sample = domain::make_characterization_sample(
+            evaluation.operating_point, frequency, reference, measured, correction);
+        sample.observations.reserve(program.measurements.size());
+        for (const auto& measurement : program.measurements) {
+            if (measurement.type == ir::ValueType::Power) {
+                sample.observations.push_back(domain::NamedObservation{
+                    measurement.name, domain::ObservationType::Power,
+                    slot<domain::Power>(evaluation, measurement.value), "dBm"});
+            } else if (measurement.type == ir::ValueType::Ratio) {
+                sample.observations.push_back(domain::NamedObservation{
+                    measurement.name, domain::ObservationType::Ratio,
+                    slot<domain::Ratio>(evaluation, measurement.value), "ratio"});
+            } else {
+                sample.observations.push_back(domain::NamedObservation{
+                    measurement.name, domain::ObservationType::FrequencyDelta,
+                    slot<domain::FrequencyDelta>(evaluation, measurement.value), "Hz"});
+            }
+        }
+        result.samples.push_back(std::move(sample));
         result.calibration.dimensions.push_back(frequency);
         result.calibration.corrections.push_back(correction);
         result.calibration.operating_points.push_back(evaluation.operating_point);

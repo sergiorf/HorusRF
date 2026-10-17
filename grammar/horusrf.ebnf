@@ -6,7 +6,8 @@ reference_statement = "reference" , "power" , "=" , signed_quantity ;
 sweep_statement = "sweep" , sweep_dimension , signed_quantity , ".."
                 , signed_quantity , "step" , signed_quantity ;
 sweep_dimension = "frequency" | "temperature" ;
-measurement_statement = "measure" , "power" ;
+measurement_statement = "measure" , ( "power" | identifier , "=" , measurement_operation ) ;
+measurement_operation = "power" | "evm" | "frequency_error" ;
 derive_statement = "derive" , identifier , "=" , expression ;
 calibration_statement = "derive" , "calibration" , identifier , "{"
           , "correction" , "=" , expression
@@ -20,4 +21,4 @@ reference = "reference" , "." , identifier ;
 signed_quantity = [ "-" ] , quantity ;
 quantity = number , unit ;
 unit = "Hz" | "kHz" | "MHz" | "GHz" | "dBm" | "dB"
-     | "K" | "degC" | "deltaK" | "deltaC" ;
+     | "K" | "degC" | "deltaK" | "deltaC" | "%" ;

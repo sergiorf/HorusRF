@@ -64,7 +64,12 @@ struct SweepStatement {
     QuantityLiteral step;
     SourceSpan span;
 };
-struct MeasurementStatement { SourceSpan span; };
+struct MeasurementStatement {
+    std::string name;
+    std::string operation;
+    bool legacy{};
+    SourceSpan span;
+};
 struct DeriveStatement {
     std::string name;
     Expression expression;

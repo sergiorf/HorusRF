@@ -16,6 +16,30 @@ private:
     double value_;
 };
 
+class FrequencyDelta {
+public:
+    static FrequencyDelta from_hertz(double value);
+    [[nodiscard]] double hertz() const noexcept { return value_; }
+    friend bool operator==(FrequencyDelta, FrequencyDelta) = default;
+    friend auto operator<=>(FrequencyDelta, FrequencyDelta) = default;
+
+private:
+    explicit FrequencyDelta(double value) : value_(value) {}
+    double value_;
+};
+
+class Ratio {
+public:
+    static Ratio from_ratio(double value);
+    [[nodiscard]] double ratio() const noexcept { return value_; }
+    friend bool operator==(Ratio, Ratio) = default;
+    friend auto operator<=>(Ratio, Ratio) = default;
+
+private:
+    explicit Ratio(double value) : value_(value) {}
+    double value_;
+};
+
 class TemperatureDelta;
 
 class Temperature {
@@ -74,5 +98,11 @@ private:
 [[nodiscard]] TemperatureDelta operator+(TemperatureDelta lhs, TemperatureDelta rhs);
 [[nodiscard]] TemperatureDelta operator-(TemperatureDelta lhs, TemperatureDelta rhs);
 [[nodiscard]] TemperatureDelta operator-(TemperatureDelta value);
+[[nodiscard]] FrequencyDelta operator+(FrequencyDelta lhs, FrequencyDelta rhs);
+[[nodiscard]] FrequencyDelta operator-(FrequencyDelta lhs, FrequencyDelta rhs);
+[[nodiscard]] FrequencyDelta operator-(FrequencyDelta value);
+[[nodiscard]] Ratio operator+(Ratio lhs, Ratio rhs);
+[[nodiscard]] Ratio operator-(Ratio lhs, Ratio rhs);
+[[nodiscard]] Ratio operator-(Ratio value);
 
 } // namespace horusrf::domain

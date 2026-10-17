@@ -4,9 +4,9 @@ Status: accepted Phase 1 design, 2026-10-17. This document completes M0 of the
 [project roadmap](project-roadmap.md). It specifies work for M1-M6; unless a section
 explicitly says otherwise, the described additions are not implemented yet.
 
-Implementation status: M1 (typed frequency/temperature sweep compiler support) and
-M2 (typed Cartesian runtime execution and environmental control) were completed on
-2026-10-17. M3-M6 remain forward-looking.
+Implementation status: M1 (typed frequency/temperature sweep compiler support), M2
+(typed Cartesian runtime execution and environmental control), and M3 (multiple
+named measurements) were completed on 2026-10-17. M4-M6 remain forward-looking.
 
 ## Scope and audited baseline
 

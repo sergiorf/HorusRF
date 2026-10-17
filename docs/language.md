@@ -13,14 +13,14 @@ underscores. Keywords are lowercase and unit spelling is exact. Decimal numbers
 require a leading digit and, when a decimal point is present, digits after it;
 scientific notation and leading-dot forms are rejected.
 
-Punctuation is `{ } = .. . + - ( ) ,`. Units are `Hz`, `kHz`, `MHz`, `GHz`, `dBm`,
-`dB`, `K`, `degC`, `deltaK`, and `deltaC`. Source locations are one-based line and
+Punctuation is `{ } = .. . + - ( ) , %`. Units are `Hz`, `kHz`, `MHz`, `GHz`, `dBm`,
+`dB`, `%`, `K`, `degC`, `deltaK`, and `deltaC`. Source locations are one-based line and
 column numbers; spans use byte offsets internally.
 
 ## Program and declarations
 
 A source file contains exactly one named `characterize` block. The canonical
-program is [`examples/tx_path_characterization.hrf`](../examples/tx_path_characterization.hrf):
+legacy program is [`examples/tx_path_characterization.hrf`](../examples/tx_path_characterization.hrf):
 
 ```horusrf
 characterize tx_path {
@@ -36,8 +36,8 @@ characterize tx_path {
 
 `reference power` declares the sole nominal comparison power. Its expression name
 is `reference.power`. A program requires exactly one reference, one frequency
-sweep, an optional temperature sweep, one power measurement, and one calibration.
-Sweeps retain declaration order and must precede `measure power`. Duplicate
+sweep, an optional temperature sweep, at least one power measurement, and one
+calibration. Sweeps retain declaration order and must precede measurements. Duplicate
 dimensions are errors; a missing required declaration is reported after statement
 analysis.
 
@@ -51,14 +51,24 @@ dimension varies fastest.
 
 M1 compiles and lowers multidimensional programs and M2 executes their deterministic
 Cartesian product. Sweep controls are applied in declaration order at every point,
-followed by output power and measurement. A missing environmental controller is
+followed by output power and measurements. A missing environmental controller is
 reported as `runtime.capability_unavailable` before any device call. The fixed CSV
 schema remains available only for a single frequency sweep; multidimensional
 `--csv` requests produce `output.csv_unrepresentable` before execution. `measure
-power` defines `power`.
+power` defines `power` and remains the legacy spelling. Named measurements use:
+
+```horusrf
+measure output_power = power
+measure evm_result = evm
+measure carrier_error = frequency_error
+```
+
+The operations return `Power`, `Ratio`, and `FrequencyDelta`, respectively. Each
+measurement runs once per operating point in source order. Runtime capability
+preflight checks every required public device interface before any equipment call.
 
 Statements are analyzed in written order. `frequency`, `temperature`, `power`,
-`reference.power`, and derived names are usable only after their declarations.
+named measurements, `reference.power`, and derived names are usable only after their declarations.
 Forward references, unknown names, duplicate user names, and attempts to reuse a
 reserved sweep or measurement name are rejected.
 
@@ -73,6 +83,7 @@ left to right. Unary minus binds more tightly. Quantities normalize as follows:
 | `Hz`, `kHz`, `MHz`, `GHz` | `Frequency` | Hz |
 | `dBm` | `Power` | dBm |
 | `dB` | `PowerDelta` | dB |
+| `%` | `Ratio` | ratio (source value divided by 100) |
 | `K`, `degC` | `Temperature` | K (`degC` adds 273.15) |
 | `deltaK`, `deltaC` | `TemperatureDelta` | K |
 
@@ -88,10 +99,20 @@ Only these arithmetic operations are supported:
 | `Power + PowerDelta` | `Power` |
 | `PowerDelta + PowerDelta` | `PowerDelta` |
 | unary `-PowerDelta` | `PowerDelta` |
+| `FrequencyDelta +/- FrequencyDelta` | `FrequencyDelta` |
+| unary `-FrequencyDelta` | `FrequencyDelta` |
+| `Ratio +/- Ratio` | `Ratio` |
+| unary `-Ratio` | `Ratio` |
+| `TemperatureDelta +/- TemperatureDelta` | `TemperatureDelta` |
+| unary `-TemperatureDelta` | `TemperatureDelta` |
 
 The language rejects `Power + Power`, `PowerDelta + Power`,
 `PowerDelta - PowerDelta`, `PowerDelta - Power`, `Power - PowerDelta`, unary
-`-Power`, and arithmetic involving `Frequency`. Operand order is significant.
+`-Power`, and arithmetic involving absolute `Frequency`. Operand order is significant.
+
+Results retain every observation's declaration name, strong type, and canonical
+value. The fixed legacy CSV remains available only to the original single-frequency,
+legacy-`measure power` shape; richer result serialization is introduced by M5.
 
 ## Calibration artifacts
 

@@ -121,6 +121,24 @@ void multiple_dimensions_test() {
     CHECK_EQ(calibration.dimensions[1], "power");
 }
 
+void named_measurement_test() {
+    const auto program = parser::parse(
+        "characterize c { measure output_power = power measure evm_result = evm "
+        "measure carrier_error = frequency_error derive ratio = 5 % }");
+    CHECK_EQ(program.characterization.statements.size(), std::size_t{4});
+    const auto& power = alternative<ast::MeasurementStatement>(
+        program.characterization.statements[0]);
+    CHECK_EQ(power.name, "output_power");
+    CHECK_EQ(power.operation, "power");
+    CHECK(!power.legacy);
+    const auto& carrier = alternative<ast::MeasurementStatement>(
+        program.characterization.statements[2]);
+    CHECK_EQ(carrier.operation, "frequency_error");
+    const auto& ratio = alternative<ast::DeriveStatement>(
+        program.characterization.statements[3]);
+    CHECK_EQ(expression_as<ast::QuantityLiteral>(ratio.expression).unit, "%");
+}
+
 void diagnostic_tests() {
     constexpr std::array mappings{
         std::pair{parser::DiagnosticCode::UnexpectedToken, "parse.unexpected_token"},
@@ -178,6 +196,7 @@ int main() {
         canonical_program_test();
         expression_tests();
         multiple_dimensions_test();
+        named_measurement_test();
         typed_sweep_test();
         diagnostic_tests();
         std::cout << "All HorusRF parser tests passed\n";

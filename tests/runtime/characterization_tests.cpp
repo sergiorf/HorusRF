@@ -86,6 +86,24 @@ struct RecordingTemperature : device::TemperatureController {
     std::vector<domain::Temperature> temperatures;
 };
 
+struct RecordingExtendedMeasurements : device::EvmMeasurementDevice,
+                                       device::FrequencyErrorMeasurementDevice {
+    explicit RecordingExtendedMeasurements(RecordingTester& tester) : tester_(tester) {}
+    domain::Ratio measureEvm() override {
+        tester_.calls.push_back("evm");
+        ++evm_count;
+        return domain::Ratio::from_ratio(0.025);
+    }
+    domain::FrequencyDelta measureFrequencyError() override {
+        tester_.calls.push_back("frequency_error");
+        ++frequency_error_count;
+        return domain::FrequencyDelta::from_hertz(1250.0);
+    }
+    RecordingTester& tester_;
+    std::size_t evm_count{};
+    std::size_t frequency_error_count{};
+};
+
 struct RecordingSetup {
     RecordingSetup() : measurement(tester), temperature(tester) {}
 
@@ -369,6 +387,61 @@ void canonical_pipeline_test() {
           0.1 * result.metrics.uncorrected_rms_error_db);
 }
 
+void named_measurement_execution_test() {
+    const auto program = lower_source(R"(
+characterize named {
+ reference power = -10 dBm
+ sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
+ sweep temperature -20 degC .. 80 degC step 20 deltaC
+ measure output_power = power
+ measure evm_result = evm
+ measure carrier_error = frequency_error
+ derive power_correction = reference.power - output_power
+ derive calibration cal { correction = power_correction over frequency, temperature }
+})");
+    RecordingSetup setup;
+    RecordingExtendedMeasurements extended{setup.tester};
+
+    const auto unavailable = runtime::execute_characterization(
+        program, runtime::DeviceCapabilities{setup.tester, &setup.measurement,
+                                             &setup.temperature, nullptr, &extended});
+    CHECK(!unavailable.ok());
+    CHECK_EQ(unavailable.diagnostics.front().code,
+             runtime::DiagnosticCode::CapabilityUnavailable);
+    CHECK(setup.tester.calls.empty());
+
+    const auto execution = runtime::execute_characterization(
+        program, runtime::DeviceCapabilities{setup.tester, &setup.measurement,
+                                             &setup.temperature, &extended, &extended});
+    CHECK(execution.ok());
+    CHECK_EQ(execution.result->samples.size(), std::size_t{126});
+    CHECK_EQ(setup.measurement.measurements, std::size_t{126});
+    CHECK_EQ(extended.evm_count, std::size_t{126});
+    CHECK_EQ(extended.frequency_error_count, std::size_t{126});
+    CHECK_EQ(setup.tester.calls.size(), std::size_t{126 * 6});
+    for (std::size_t point = 0; point < 126; ++point) {
+        const auto offset = point * 6;
+        CHECK_EQ(setup.tester.calls[offset], std::string{"frequency"});
+        CHECK_EQ(setup.tester.calls[offset + 1], std::string{"temperature"});
+        CHECK_EQ(setup.tester.calls[offset + 2], std::string{"power"});
+        CHECK_EQ(setup.tester.calls[offset + 3], std::string{"measure"});
+        CHECK_EQ(setup.tester.calls[offset + 4], std::string{"evm"});
+        CHECK_EQ(setup.tester.calls[offset + 5], std::string{"frequency_error"});
+    }
+    for (const auto& sample : execution.result->samples) {
+        CHECK_EQ(sample.observations.size(), std::size_t{3});
+        CHECK_EQ(sample.observations[0].name, std::string{"output_power"});
+        CHECK_EQ(sample.observations[1].type, domain::ObservationType::Ratio);
+        CHECK_EQ(sample.observations[1].canonical_unit, std::string{"ratio"});
+        CHECK_EQ(sample.observations[2].type,
+                 domain::ObservationType::FrequencyDelta);
+        CHECK_EQ(sample.observations[2].canonical_unit, std::string{"Hz"});
+    }
+    CHECK_EQ(execution.result->samples.size() *
+                 execution.result->samples.front().observations.size(),
+             std::size_t{378});
+}
+
 } // namespace
 
 int main() {
@@ -379,6 +452,7 @@ int main() {
         exception_propagation_test();
         multidimensional_execution_test();
         canonical_pipeline_test();
+        named_measurement_execution_test();
         std::cout << "All HorusRF characterization tests passed\n";
         return 0;
     } catch (const std::exception& error) {

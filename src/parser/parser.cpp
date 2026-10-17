@@ -154,9 +154,18 @@ ast::SweepStatement Parser::parse_sweep_statement() {
 ast::MeasurementStatement Parser::parse_measurement_statement() {
     const auto& start = consume(TokenKind::Measure, DiagnosticCode::UnexpectedToken,
                                 "expected 'measure'");
-    const auto& end = consume(TokenKind::Power, DiagnosticCode::UnexpectedToken,
-                              "expected 'power' after 'measure'");
-    return ast::MeasurementStatement{joined(start.span.begin, end.span.end)};
+    const auto& first = consume_expression_name("expected measurement name or 'power'");
+    if (!match(TokenKind::Equal)) {
+        if (first.kind != TokenKind::Power) {
+            fail(DiagnosticCode::UnexpectedToken,
+                 "expected '=' after measurement name");
+        }
+        return ast::MeasurementStatement{"power", "power", true,
+                                         joined(start.span.begin, first.span.end)};
+    }
+    const auto& operation = consume_expression_name("expected measurement operation after '='");
+    return ast::MeasurementStatement{first.lexeme, operation.lexeme, false,
+                                     joined(start.span.begin, operation.span.end)};
 }
 
 ast::DeriveStatement Parser::parse_derive_statement() {

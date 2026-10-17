@@ -93,6 +93,8 @@ private:
                     const auto actual = std::visit(
                         Overloaded{
                             [](domain::Frequency) { return ir::ValueType::Frequency; },
+                            [](domain::FrequencyDelta) { return ir::ValueType::FrequencyDelta; },
+                            [](domain::Ratio) { return ir::ValueType::Ratio; },
                             [](domain::Temperature) { return ir::ValueType::Temperature; },
                             [](domain::TemperatureDelta) {
                                 return ir::ValueType::TemperatureDelta;
@@ -125,6 +127,46 @@ private:
                     return value.type == ir::ValueType::Power ||
                            report(DiagnosticCode::TypeMismatch,
                                   "measurement definition must have type Power", value.span);
+                },
+                [&](const ir::MeasureEvm&) {
+                    return value.type == ir::ValueType::Ratio ||
+                           report(DiagnosticCode::TypeMismatch,
+                                  "EVM measurement must have type Ratio", value.span);
+                },
+                [&](const ir::MeasureFrequencyError&) {
+                    return value.type == ir::ValueType::FrequencyDelta ||
+                           report(DiagnosticCode::TypeMismatch,
+                                  "frequency-error measurement must have type FrequencyDelta",
+                                  value.span);
+                },
+                [&](const ir::NegateDelta& operation) {
+                    if (value.type != ir::ValueType::FrequencyDelta &&
+                        value.type != ir::ValueType::Ratio &&
+                        value.type != ir::ValueType::TemperatureDelta) {
+                        return report(DiagnosticCode::TypeMismatch,
+                                      "delta negation has an invalid type", value.span);
+                    }
+                    return operand(operation.operand, index, value.type, value.span);
+                },
+                [&](const ir::AddDelta& operation) {
+                    if (value.type != ir::ValueType::FrequencyDelta &&
+                        value.type != ir::ValueType::Ratio &&
+                        value.type != ir::ValueType::TemperatureDelta) {
+                        return report(DiagnosticCode::TypeMismatch,
+                                      "delta addition has an invalid type", value.span);
+                    }
+                    return operand(operation.left, index, value.type, value.span) &&
+                           operand(operation.right, index, value.type, value.span);
+                },
+                [&](const ir::SubtractDelta& operation) {
+                    if (value.type != ir::ValueType::FrequencyDelta &&
+                        value.type != ir::ValueType::Ratio &&
+                        value.type != ir::ValueType::TemperatureDelta) {
+                        return report(DiagnosticCode::TypeMismatch,
+                                      "delta subtraction has an invalid type", value.span);
+                    }
+                    return operand(operation.left, index, value.type, value.span) &&
+                           operand(operation.right, index, value.type, value.span);
                 },
                 [&](const ir::Alias& operation) {
                     if (operation.value.value >= program_.values.size()) {
@@ -200,10 +242,13 @@ private:
             references += std::holds_alternative<ir::ReferencePower>(value.definition) ? 1U : 0U;
             sweeps += (std::holds_alternative<ir::SweepFrequency>(value.definition) ||
                        std::holds_alternative<ir::SweepTemperature>(value.definition)) ? 1U : 0U;
-            measurements += std::holds_alternative<ir::MeasurePower>(value.definition) ? 1U : 0U;
+            measurements += (std::holds_alternative<ir::MeasurePower>(value.definition) ||
+                             std::holds_alternative<ir::MeasureEvm>(value.definition) ||
+                             std::holds_alternative<ir::MeasureFrequencyError>(value.definition))
+                                ? 1U : 0U;
         }
         if (references != 1 || sweeps != program_.sweeps.size() || sweeps == 0 ||
-            measurements != 1) {
+            measurements != program_.measurements.size() || measurements == 0) {
             return report(DiagnosticCode::InvalidProgramBinding,
                           "program must contain one reference and measurement and its declared sweeps",
                           program_.span);
@@ -263,9 +308,31 @@ private:
             !binding(program_.sweep.frequency, ir::ValueType::Frequency,
                        ir::Definition{ir::SweepFrequency{}}.index(), program_.sweep.span,
                        "legacy sweep")) return false;
-        return binding(program_.measurement, ir::ValueType::Power,
+        if (!binding(program_.measurement, ir::ValueType::Power,
                        ir::Definition{ir::MeasurePower{}}.index(), program_.span,
-                       "measurement");
+                       "measurement")) return false;
+        for (const auto& measurement : program_.measurements) {
+            if (measurement.name.empty() || measurement.value.value >= program_.values.size() ||
+                program_.values[measurement.value.value].type != measurement.type) {
+                return report(DiagnosticCode::InvalidProgramBinding,
+                              "measurement metadata is inconsistent", measurement.span);
+            }
+            const auto& definition = program_.values[measurement.value.value].definition;
+            const bool matches =
+                (measurement.operation == ir::MeasurementOperation::Power &&
+                 measurement.type == ir::ValueType::Power &&
+                 std::holds_alternative<ir::MeasurePower>(definition)) ||
+                (measurement.operation == ir::MeasurementOperation::Evm &&
+                 measurement.type == ir::ValueType::Ratio &&
+                 std::holds_alternative<ir::MeasureEvm>(definition)) ||
+                (measurement.operation == ir::MeasurementOperation::FrequencyError &&
+                 measurement.type == ir::ValueType::FrequencyDelta &&
+                 std::holds_alternative<ir::MeasureFrequencyError>(definition));
+            if (!matches) return report(DiagnosticCode::InvalidProgramBinding,
+                                        "measurement operation metadata is inconsistent",
+                                        measurement.span);
+        }
+        return true;
     }
 
     bool validate_named_values() {
@@ -327,7 +394,6 @@ const T& slot(const std::vector<RuntimeValue>& values, ir::ValueId id) {
 }
 
 RuntimeValue evaluate_definition(const ir::Definition& definition,
-                                 const ir::Program& program,
                                  const domain::OperatingPoint& point,
                                  DeviceCapabilities devices,
                                  const std::vector<RuntimeValue>& values) {
@@ -355,9 +421,46 @@ RuntimeValue evaluate_definition(const ir::Definition& definition,
                 throw std::logic_error("operating point has no temperature coordinate");
             },
             [&](const ir::MeasurePower&) -> RuntimeValue {
-                const auto reference = slot<domain::Power>(values, program.reference);
-                devices.rf.setOutputPower(reference);
                 return devices.power->measurePower();
+            },
+            [&](const ir::MeasureEvm&) -> RuntimeValue {
+                return devices.evm->measureEvm();
+            },
+            [&](const ir::MeasureFrequencyError&) -> RuntimeValue {
+                return devices.frequency_error->measureFrequencyError();
+            },
+            [&](const ir::NegateDelta& operation) -> RuntimeValue {
+                return std::visit(
+                    Overloaded{
+                        [](domain::FrequencyDelta value) -> RuntimeValue { return -value; },
+                        [](domain::Ratio value) -> RuntimeValue { return -value; },
+                        [](domain::TemperatureDelta value) -> RuntimeValue { return -value; },
+                        [](const auto&) -> RuntimeValue {
+                            throw std::logic_error("invalid delta negation operand");
+                        }},
+                    values[operation.operand.value]);
+            },
+            [&](const ir::AddDelta& operation) -> RuntimeValue {
+                if (const auto* left = std::get_if<domain::FrequencyDelta>(
+                        &values[operation.left.value])) {
+                    return *left + slot<domain::FrequencyDelta>(values, operation.right);
+                }
+                if (const auto* left = std::get_if<domain::Ratio>(&values[operation.left.value])) {
+                    return *left + slot<domain::Ratio>(values, operation.right);
+                }
+                return slot<domain::TemperatureDelta>(values, operation.left) +
+                       slot<domain::TemperatureDelta>(values, operation.right);
+            },
+            [&](const ir::SubtractDelta& operation) -> RuntimeValue {
+                if (const auto* left = std::get_if<domain::FrequencyDelta>(
+                        &values[operation.left.value])) {
+                    return *left - slot<domain::FrequencyDelta>(values, operation.right);
+                }
+                if (const auto* left = std::get_if<domain::Ratio>(&values[operation.left.value])) {
+                    return *left - slot<domain::Ratio>(values, operation.right);
+                }
+                return slot<domain::TemperatureDelta>(values, operation.left) -
+                       slot<domain::TemperatureDelta>(values, operation.right);
             },
             [&](const ir::Alias& operation) -> RuntimeValue {
                 return values[operation.value.value];
@@ -403,8 +506,12 @@ PointEvaluation detail::evaluate_validated_point(const ir::Program& program,
     PointEvaluation evaluation{frequency, {}, std::move(point)};
     evaluation.values.reserve(program.values.size());
     for (const auto& value : program.values) {
+        if (!program.measurements.empty() && value.id == program.measurements.front().value) {
+            const auto reference = slot<domain::Power>(evaluation.values, program.reference);
+            devices.rf.setOutputPower(reference);
+        }
         evaluation.values.push_back(
-            evaluate_definition(value.definition, program, evaluation.operating_point,
+            evaluate_definition(value.definition, evaluation.operating_point,
                                 devices,
                                 evaluation.values));
     }
@@ -430,12 +537,24 @@ ExecutionResult execute_point(const ir::Program& program,
     auto diagnostics = detail::validate_program(program);
     if (!diagnostics.empty()) return ExecutionResult{std::nullopt, std::move(diagnostics)};
 
-    if (devices.power == nullptr) {
-        return ExecutionResult{
-            std::nullopt,
-            {Diagnostic{DiagnosticCode::CapabilityUnavailable,
-                        "power measurement capability is required",
-                        program.span}}};
+    for (const auto& measurement : program.measurements) {
+        const bool missing =
+            (measurement.operation == ir::MeasurementOperation::Power && devices.power == nullptr) ||
+            (measurement.operation == ir::MeasurementOperation::Evm && devices.evm == nullptr) ||
+            (measurement.operation == ir::MeasurementOperation::FrequencyError &&
+             devices.frequency_error == nullptr);
+        if (missing) {
+            const char* capability = measurement.operation == ir::MeasurementOperation::Power
+                                         ? "power"
+                                     : measurement.operation == ir::MeasurementOperation::Evm
+                                         ? "EVM"
+                                         : "frequency-error";
+            return ExecutionResult{
+                std::nullopt,
+                {Diagnostic{DiagnosticCode::CapabilityUnavailable,
+                            std::string{capability} + " measurement capability is required",
+                            measurement.span}}};
+        }
     }
     if (point.coordinates.size() != program.sweeps.size()) {
         return ExecutionResult{

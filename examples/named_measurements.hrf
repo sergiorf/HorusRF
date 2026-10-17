@@ -1,0 +1,15 @@
+characterize named_measurements {
+  reference power = -10 dBm
+  sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
+  sweep temperature -20 degC .. 80 degC step 20 deltaC
+
+  measure output_power = power
+  measure evm_result = evm
+  measure carrier_error = frequency_error
+  derive power_error = output_power - reference.power
+
+  derive calibration tx_power {
+    correction = -power_error
+    over frequency, temperature
+  }
+}

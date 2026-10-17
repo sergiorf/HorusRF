@@ -1,6 +1,37 @@
 if(NOT DEFINED HORUSRF_RUN OR NOT DEFINED SOURCE_FILE OR
-   NOT DEFINED MULTIDIMENSIONAL_SOURCE_FILE OR NOT DEFINED OUTPUT_FILE)
+   NOT DEFINED MULTIDIMENSIONAL_SOURCE_FILE OR
+   NOT DEFINED NAMED_MEASUREMENTS_SOURCE_FILE OR NOT DEFINED OUTPUT_FILE)
     message(FATAL_ERROR "CLI acceptance paths were not provided")
+endif()
+
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${NAMED_MEASUREMENTS_SOURCE_FILE}"
+    RESULT_VARIABLE named_result OUTPUT_VARIABLE named_output ERROR_VARIABLE named_error
+)
+if(NOT named_result EQUAL 0 OR NOT named_error STREQUAL "")
+    message(FATAL_ERROR "named-measurement execution failed: ${named_result}: ${named_error}")
+endif()
+foreach(expected IN ITEMS "characterization: named_measurements" "samples: 126"
+        "calibration: tx_power")
+    string(FIND "${named_output}" "${expected}" found)
+    if(found EQUAL -1)
+        message(FATAL_ERROR "named-measurement summary is missing '${expected}': ${named_output}")
+    endif()
+endforeach()
+
+set(named_csv "${OUTPUT_FILE}.named")
+file(REMOVE "${named_csv}")
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${NAMED_MEASUREMENTS_SOURCE_FILE}" --csv "${named_csv}"
+    RESULT_VARIABLE named_csv_result OUTPUT_VARIABLE named_csv_output
+    ERROR_VARIABLE named_csv_error
+)
+if(NOT named_csv_result EQUAL 4 OR NOT named_csv_output STREQUAL "" OR EXISTS "${named_csv}")
+    message(FATAL_ERROR "named-measurement CSV gate failed: ${named_csv_result}: ${named_csv_error}")
+endif()
+string(FIND "${named_csv_error}" "output.csv_unrepresentable" named_csv_diagnostic)
+if(named_csv_diagnostic EQUAL -1)
+    message(FATAL_ERROR "named-measurement CSV diagnostic missing: ${named_csv_error}")
 endif()
 
 execute_process(
@@ -189,4 +220,5 @@ foreach(case IN ITEMS parse semantic)
     endif()
 endforeach()
 
-file(REMOVE "${OUTPUT_FILE}" "${multidimensional_csv}" "${parse_invalid}" "${semantic_invalid}")
+file(REMOVE "${OUTPUT_FILE}" "${multidimensional_csv}" "${named_csv}"
+    "${parse_invalid}" "${semantic_invalid}")
