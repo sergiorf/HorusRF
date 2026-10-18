@@ -133,6 +133,10 @@ if(HORUSRF_BUILD_STUDIO)
         PREFIX "/examples"
         BASE "${CMAKE_CURRENT_SOURCE_DIR}/examples"
         FILES
+            examples/multidimensional_check.hrf
+            examples/named_measurements.hrf
+            examples/qualified_measurements.hrf
+            examples/studio_default.hrf
             examples/tx_path_characterization.hrf
             examples/studio_qualification.hrf
     )

@@ -39,7 +39,7 @@ MainWindow::MainWindow(QWidget* parent, const QString& runnerExecutable)
     createLayout();
     createActions();
 
-    QFile example(QStringLiteral(":/examples/tx_path_characterization.hrf"));
+    QFile example(QStringLiteral(":/examples/studio_default.hrf"));
     if (example.open(QIODevice::ReadOnly)) {
         editor_->setPlainText(QString::fromUtf8(example.readAll()));
     }
@@ -158,8 +158,14 @@ void MainWindow::createActions() {
 
     auto* experiment = menuBar()->addMenu(tr("&Experiment"));
     auto* examples = menuBar()->addMenu(tr("E&xamples"));
-    auto addExample = [this, examples](const QString& label, const QString& resource) {
+    auto addExample = [this, examples](const QString& label,
+                                       const QString& objectName,
+                                       const QString& resource,
+                                       const QString& statusTip) {
         auto* action = examples->addAction(label);
+        action->setObjectName(objectName);
+        action->setData(resource);
+        action->setStatusTip(statusTip);
         connect(action, &QAction::triggered, this, [this, resource] {
             if (!confirmSaveIfModified()) return;
             QFile file(resource);
@@ -169,10 +175,26 @@ void MainWindow::createActions() {
             setCurrentFile({});
         });
     };
-    addExample(tr("Legacy TX path"),
-               QStringLiteral(":/examples/tx_path_characterization.hrf"));
-    addExample(tr("Multidimensional qualification"),
-               QStringLiteral(":/examples/studio_qualification.hrf"));
+    addExample(tr("Basic TX Calibration"),
+               QStringLiteral("basicTxCalibrationExampleAction"),
+               QStringLiteral(":/examples/tx_path_characterization.hrf"),
+               tr("Calibrate TX power over a frequency sweep."));
+    addExample(tr("TX Qualification"),
+               QStringLiteral("txQualificationExampleAction"),
+               QStringLiteral(":/examples/qualified_measurements.hrf"),
+               tr("Measure and qualify TX performance over frequency."));
+    addExample(tr("Temperature Characterization"),
+               QStringLiteral("temperatureCharacterizationExampleAction"),
+               QStringLiteral(":/examples/multidimensional_check.hrf"),
+               tr("Calibrate TX power over frequency and temperature."));
+    addExample(tr("Named RF Measurements"),
+               QStringLiteral("namedRfMeasurementsExampleAction"),
+               QStringLiteral(":/examples/named_measurements.hrf"),
+               tr("Capture named power, EVM, and frequency-error measurements."));
+    addExample(tr("Complete Studio Showcase"),
+               QStringLiteral("completeStudioShowcaseExampleAction"),
+               QStringLiteral(":/examples/studio_default.hrf"),
+               tr("Run the complete two-dimensional TX qualification showcase."));
     auto* experimentToolbar = addToolBar(tr("Experiment"));
     experimentToolbar->setObjectName(QStringLiteral("experimentToolBar"));
 

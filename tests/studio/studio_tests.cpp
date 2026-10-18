@@ -133,10 +133,11 @@ private slots:
                 keyword.foreground().color());
     }
 
-    void startupLoadsCanonicalTemplateUnmodified() {
+    void startupLoadsShowcaseTemplateUnmodified() {
         horusrf::studio::MainWindow window;
         const QString text = window.editor()->toPlainText();
-        QVERIFY(text.contains(QStringLiteral("characterize tx_path")));
+        QVERIFY(text.contains(QStringLiteral("characterize tx_qualification")));
+        QVERIFY(text.contains(QStringLiteral("sweep temperature")));
         QVERIFY(text.contains(QStringLiteral("derive calibration tx_power")));
         QVERIFY(window.currentFilePath().isEmpty());
         QVERIFY(!window.editor()->document()->isModified());
@@ -206,8 +207,8 @@ private slots:
 
         QVERIFY(runner.run(valid));
         waitForCompletion(runner);
-        QVERIFY(runner.lastResult().succeeded());
-        QVERIFY(runner.lastResult().standard_output.contains(QStringLiteral("samples: 101")));
+        QVERIFY(runner.lastResult().producedResults());
+        QVERIFY(runner.lastResult().standard_output.contains(QStringLiteral("samples: 126")));
         QVERIFY(QFileInfo::exists(runner.lastResult().json_path));
     }
 
@@ -568,7 +569,7 @@ private slots:
         run->trigger();
         waitForCompletion(*window.runner());
         QVERIFY(view->hasResults());
-        QCOMPARE(view->sampleCount(), 101);
+        QCOMPARE(view->sampleCount(), 126);
 
         window.editor()->setPlainText(QStringLiteral(
             "characterize current_buffer {\n  measure @\n}\n"));
@@ -576,7 +577,7 @@ private slots:
         waitForCompletion(*window.runner());
         QVERIFY(!window.runner()->lastResult().succeeded());
         QVERIFY(view->hasResults());
-        QCOMPARE(view->sampleCount(), 101);
+        QCOMPARE(view->sampleCount(), 126);
     }
 
     void mainWindowDisplaysQualificationFailureAndNavigatesToAssertion() {
