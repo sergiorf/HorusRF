@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 
+#include <QFont>
 #include <QPlainTextEdit>
 
 namespace horusrf::studio {
@@ -13,6 +14,7 @@ public:
 
     int lineNumberAreaWidth() const;
     void paintLineNumberArea(QPaintEvent* event);
+    void resetZoom();
 
 protected:
     void changeEvent(QEvent* event) override;
@@ -23,6 +25,7 @@ private:
     void updateLineNumberArea(const QRect& rect, int dy);
     void highlightCurrentLine();
 
+    QFont default_font_;
     LineNumberArea* line_number_area_;
 };
 

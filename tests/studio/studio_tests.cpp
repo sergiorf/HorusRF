@@ -141,6 +141,31 @@ private slots:
                 keyword.foreground().color());
     }
 
+    void viewMenuControlsEditorZoom() {
+        horusrf::studio::MainWindow window;
+        auto* zoomIn = window.findChild<QAction*>(QStringLiteral("zoomInAction"));
+        auto* zoomOut = window.findChild<QAction*>(QStringLiteral("zoomOutAction"));
+        auto* resetZoom =
+            window.findChild<QAction*>(QStringLiteral("resetZoomAction"));
+
+        QVERIFY(zoomIn != nullptr);
+        QVERIFY(zoomOut != nullptr);
+        QVERIFY(resetZoom != nullptr);
+        QCOMPARE(zoomIn->shortcut(), QKeySequence(QKeySequence::ZoomIn));
+        QCOMPARE(zoomOut->shortcut(), QKeySequence(QKeySequence::ZoomOut));
+        QCOMPARE(resetZoom->shortcut(), QKeySequence(Qt::CTRL | Qt::Key_0));
+
+        const qreal initialSize = window.editor()->font().pointSizeF();
+        zoomIn->trigger();
+        QVERIFY(window.editor()->font().pointSizeF() > initialSize);
+        resetZoom->trigger();
+        QCOMPARE(window.editor()->font().pointSizeF(), initialSize);
+        zoomOut->trigger();
+        QVERIFY(window.editor()->font().pointSizeF() < initialSize);
+        resetZoom->trigger();
+        QCOMPARE(window.editor()->font().pointSizeF(), initialSize);
+    }
+
     void startupLoadsShowcaseTemplateUnmodified() {
         horusrf::studio::MainWindow window;
         const QString text = window.editor()->toPlainText();

@@ -119,6 +119,7 @@ void MainWindow::createLayout() {
 void MainWindow::createActions() {
     auto* file = menuBar()->addMenu(tr("&File"));
     auto* edit = menuBar()->addMenu(tr("&Edit"));
+    auto* view = menuBar()->addMenu(tr("&View"));
     auto* toolbar = addToolBar(tr("File"));
     toolbar->setObjectName(QStringLiteral("fileToolBar"));
 
@@ -155,6 +156,21 @@ void MainWindow::createActions() {
     redo->setEnabled(false);
     connect(redo, &QAction::triggered, editor_, &QPlainTextEdit::redo);
     connect(editor_, &QPlainTextEdit::redoAvailable, redo, &QAction::setEnabled);
+
+    auto* zoomIn = view->addAction(tr("Zoom &In"));
+    zoomIn->setObjectName(QStringLiteral("zoomInAction"));
+    zoomIn->setShortcut(QKeySequence::ZoomIn);
+    connect(zoomIn, &QAction::triggered, editor_, [this] { editor_->zoomIn(); });
+
+    auto* zoomOut = view->addAction(tr("Zoom &Out"));
+    zoomOut->setObjectName(QStringLiteral("zoomOutAction"));
+    zoomOut->setShortcut(QKeySequence::ZoomOut);
+    connect(zoomOut, &QAction::triggered, editor_, [this] { editor_->zoomOut(); });
+
+    auto* resetZoom = view->addAction(tr("&Reset Zoom"));
+    resetZoom->setObjectName(QStringLiteral("resetZoomAction"));
+    resetZoom->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_0));
+    connect(resetZoom, &QAction::triggered, editor_, &DslEditor::resetZoom);
 
     auto* experiment = menuBar()->addMenu(tr("&Experiment"));
     auto* examples = menuBar()->addMenu(tr("E&xamples"));

@@ -39,9 +39,11 @@ private:
 };
 
 DslEditor::DslEditor(QWidget* parent)
-    : QPlainTextEdit(parent), line_number_area_(new LineNumberArea(this)) {
+    : QPlainTextEdit(parent),
+      default_font_(QFontDatabase::systemFont(QFontDatabase::FixedFont)),
+      line_number_area_(new LineNumberArea(this)) {
     setObjectName(QStringLiteral("dslEditor"));
-    setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    setFont(default_font_);
     setTabStopDistance(fontMetrics().horizontalAdvance(QLatin1Char(' ')) * 4.0);
     new SyntaxHighlighter(document());
 
@@ -61,6 +63,17 @@ void DslEditor::changeEvent(QEvent* event) {
         event->type() == QEvent::PaletteChange) {
         highlightCurrentLine();
     }
+    if (event->type() == QEvent::FontChange) {
+        setTabStopDistance(fontMetrics().horizontalAdvance(QLatin1Char(' ')) * 4.0);
+        updateLineNumberAreaWidth();
+        const QRect contents = contentsRect();
+        line_number_area_->setGeometry(
+            QRect(contents.left(), contents.top(), lineNumberAreaWidth(), contents.height()));
+    }
+}
+
+void DslEditor::resetZoom() {
+    setFont(default_font_);
 }
 
 int DslEditor::lineNumberAreaWidth() const {
