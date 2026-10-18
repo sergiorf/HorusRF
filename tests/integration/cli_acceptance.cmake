@@ -54,6 +54,32 @@ if(qualified_csv_diagnostic EQUAL -1)
     message(FATAL_ERROR "qualified CSV diagnostic missing: ${qualified_csv_error}")
 endif()
 
+set(qualified_json "${OUTPUT_FILE}.qualified.json")
+file(REMOVE "${qualified_json}")
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${QUALIFIED_SOURCE_FILE}" --json "${qualified_json}"
+    RESULT_VARIABLE qualified_json_result OUTPUT_VARIABLE qualified_json_output
+    ERROR_VARIABLE qualified_json_error
+)
+if(NOT qualified_json_result EQUAL 6 OR NOT EXISTS "${qualified_json}")
+    message(FATAL_ERROR "qualified JSON contract failed: ${qualified_json_result}: ${qualified_json_error}")
+endif()
+string(FIND "${qualified_json_output}" "json: ${qualified_json}" qualified_json_announcement)
+string(FIND "${qualified_json_error}" "qualification.assertion_failed" qualified_json_diagnostic)
+if(qualified_json_announcement EQUAL -1 OR qualified_json_diagnostic EQUAL -1)
+    message(FATAL_ERROR "qualified JSON reporting is incomplete")
+endif()
+file(READ "${qualified_json}" qualified_json_content)
+string(JSON qualified_schema ERROR_VARIABLE qualified_json_parse_error
+    GET "${qualified_json_content}" schema name)
+string(JSON qualified_version GET "${qualified_json_content}" schema version)
+string(JSON qualified_point_count LENGTH "${qualified_json_content}" points)
+if(qualified_json_parse_error OR
+   NOT qualified_schema STREQUAL "horusrf.characterization-result" OR
+   NOT qualified_version EQUAL 1 OR NOT qualified_point_count EQUAL 21)
+    message(FATAL_ERROR "qualified JSON is invalid or has the wrong contract: ${qualified_json_parse_error}")
+endif()
+
 execute_process(
     COMMAND "${HORUSRF_RUN}" "${NAMED_MEASUREMENTS_SOURCE_FILE}"
     RESULT_VARIABLE named_result OUTPUT_VARIABLE named_output ERROR_VARIABLE named_error
@@ -82,6 +108,27 @@ endif()
 string(FIND "${named_csv_error}" "output.csv_unrepresentable" named_csv_diagnostic)
 if(named_csv_diagnostic EQUAL -1)
     message(FATAL_ERROR "named-measurement CSV diagnostic missing: ${named_csv_error}")
+endif()
+
+set(named_json "${OUTPUT_FILE}.named.json")
+file(REMOVE "${named_json}")
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${NAMED_MEASUREMENTS_SOURCE_FILE}" --json "${named_json}"
+    RESULT_VARIABLE named_json_result OUTPUT_VARIABLE named_json_output
+    ERROR_VARIABLE named_json_error
+)
+if(NOT named_json_result EQUAL 0 OR NOT named_json_error STREQUAL "" OR
+   NOT EXISTS "${named_json}")
+    message(FATAL_ERROR "named JSON execution failed: ${named_json_result}: ${named_json_error}")
+endif()
+file(READ "${named_json}" named_json_content)
+string(JSON named_point_count ERROR_VARIABLE named_json_parse_error
+    LENGTH "${named_json_content}" points)
+string(JSON named_entry_count LENGTH "${named_json_content}" calibrations 0 entries)
+string(JSON first_temperature GET "${named_json_content}" points 0 coordinates 1 display_value)
+if(named_json_parse_error OR NOT named_point_count EQUAL 126 OR
+   NOT named_entry_count EQUAL 126 OR NOT first_temperature EQUAL -20)
+    message(FATAL_ERROR "named JSON surface contract is invalid: ${named_json_parse_error}")
 endif()
 
 execute_process(
@@ -185,6 +232,15 @@ if(NOT mixed_result EQUAL 2 OR mixed_error STREQUAL "")
 endif()
 
 execute_process(
+    COMMAND "${HORUSRF_RUN}" "${SOURCE_FILE}" --csv "${OUTPUT_FILE}" --json "${OUTPUT_FILE}.json"
+    RESULT_VARIABLE mixed_output_result OUTPUT_VARIABLE mixed_output_output
+    ERROR_VARIABLE mixed_output_error
+)
+if(NOT mixed_output_result EQUAL 2 OR mixed_output_error STREQUAL "")
+    message(FATAL_ERROR "CSV and JSON options were accepted together")
+endif()
+
+execute_process(
     COMMAND "${HORUSRF_RUN}" "${SOURCE_FILE}" --csv "${OUTPUT_FILE}"
     RESULT_VARIABLE csv_result OUTPUT_VARIABLE csv_output ERROR_VARIABLE csv_error
 )
@@ -255,6 +311,18 @@ foreach(case IN ITEMS parse semantic)
         message(FATAL_ERROR "${case} failure created CSV: ${failure_csv}")
     endif()
 
+    set(failure_json "${acceptance_directory}/cli-${case}-failure.json")
+    file(REMOVE "${failure_json}")
+    execute_process(
+        COMMAND "${HORUSRF_RUN}" "${invalid_source}" --json "${failure_json}"
+        RESULT_VARIABLE json_failure_result OUTPUT_VARIABLE json_failure_output
+        ERROR_VARIABLE json_failure_error
+    )
+    if(NOT json_failure_result EQUAL 4 OR NOT json_failure_output STREQUAL "" OR
+       EXISTS "${failure_json}")
+        message(FATAL_ERROR "${case} JSON failure contract failed: ${json_failure_result}")
+    endif()
+
     execute_process(
         COMMAND "${HORUSRF_RUN}" "${invalid_source}" --check
         RESULT_VARIABLE check_failure_result
@@ -271,4 +339,5 @@ foreach(case IN ITEMS parse semantic)
 endforeach()
 
 file(REMOVE "${OUTPUT_FILE}" "${multidimensional_csv}" "${named_csv}" "${qualified_csv}"
+    "${named_json}" "${qualified_json}"
     "${parse_invalid}" "${semantic_invalid}")

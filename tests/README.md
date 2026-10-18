@@ -7,10 +7,10 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 |---|---|---|
 | parser, domain, semantic, IR | syntax, quantities, analysis, lowering | `unit` |
 | device, executor, characterization | separated simulated equipment and runtime routing | `unit` |
-| procedural example, CSV | independent orchestration and serialization | `unit` |
+| procedural example, CSV, JSON | independent orchestration and serialization | `unit` |
 | declarative end-to-end | actual fixture through compiler and runtime | `integration` |
 | procedural/declarative equivalence | independent orchestration comparison | `integration` |
-| CLI acceptance | process exits, streams, check mode, diagnostics, CSV side effects | `cli` |
+| CLI acceptance | process exits, streams, check mode, diagnostics, CSV/JSON side effects | `cli` |
 | Studio | headless editor/results behavior, strict CSV parsing, process orchestration, diagnostic navigation | `unit` |
 
 The equivalence suite is intentionally separate from the declarative end-to-end

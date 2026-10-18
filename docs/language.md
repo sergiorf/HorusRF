@@ -113,9 +113,10 @@ The language rejects `Power + Power`, `PowerDelta + Power`,
 `PowerDelta - PowerDelta`, `PowerDelta - Power`, `Power - PowerDelta`, unary
 `-Power`, and arithmetic involving absolute `Frequency`. Operand order is significant.
 
-Results retain every observation's declaration name, strong type, and canonical
-value. The fixed legacy CSV remains available only to the original single-frequency,
-legacy-`measure power` shape; richer result serialization is introduced by M5.
+Results retain every observation's declaration name, operation, strong type, and
+canonical value. The fixed legacy CSV remains available only to the original
+single-frequency, legacy-`measure power` shape. `--json` writes the complete
+versioned structured result described below.
 
 ## Assertions and qualification
 
@@ -164,8 +165,32 @@ For each point it calculates `error = measured - reference`, applies the declare
 calibration as `corrected = measured + correction`, and calculates
 `residual = corrected - reference`. These are runner-generated report fields, not
 named DSL values, and source expressions cannot reference them. Runtime stores the
-typed coordinate tuple and one correction entry per sample; there is no calibration
-application statement in the language.
+typed coordinate tuple and one strongly typed correction entry per sample, in the
+same deterministic order as runtime points. The artifact also records ordered
+dimension names and types. The legacy one-frequency vectors remain available to
+existing C++ callers; there is no calibration application statement in the language.
+
+## Structured JSON results
+
+`horusrf-run experiment.hrf --json result.json` writes deterministic UTF-8 JSON
+with schema name `horusrf.characterization-result` and major version `1`. It
+contains qualification totals, every point's typed coordinates, all measurements
+and derived values in declaration order, assertion outcomes and source spans,
+calibration surface entries, and explicitly scoped metrics. Numeric objects carry
+a stable type name, canonical value/unit, and display value/unit; coordinate
+display units preserve the sweep declaration. Readers must ignore unknown object
+members but reject an unknown schema name or unsupported major version.
+
+The `metrics.calibration_fit` object contains the in-sample pre/post-correction
+statistics. `metrics.qualification` contains assertion status and pass ratio.
+`metrics.validation` is `null` because the language has no independent validation
+data set. A zero corrected RMS is encoded with a null improvement ratio and reason
+`perfect_fit`, never a non-finite JSON number. Programs without assertions use
+`not_evaluated`, empty assertion arrays, and a null qualification pass ratio.
+
+`--check`, `--csv`, and `--json` are mutually exclusive. JSON is written after a
+completed execution even when qualification fails (exit 6). Parse, semantic,
+lowering, runtime, or output failures leave no newly requested JSON artifact.
 
 ## Diagnostics
 
@@ -179,7 +204,7 @@ experiment.hrf:2:21: semantic.unexpected_quantity_type: expected Power, got Powe
 Parse, semantic, lowering, and runtime codes begin with `parse.`, `semantic.`,
 `lowering.`, and `runtime.` respectively. A source diagnostic exits the CLI with
 status 4, writes to standard error, emits no success output, and does not create a
-requested CSV. Usage errors exit 2 and file I/O errors exit 3.
+requested CSV or JSON file. Usage errors exit 2 and file I/O errors exit 3.
 
 A completed run with a false assertion prints its qualification summary, emits a
 source-positioned `qualification.assertion_failed` diagnostic for each failed
@@ -189,7 +214,8 @@ represent assertions and rejects such a request before execution.
 
 `horusrf-run <source.hrf> --check` performs parsing, semantic analysis, and lowering
 without constructing devices or executing the characterization. A successful check
-is silent and exits with status 0. `--check` and `--csv` are mutually exclusive.
+is silent and exits with status 0. `--check`, `--csv`, and `--json` are mutually
+exclusive.
 
 Examples of rejected programs include a missing unit (`reference power = 10`), an
 unknown name (`derive x = missing`), a non-positive step, and a calibration indexed

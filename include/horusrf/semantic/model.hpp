@@ -111,6 +111,7 @@ struct FrequencySweep {
     domain::Frequency step;
     std::size_t point_count{};
     SourceSpan span;
+    std::string display_unit;
 };
 
 struct TemperatureSweep {
@@ -120,6 +121,7 @@ struct TemperatureSweep {
     domain::TemperatureDelta step;
     std::size_t point_count{};
     SourceSpan span;
+    std::string display_unit;
 };
 
 using Sweep = std::variant<FrequencySweep, TemperatureSweep>;

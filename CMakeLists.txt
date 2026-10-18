@@ -86,7 +86,10 @@ target_include_directories(horusrf_runtime PUBLIC
 target_link_libraries(horusrf_runtime PUBLIC horusrf_ir horusrf_device horusrf_domain)
 horusrf_enable_warnings(horusrf_runtime)
 
-add_library(horusrf_output STATIC src/output/csv.cpp)
+add_library(horusrf_output STATIC
+    src/output/csv.cpp
+    src/output/json.cpp
+)
 target_compile_features(horusrf_output PUBLIC cxx_std_20)
 target_include_directories(horusrf_output PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -247,6 +250,19 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_csv_tests)
     add_test(NAME horusrf_csv_tests COMMAND horusrf_csv_tests)
 
+    add_executable(horusrf_json_tests tests/output/json_tests.cpp)
+    target_compile_features(horusrf_json_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_json_tests PRIVATE tests)
+    target_link_libraries(horusrf_json_tests PRIVATE
+        horusrf_output horusrf_runtime horusrf_simulator horusrf_parser
+        horusrf_semantic horusrf_ir
+    )
+    target_compile_definitions(horusrf_json_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    horusrf_enable_warnings(horusrf_json_tests)
+    add_test(NAME horusrf_json_tests COMMAND horusrf_json_tests)
+
     if(HORUSRF_BUILD_STUDIO)
         add_executable(horusrf_studio_tests tests/studio/studio_tests.cpp)
         target_compile_features(horusrf_studio_tests PRIVATE cxx_std_20)
@@ -357,6 +373,7 @@ if(BUILD_TESTING)
         horusrf_characterization_tests
         horusrf_procedural_example_tests
         horusrf_csv_tests
+        horusrf_json_tests
         PROPERTIES LABELS unit
     )
     set_tests_properties(

@@ -18,6 +18,20 @@ struct NamedObservation {
     ObservationType type{ObservationType::Power};
     ObservationValue value;
     std::string canonical_unit;
+    std::string operation;
+};
+
+enum class ResultValueType {
+    Frequency, FrequencyDelta, Power, PowerDelta, Ratio, Temperature,
+    TemperatureDelta, Boolean
+};
+using ResultValue = std::variant<Frequency, FrequencyDelta, Power, PowerDelta, Ratio,
+                                 Temperature, TemperatureDelta, bool>;
+struct NamedDerivedValue {
+    std::string name;
+    ResultValueType type{ResultValueType::PowerDelta};
+    ResultValue value;
+    std::string canonical_unit;
 };
 
 enum class ComparisonOperator { Less, LessEqual, Greater, GreaterEqual, Equal, NotEqual };
@@ -73,13 +87,27 @@ struct CharacterizationSample {
     std::vector<NamedObservation> observations;
     std::vector<AssertionOutcome> assertions;
     QualificationStatus qualification{QualificationStatus::NotEvaluated};
+    std::vector<NamedDerivedValue> derived_values;
+};
+
+struct CalibrationDimension {
+    std::string name;
+    CoordinateType type{CoordinateType::Frequency};
+};
+
+struct CalibrationEntry {
+    OperatingPoint operating_point;
+    PowerDelta correction;
 };
 
 struct CalibrationArtifact {
     std::string name;
+    // Retained for the source-compatible, one-frequency public API.
     std::vector<Frequency> dimensions;
     std::vector<PowerDelta> corrections;
     std::vector<OperatingPoint> operating_points;
+    std::vector<CalibrationDimension> dimension_descriptors;
+    std::vector<CalibrationEntry> entries;
 };
 
 struct CharacterizationMetrics {
@@ -95,6 +123,7 @@ struct CharacterizationResult {
     CalibrationArtifact calibration;
     CharacterizationMetrics metrics;
     QualificationSummary qualification;
+    std::string characterization_name;
 };
 
 [[nodiscard]] CharacterizationSample make_characterization_sample(

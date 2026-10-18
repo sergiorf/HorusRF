@@ -146,6 +146,7 @@ struct TypedSweep {
     SweepStep step;
     std::size_t point_count{};
     parser::SourceSpan span;
+    std::string display_unit;
     friend bool operator==(const TypedSweep&, const TypedSweep&) = default;
 };
 

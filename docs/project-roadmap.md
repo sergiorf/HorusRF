@@ -240,6 +240,8 @@ Acceptance:
 
 ### M5 - Calibration surfaces and versioned structured results
 
+Status: complete on 2026-10-18.
+
 Generalize calibration indexes and artifacts from one frequency vector to ordered,
 typed multidimensional coordinate/value entries. Ensure correction entries align
 with the operating points and retain a strong correction type.

@@ -228,7 +228,8 @@ private:
             }
             if (!add_sweep_points(*count, statement.span)) return;
             const auto id = next_symbol();
-            FrequencySweep sweep{id, *start, *end, *step, *count, statement.span};
+            FrequencySweep sweep{id, *start, *end, *step, *count, statement.span,
+                                 statement.start.unit};
             frequency_sweep_ = sweep;
             sweeps_.push_back(sweep);
             symbols_.emplace("frequency", Symbol{id, SemanticType::Frequency, true, true});
@@ -260,7 +261,8 @@ private:
         }
         if (!add_sweep_points(*count, statement.span)) return;
         const auto id = next_symbol();
-        sweeps_.push_back(TemperatureSweep{id, *start, *end, *step, *count, statement.span});
+        sweeps_.push_back(TemperatureSweep{id, *start, *end, *step, *count,
+                                           statement.span, statement.start.unit});
         symbols_.emplace("temperature", Symbol{id, SemanticType::Temperature, true, true});
     }
 

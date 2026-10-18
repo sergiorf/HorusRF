@@ -14,6 +14,7 @@
 #include "horusrf/device/simulated_rf_device.hpp"
 #include "horusrf/ir/lowering.hpp"
 #include "horusrf/output/csv.hpp"
+#include "horusrf/output/json.hpp"
 #include "horusrf/parser/parser.hpp"
 #include "horusrf/runtime/characterization.hpp"
 #include "horusrf/semantic/analyzer.hpp"
@@ -28,11 +29,12 @@ constexpr int diagnostic_error = 4;
 constexpr int unexpected_error = 5;
 constexpr int qualification_failure = 6;
 constexpr std::string_view usage =
-    "usage: horusrf-run <source.hrf> [--check | --csv <output.csv>]";
+    "usage: horusrf-run <source.hrf> [--check | --csv <output.csv> | --json <output.json>]";
 
 struct Arguments {
     fs::path source;
     std::optional<fs::path> csv;
+    std::optional<fs::path> json;
     bool check = false;
 };
 
@@ -56,18 +58,21 @@ std::optional<Arguments> parse_arguments(int argc, char** argv, int& exit_code) 
         return std::nullopt;
     }
 
-    Arguments arguments{fs::path{argv[1]}, std::nullopt, false};
+    Arguments arguments{fs::path{argv[1]}, std::nullopt, std::nullopt, false};
     if (argc == 2) return arguments;
     if (argc == 3 && std::string_view{argv[2]} == "--check") {
         arguments.check = true;
         return arguments;
     }
-    if (argc != 4 || std::string_view{argv[2]} != "--csv" ||
+    if (argc != 4 ||
+        (std::string_view{argv[2]} != "--csv" &&
+         std::string_view{argv[2]} != "--json") ||
         std::string_view{argv[3]}.empty()) {
-        exit_code = report_usage("expected --check or one optional --csv path");
+        exit_code = report_usage("expected --check, --csv, or --json with one output path");
         return std::nullopt;
     }
-    arguments.csv = fs::path{argv[3]};
+    if (std::string_view{argv[2]} == "--csv") arguments.csv = fs::path{argv[3]};
+    else arguments.json = fs::path{argv[3]};
     return arguments;
 }
 
@@ -125,9 +130,29 @@ bool write_result_csv(const fs::path& path,
     }
 }
 
+enum class JsonWriteResult { Success, IoError, SerializationError };
+
+JsonWriteResult write_result_json(const fs::path& path,
+                                  const domain::CharacterizationResult& result) {
+    try {
+        std::ofstream stream(path, std::ios::binary | std::ios::trunc);
+        if (!stream) return JsonWriteResult::IoError;
+        output::write_json(stream, result);
+        stream.flush();
+        if (!stream) return JsonWriteResult::IoError;
+        stream.close();
+        return stream ? JsonWriteResult::Success : JsonWriteResult::IoError;
+    } catch (const std::ios_base::failure&) {
+        return JsonWriteResult::IoError;
+    } catch (const std::exception&) {
+        return JsonWriteResult::SerializationError;
+    }
+}
+
 void print_summary(const ir::Program& program,
                    const domain::CharacterizationResult& result,
-                   const std::optional<fs::path>& csv) {
+                   const std::optional<fs::path>& csv,
+                   const std::optional<fs::path>& json) {
     const auto& metrics = result.metrics;
     std::cout.imbue(std::locale::classic());
     std::cout << std::setprecision(std::numeric_limits<double>::max_digits10)
@@ -141,6 +166,7 @@ void print_summary(const ir::Program& program,
               << metrics.corrected_maximum_absolute_error_db << '\n'
               << "rms_improvement_ratio: " << metrics.rms_improvement_ratio << '\n';
     if (csv) std::cout << "csv: " << csv->string() << '\n';
+    if (json) std::cout << "json: " << json->string() << '\n';
     if (!program.assertions.empty()) {
         const auto& qualification = result.qualification;
         std::cout << "qualification: "
@@ -173,6 +199,9 @@ void print_qualification_failures(const fs::path& source,
 int run(const Arguments& arguments) {
     if (arguments.csv && same_path(arguments.source, *arguments.csv)) {
         return report_usage("source and CSV paths must be different");
+    }
+    if (arguments.json && same_path(arguments.source, *arguments.json)) {
+        return report_usage("source and JSON paths must be different");
     }
 
     auto source = read_source(arguments.source);
@@ -210,6 +239,7 @@ int run(const Arguments& arguments) {
          lowered.program->sweeps.front().dimension != ir::SweepDimension::Frequency ||
          lowered.program->measurements.size() != 1 ||
          !lowered.program->measurements.front().legacy ||
+         !lowered.program->named_values.empty() ||
          !lowered.program->assertions.empty())) {
         const auto& position = lowered.program->span.begin;
         std::cerr << arguments.source.string() << ':' << position.line << ':'
@@ -239,7 +269,24 @@ int run(const Arguments& arguments) {
                   << arguments.csv->string() << "'\n";
         return io_error;
     }
-    print_summary(*lowered.program, *execution.result, arguments.csv);
+    const auto json_write = arguments.json
+                                ? write_result_json(*arguments.json, *execution.result)
+                                : JsonWriteResult::Success;
+    if (json_write != JsonWriteResult::Success) {
+        std::error_code ignored;
+        fs::remove(*arguments.json, ignored);
+        if (json_write == JsonWriteResult::SerializationError) {
+            const auto& position = lowered.program->span.begin;
+            std::cerr << arguments.source.string() << ':' << position.line << ':'
+                      << position.column
+                      << ": output.json_serialization_failed: cannot serialize result\n";
+            return diagnostic_error;
+        }
+        std::cerr << "horusrf-run: cannot write JSON file '"
+                  << arguments.json->string() << "'\n";
+        return io_error;
+    }
+    print_summary(*lowered.program, *execution.result, arguments.csv, arguments.json);
     if (execution.result->qualification.status == domain::QualificationStatus::Fail) {
         print_qualification_failures(arguments.source, *execution.result);
         return qualification_failure;

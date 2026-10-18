@@ -15,6 +15,7 @@ struct Coordinate {
     std::string name;
     CoordinateType type{CoordinateType::Frequency};
     CoordinateValue value;
+    std::string display_unit;
     friend bool operator==(const Coordinate&, const Coordinate&) = default;
 };
 

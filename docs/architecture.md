@@ -14,8 +14,9 @@ equipment is part of the physical setup; it is not a separately programmable DSL
 instrument. The
 measured-minus-reference error produces an equal and opposite correction.
 
-The public result owns its samples, ordered named observations, typed
-operating-point coordinates, calibration dimensions, and corrections. It does not
+The public result owns its samples, ordered named observations and derived values,
+typed operating-point coordinates, ordered calibration dimension descriptors and
+coordinate/correction entries. It does not
 alias source text, compiler storage, a device, or simulator state.
 `CharacterizationSample` is also the standard verification report for one point:
 domain code consistently calculates raw error, corrected power, and residual error
@@ -37,7 +38,8 @@ flowchart LR
     Measurement --> Simulator
     Runtime --> Result[result<br/>horusrf_domain]
     Result --> Console[console<br/>horusrf-run]
-    Result --> CSV[CSV<br/>horusrf_output]
+    Result --> CSV[legacy CSV<br/>horusrf_output]
+    Result --> JSON[versioned JSON<br/>horusrf_output]
     Procedural[procedural C++<br/>horusrf_procedural_example] --> Tester
     Procedural --> Measurement
     Procedural --> Result
@@ -325,8 +327,9 @@ desktop application outside the Apache-2.0 core and CLI target graph.
 The accepted M0 design is specified in
 [`docs/dsl-evolution.md`](dsl-evolution.md). M1's typed sweep compiler
 representation, M2's typed Cartesian runtime, and M3's named measurement pipeline
-are implemented; assertions and qualification were added in M4, and the remaining
-items are boundaries for M5-M6.
+are implemented; assertions and qualification were added in M4, and calibration
+surfaces plus versioned JSON were added in M5. The remaining items are boundaries
+for M6.
 
 - Parser, AST, semantic analysis, and IR generalize in their existing order. AST
   remains syntactic; semantic analysis resolves typed names and operations; IR
@@ -346,9 +349,9 @@ items are boundaries for M5-M6.
   Non-finite observations or computations remain execution failures rather than
   failed assertions.
 - Multidimensional and qualification results use versioned JSON. The original CSV
-  remains a terminal, exact schema for only the legacy experiment shape. Studio
-  consumes JSON through the existing CLI process boundary and continues to own all
-  presentation models.
+  remains a terminal, exact schema for only the legacy experiment shape. M6 will
+  move Studio ingestion to JSON through the existing CLI process boundary; Studio
+  continues to own all presentation models.
 - Calibration-fit, qualification, and independent-validation metrics are distinct.
   No in-sample calibration statistic is labeled as validation.
 
@@ -360,8 +363,10 @@ implementations may satisfy the new device interfaces but are never runtime
 dependencies.
 
 Fresh simulator instances with the same calls produce identical observations. The
-simulator model remains private. Console and CSV output use the classic locale and
-round-trip-capable numeric precision, so results do not vary with host locale.
+simulator model remains private. Console, CSV, and JSON output use the classic
+locale and round-trip-capable numeric precision, so results do not vary with host
+locale. JSON serialization depends only on the owned domain result and does not
+reach into IR, runtime, devices, or simulator state.
 
 ### Deliberately limited scope
 

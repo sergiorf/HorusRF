@@ -105,6 +105,7 @@ Using a multi-config Debug build:
 build/Debug/horusrf-run examples/tx_path_characterization.hrf
 build/Debug/horusrf-run examples/tx_path_characterization.hrf --check
 build/Debug/horusrf-run examples/tx_path_characterization.hrf --csv output.csv
+build/Debug/horusrf-run examples/named_measurements.hrf --json result.json
 ```
 
 Substitute the generator-appropriate executable path described above. A successful
@@ -123,9 +124,10 @@ minus reference. These report fields are not implicit DSL declarations.
 
 `--check` parses, semantically analyzes, and lowers the source without constructing
 devices or executing the experiment. It is mutually exclusive with `--csv` and
+`--json`, and those output modes are mutually exclusive with each other. It
 produces no output when validation succeeds.
 
-M1 through M4 support declaration-ordered frequency and temperature sweeps plus
+M1 through M5 support declaration-ordered frequency and temperature sweeps plus
 named `power`, `evm`, and `frequency_error` measurements. Temperature
 endpoints use `K` or `degC`; steps use `deltaK` or `deltaC`. For example,
 [`multidimensional_check.hrf`](examples/multidimensional_check.hrf) has 21 × 6 =
@@ -141,6 +143,17 @@ per-assertion totals. A completed experiment with any failed assertion emits
 `qualification.assertion_failed` diagnostics and exits 6. Programs without
 assertions retain the legacy summary exactly, and assertion results are not written
 to the legacy CSV schema.
+
+`--json` writes schema version 1, named
+`horusrf.characterization-result`. It is the complete machine-readable format for
+typed coordinates, measurements, derived values, assertion outcomes and source
+spans, qualification summaries, ordered calibration-surface entries, and metrics.
+JSON numbers are locale-independent and finite; a perfect calibration fit uses a
+null improvement ratio with reason `perfect_fit`. Existing RMS and maximum-error
+statistics are labeled `calibration_fit`, assertion statistics are labeled
+`qualification`, and independent `validation` remains null because no independent
+validation data set exists. Readers may accept unknown fields but must reject an
+unknown schema name or unsupported major version.
 
 Source failures are written without color as
 `path:line:column: diagnostic.code: message`. Exit status is 0 for success, 2 for

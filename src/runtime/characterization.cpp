@@ -27,6 +27,7 @@ struct SweepPlan {
     long double end;
     long double step;
     long double tolerance;
+    std::string display_unit;
 };
 
 Diagnostic diagnostic(DiagnosticCode code, std::string message,
@@ -37,7 +38,8 @@ Diagnostic diagnostic(DiagnosticCode code, std::string message,
 std::optional<SweepPlan> plan_sweep(std::string name,
                                     ir::SweepDimension dimension,
                                     long double start, long double end,
-                                    long double step, parser::SourceSpan span,
+                                    long double step, std::string display_unit,
+                                    parser::SourceSpan span,
                                     std::vector<Diagnostic>& diagnostics) {
     if (!std::isfinite(start) || !std::isfinite(end) || !std::isfinite(step) ||
         step <= 0.0L || end < start) {
@@ -87,7 +89,7 @@ std::optional<SweepPlan> plan_sweep(std::string name,
 
     return SweepPlan{std::move(name), dimension,
                      static_cast<std::size_t>(point_count), start, end, step,
-                     tolerance};
+                     tolerance, std::move(display_unit)};
 }
 
 long double value_at(const SweepPlan& sweep, std::size_t index) {
@@ -100,10 +102,10 @@ domain::Coordinate coordinate_at(const SweepPlan& sweep, std::size_t index) {
     const auto value = static_cast<double>(value_at(sweep, index));
     if (sweep.dimension == ir::SweepDimension::Frequency) {
         return domain::Coordinate{sweep.name, domain::CoordinateType::Frequency,
-                                  domain::Frequency::from_hertz(value)};
+                                  domain::Frequency::from_hertz(value), sweep.display_unit};
     }
     return domain::Coordinate{sweep.name, domain::CoordinateType::Temperature,
-                              domain::Temperature::from_kelvin(value)};
+                              domain::Temperature::from_kelvin(value), sweep.display_unit};
 }
 
 domain::Frequency point_frequency(const domain::OperatingPoint& point) {
@@ -129,6 +131,47 @@ domain::QualificationValue qualification_value(const RuntimeValue& value) {
             return typed;
         }
     }, value);
+}
+
+domain::ResultValue result_value(const RuntimeValue& value) {
+    return std::visit([](const auto& typed) -> domain::ResultValue { return typed; }, value);
+}
+
+domain::ResultValueType result_value_type(ir::ValueType type) {
+    switch (type) {
+    case ir::ValueType::Frequency: return domain::ResultValueType::Frequency;
+    case ir::ValueType::FrequencyDelta: return domain::ResultValueType::FrequencyDelta;
+    case ir::ValueType::Ratio: return domain::ResultValueType::Ratio;
+    case ir::ValueType::Temperature: return domain::ResultValueType::Temperature;
+    case ir::ValueType::TemperatureDelta: return domain::ResultValueType::TemperatureDelta;
+    case ir::ValueType::Power: return domain::ResultValueType::Power;
+    case ir::ValueType::PowerDelta: return domain::ResultValueType::PowerDelta;
+    case ir::ValueType::Boolean: return domain::ResultValueType::Boolean;
+    }
+    throw std::logic_error("invalid result value type");
+}
+
+std::string canonical_unit(ir::ValueType type) {
+    switch (type) {
+    case ir::ValueType::Frequency:
+    case ir::ValueType::FrequencyDelta: return "Hz";
+    case ir::ValueType::Ratio: return "ratio";
+    case ir::ValueType::Temperature:
+    case ir::ValueType::TemperatureDelta: return "K";
+    case ir::ValueType::Power: return "dBm";
+    case ir::ValueType::PowerDelta: return "dB";
+    case ir::ValueType::Boolean: return "none";
+    }
+    throw std::logic_error("invalid result value type");
+}
+
+const char* measurement_operation(ir::MeasurementOperation operation) {
+    switch (operation) {
+    case ir::MeasurementOperation::Power: return "power";
+    case ir::MeasurementOperation::Evm: return "evm";
+    case ir::MeasurementOperation::FrequencyError: return "frequency_error";
+    }
+    throw std::logic_error("invalid measurement operation");
 }
 
 domain::ComparisonOperator comparison_operator(ir::ComparisonOperator op) {
@@ -203,6 +246,7 @@ CharacterizationExecutionResult execute_characterization(
         }
 
         auto planned = plan_sweep(source.name, source.dimension, start, end, step,
+                                  source.display_unit,
                                   source.span, diagnostics);
         if (!planned) return {std::nullopt, std::move(diagnostics)};
         if (program.sweeps.size() > 1 &&
@@ -257,11 +301,20 @@ CharacterizationExecutionResult execute_characterization(
     }
 
     domain::CharacterizationResult result;
+    result.characterization_name = program.characterization_name;
     result.samples.reserve(point_count);
     result.calibration.name = calibration.name;
     result.calibration.dimensions.reserve(point_count);
     result.calibration.corrections.reserve(point_count);
     result.calibration.operating_points.reserve(point_count);
+    result.calibration.entries.reserve(point_count);
+    result.calibration.dimension_descriptors.reserve(program.sweeps.size());
+    for (const auto& sweep : program.sweeps) {
+        result.calibration.dimension_descriptors.push_back(domain::CalibrationDimension{
+            sweep.name, sweep.dimension == ir::SweepDimension::Frequency
+                            ? domain::CoordinateType::Frequency
+                            : domain::CoordinateType::Temperature});
+    }
     result.qualification.total_points = point_count;
     result.qualification.assertions.reserve(program.assertions.size());
     for (const auto& assertion : program.assertions) {
@@ -306,16 +359,25 @@ CharacterizationExecutionResult execute_characterization(
             if (measurement.type == ir::ValueType::Power) {
                 sample.observations.push_back(domain::NamedObservation{
                     measurement.name, domain::ObservationType::Power,
-                    slot<domain::Power>(evaluation, measurement.value), "dBm"});
+                    slot<domain::Power>(evaluation, measurement.value), "dBm",
+                    measurement_operation(measurement.operation)});
             } else if (measurement.type == ir::ValueType::Ratio) {
                 sample.observations.push_back(domain::NamedObservation{
                     measurement.name, domain::ObservationType::Ratio,
-                    slot<domain::Ratio>(evaluation, measurement.value), "ratio"});
+                    slot<domain::Ratio>(evaluation, measurement.value), "ratio",
+                    measurement_operation(measurement.operation)});
             } else {
                 sample.observations.push_back(domain::NamedObservation{
                     measurement.name, domain::ObservationType::FrequencyDelta,
-                    slot<domain::FrequencyDelta>(evaluation, measurement.value), "Hz"});
+                    slot<domain::FrequencyDelta>(evaluation, measurement.value), "Hz",
+                    measurement_operation(measurement.operation)});
             }
+        }
+        sample.derived_values.reserve(program.named_values.size());
+        for (const auto& named : program.named_values) {
+            sample.derived_values.push_back(domain::NamedDerivedValue{
+                named.name, result_value_type(named.type),
+                result_value(evaluation.at(named.value)), canonical_unit(named.type)});
         }
         sample.assertions.reserve(program.assertions.size());
         bool point_passed = true;
@@ -351,6 +413,8 @@ CharacterizationExecutionResult execute_characterization(
         result.calibration.dimensions.push_back(frequency);
         result.calibration.corrections.push_back(correction);
         result.calibration.operating_points.push_back(evaluation.operating_point);
+        result.calibration.entries.push_back(
+            domain::CalibrationEntry{evaluation.operating_point, correction});
     }
 
     result.metrics = domain::calculate_metrics(result.samples);

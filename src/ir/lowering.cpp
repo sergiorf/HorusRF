@@ -69,7 +69,8 @@ public:
                         }
                         output_.sweeps.push_back(TypedSweep{
                             value, "frequency", SweepDimension::Frequency, sweep.start,
-                            sweep.end, sweep.step, sweep.point_count, sweep.span});
+                            sweep.end, sweep.step, sweep.point_count, sweep.span,
+                            sweep.display_unit});
                         output_.sweep = Sweep{value, sweep.start, sweep.end, sweep.step, sweep.span};
                     } else {
                         const auto value =
@@ -79,7 +80,8 @@ public:
                         }
                         output_.sweeps.push_back(TypedSweep{
                             value, "temperature", SweepDimension::Temperature, sweep.start,
-                            sweep.end, sweep.step, sweep.point_count, sweep.span});
+                            sweep.end, sweep.step, sweep.point_count, sweep.span,
+                            sweep.display_unit});
                     }
                     return true;
                 },
