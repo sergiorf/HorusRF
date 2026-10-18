@@ -8,6 +8,135 @@ if(NOT DEFINED QUALIFIED_SOURCE_FILE)
     message(FATAL_ERROR "qualified CLI acceptance path was not provided")
 endif()
 
+if(NOT DEFINED STUDIO_DEFAULT_SOURCE_FILE)
+    message(FATAL_ERROR "Studio default CLI acceptance path was not provided")
+endif()
+
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${STUDIO_DEFAULT_SOURCE_FILE}" --check
+    RESULT_VARIABLE studio_default_check_result
+    OUTPUT_VARIABLE studio_default_check_output
+    ERROR_VARIABLE studio_default_check_error
+)
+if(NOT studio_default_check_result EQUAL 0 OR
+   NOT studio_default_check_output STREQUAL "" OR
+   NOT studio_default_check_error STREQUAL "")
+    message(FATAL_ERROR
+        "Studio default check failed: ${studio_default_check_result}: ${studio_default_check_error}")
+endif()
+
+set(studio_default_json "${OUTPUT_FILE}.studio-default.json")
+file(REMOVE "${studio_default_json}")
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${STUDIO_DEFAULT_SOURCE_FILE}" --json "${studio_default_json}"
+    RESULT_VARIABLE studio_default_result
+    OUTPUT_VARIABLE studio_default_output
+    ERROR_VARIABLE studio_default_error
+)
+if(NOT studio_default_result EQUAL 0 AND NOT studio_default_result EQUAL 6)
+    message(FATAL_ERROR
+        "Studio default execution did not complete: ${studio_default_result}: ${studio_default_error}")
+endif()
+if(NOT EXISTS "${studio_default_json}")
+    message(FATAL_ERROR "Studio default execution did not produce JSON")
+endif()
+
+file(READ "${studio_default_json}" studio_default_content)
+string(JSON studio_default_schema ERROR_VARIABLE studio_default_parse_error
+    GET "${studio_default_content}" schema name)
+if(studio_default_parse_error)
+    message(FATAL_ERROR "Studio default JSON is invalid: ${studio_default_parse_error}")
+endif()
+string(JSON studio_default_version GET "${studio_default_content}" schema version)
+string(JSON studio_default_characterization GET "${studio_default_content}" characterization)
+string(JSON studio_default_point_count LENGTH "${studio_default_content}" points)
+string(JSON studio_default_summary_count
+    LENGTH "${studio_default_content}" qualification assertions)
+string(JSON studio_default_calibration_count LENGTH "${studio_default_content}" calibrations)
+if(NOT studio_default_schema STREQUAL "horusrf.characterization-result" OR
+   NOT studio_default_version EQUAL 1 OR
+   NOT studio_default_characterization STREQUAL "tx_qualification" OR
+   NOT studio_default_point_count EQUAL 126 OR
+   NOT studio_default_summary_count EQUAL 3 OR
+   NOT studio_default_calibration_count EQUAL 1)
+    message(FATAL_ERROR "Studio default JSON has the wrong top-level contract")
+endif()
+
+set(studio_default_measurement_names output_power modulation_evm carrier_error)
+set(studio_default_measurement_operations power evm frequency_error)
+foreach(point_index RANGE 0 125)
+    string(JSON point_content GET "${studio_default_content}" points ${point_index})
+    string(JSON coordinate_count LENGTH "${point_content}" coordinates)
+    string(JSON measurement_count LENGTH "${point_content}" measurements)
+    string(JSON derived_count LENGTH "${point_content}" derived)
+    string(JSON assertion_count LENGTH "${point_content}" assertions)
+    if(NOT coordinate_count EQUAL 2 OR NOT measurement_count EQUAL 3 OR
+       NOT derived_count EQUAL 1 OR NOT assertion_count EQUAL 3)
+        message(FATAL_ERROR "Studio default point ${point_index} has the wrong shape")
+    endif()
+
+    string(JSON frequency_name GET "${point_content}" coordinates 0 name)
+    string(JSON temperature_name GET "${point_content}" coordinates 1 name)
+    math(EXPR expected_frequency_index "${point_index} / 6")
+    math(EXPR expected_temperature_index "${point_index} % 6")
+    math(EXPR expected_frequency "2400000000 + ${expected_frequency_index} * 5000000")
+    math(EXPR expected_temperature "-20 + ${expected_temperature_index} * 20")
+    string(JSON actual_frequency GET "${point_content}" coordinates 0 value)
+    string(JSON actual_temperature GET "${point_content}" coordinates 1 display_value)
+    if(NOT frequency_name STREQUAL "frequency" OR
+       NOT temperature_name STREQUAL "temperature" OR
+       NOT actual_frequency EQUAL expected_frequency OR
+       NOT actual_temperature EQUAL expected_temperature)
+        message(FATAL_ERROR
+            "Studio default point ${point_index} is not in deterministic sweep order")
+    endif()
+
+    foreach(measurement_index RANGE 0 2)
+        list(GET studio_default_measurement_names ${measurement_index} expected_name)
+        list(GET studio_default_measurement_operations ${measurement_index} expected_operation)
+        string(JSON actual_name GET
+            "${point_content}" measurements ${measurement_index} name)
+        string(JSON actual_operation GET
+            "${point_content}" measurements ${measurement_index} operation)
+        if(NOT actual_name STREQUAL expected_name OR
+           NOT actual_operation STREQUAL expected_operation)
+            message(FATAL_ERROR
+                "Studio default point ${point_index} measurement ${measurement_index} is invalid")
+        endif()
+    endforeach()
+
+    string(JSON derived_name GET "${point_content}" derived 0 name)
+    if(NOT derived_name STREQUAL "power_error")
+        message(FATAL_ERROR "Studio default point ${point_index} is missing power_error")
+    endif()
+endforeach()
+
+foreach(assertion_index RANGE 0 2)
+    string(JSON assertion_total GET
+        "${studio_default_content}" qualification assertions ${assertion_index} total)
+    if(NOT assertion_total EQUAL 126)
+        message(FATAL_ERROR
+            "Studio default assertion ${assertion_index} has ${assertion_total} evaluations")
+    endif()
+endforeach()
+
+string(JSON calibration_name GET "${studio_default_content}" calibrations 0 name)
+string(JSON calibration_dimension_count LENGTH
+    "${studio_default_content}" calibrations 0 dimensions)
+string(JSON calibration_frequency GET
+    "${studio_default_content}" calibrations 0 dimensions 0 name)
+string(JSON calibration_temperature GET
+    "${studio_default_content}" calibrations 0 dimensions 1 name)
+string(JSON calibration_entry_count LENGTH
+    "${studio_default_content}" calibrations 0 entries)
+if(NOT calibration_name STREQUAL "tx_power" OR
+   NOT calibration_dimension_count EQUAL 2 OR
+   NOT calibration_frequency STREQUAL "frequency" OR
+   NOT calibration_temperature STREQUAL "temperature" OR
+   NOT calibration_entry_count EQUAL 126)
+    message(FATAL_ERROR "Studio default calibration surface has the wrong contract")
+endif()
+
 execute_process(
     COMMAND "${HORUSRF_RUN}" "${QUALIFIED_SOURCE_FILE}" --check
     RESULT_VARIABLE qualified_check_result OUTPUT_VARIABLE qualified_check_output
@@ -339,5 +468,5 @@ foreach(case IN ITEMS parse semantic)
 endforeach()
 
 file(REMOVE "${OUTPUT_FILE}" "${multidimensional_csv}" "${named_csv}" "${qualified_csv}"
-    "${named_json}" "${qualified_json}"
+    "${named_json}" "${qualified_json}" "${studio_default_json}"
     "${parse_invalid}" "${semantic_invalid}")

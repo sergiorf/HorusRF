@@ -1,0 +1,24 @@
+characterize tx_qualification {
+  reference power = -10 dBm
+
+  // Characterize the TX path across frequency and ambient temperature.
+  sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
+  sweep temperature -20 degC .. 80 degC step 20 deltaC
+
+  // Capture the named RF observations used by qualification.
+  measure output_power = power
+  measure modulation_evm = evm
+  measure carrier_error = frequency_error
+  derive power_error = output_power - reference.power
+
+  // Qualify power accuracy, modulation quality, and carrier accuracy at every point.
+  assert abs(power_error) <= 1.5 dB
+  assert modulation_evm <= 2 %
+  assert abs(carrier_error) <= 20 kHz
+
+  // Produce a two-dimensional correction surface for the characterized TX power.
+  derive calibration tx_power {
+    correction = -power_error
+    over frequency, temperature
+  }
+}

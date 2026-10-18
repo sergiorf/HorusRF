@@ -331,6 +331,7 @@ if(BUILD_TESTING)
             -DMULTIDIMENSIONAL_SOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/multidimensional_check.hrf
             -DNAMED_MEASUREMENTS_SOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/named_measurements.hrf
             -DQUALIFIED_SOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/qualified_measurements.hrf
+            -DSTUDIO_DEFAULT_SOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/studio_default.hrf
             -DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/cli-acceptance-output.csv
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/cli_acceptance.cmake
     )
