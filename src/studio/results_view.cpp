@@ -223,6 +223,7 @@ ResultsView::ResultsView(QWidget* parent) : QWidget(parent) {
     tabs_->setObjectName(QStringLiteral("resultTabs"));
 
     auto* tablePage = new QWidget(tabs_);
+    tablePage->setObjectName(QStringLiteral("pointsPage"));
     auto* tableLayout = new QVBoxLayout(tablePage);
     auto* filters = new QWidget(tablePage);
     coordinate_filter_layout_ = new QFormLayout(filters);
@@ -241,6 +242,7 @@ ResultsView::ResultsView(QWidget* parent) : QWidget(parent) {
     tabs_->addTab(tablePage, tr("Points"));
 
     auto* plotPage = new QWidget(tabs_);
+    plotPage->setObjectName(QStringLiteral("plotPage"));
     auto* plotLayout = new QVBoxLayout(plotPage);
     auto* plotSelectors = new QWidget(plotPage);
     plot_fixed_layout_ = new QFormLayout(plotSelectors);
@@ -271,6 +273,7 @@ ResultsView::ResultsView(QWidget* parent) : QWidget(parent) {
     tabs_->addTab(plotPage, tr("Plot"));
 
     auto* heatmapPage = new QWidget(tabs_);
+    heatmapPage->setObjectName(QStringLiteral("heatmapPage"));
     auto* heatmapLayout = new QVBoxLayout(heatmapPage);
     auto* heatmapSelectors = new QHBoxLayout;
     heatmap_x_ = new QComboBox(heatmapPage);
@@ -293,6 +296,7 @@ ResultsView::ResultsView(QWidget* parent) : QWidget(parent) {
     tabs_->addTab(heatmapPage, tr("Heatmap"));
 
     auto* qualificationPage = new QWidget(tabs_);
+    qualificationPage->setObjectName(QStringLiteral("qualificationPage"));
     auto* qualificationLayout = new QVBoxLayout(qualificationPage);
     qualification_dashboard_ = new QLabel(qualificationPage);
     qualification_dashboard_->setObjectName(QStringLiteral("qualificationDashboard"));
@@ -304,6 +308,7 @@ ResultsView::ResultsView(QWidget* parent) : QWidget(parent) {
     tabs_->addTab(qualificationPage, tr("Qualification"));
 
     auto* calibrationPage = new QWidget(tabs_);
+    calibrationPage->setObjectName(QStringLiteral("calibrationPage"));
     auto* calibrationLayout = new QVBoxLayout(calibrationPage);
     calibration_table_ = new QTableWidget(calibrationPage);
     calibration_table_->setObjectName(QStringLiteral("calibrationTable"));
@@ -312,6 +317,7 @@ ResultsView::ResultsView(QWidget* parent) : QWidget(parent) {
     tabs_->addTab(calibrationPage, tr("Calibration"));
 
     auto* legacyPage = new QWidget(tabs_);
+    legacyPage->setObjectName(QStringLiteral("legacyPage"));
     auto* legacyLayout = new QVBoxLayout(legacyPage);
     legacyLayout->addWidget(metrics_);
     legacyLayout->addWidget(show_reference_);
@@ -356,7 +362,7 @@ ResultsView::ResultsView(QWidget* parent) : QWidget(parent) {
                         break;
                     }
                 }
-                tabs_->setCurrentIndex(0);
+                tabs_->setCurrentWidget(point_table_->parentWidget());
             });
     connect(failure_tree_, &QTreeWidget::itemActivated, this,
             [this](QTreeWidgetItem* item) {
@@ -367,9 +373,13 @@ ResultsView::ResultsView(QWidget* parent) : QWidget(parent) {
 }
 
 void ResultsView::setResults(const ResultsModel& model, const QString& cliReport) {
+    const bool hadStructuredResults = has_results_ && model_.isStructured();
+    const ResultShape previousShape = resultShape(model_);
+    const SavedSelection saved = hadStructuredResults ? captureSelection() : SavedSelection{};
     model_ = model;
     if (model_.isStructured()) {
-        setStructuredResults();
+        setStructuredResults(
+            saved, hadStructuredResults && previousShape.isCompatibleWith(resultShape(model_)));
         return;
     }
     const int legacyIndex = tabs_->indexOf(metrics_->parentWidget());
@@ -421,6 +431,68 @@ void ResultsView::setResults(const ResultsModel& model, const QString& cliReport
     metrics_->setText(metricText(cliReport));
 }
 
+ResultsView::ResultShape ResultsView::resultShape(const ResultsModel& model) const {
+    ResultShape shape;
+    if (!model.isStructured() || model.points().isEmpty()) return shape;
+    const ResultPoint& first = model.points().front();
+    for (const ResultCoordinate& coordinate : first.coordinates) {
+        shape.coordinates.append(coordinate.name + QChar(u'\x1f') + coordinate.value.type);
+    }
+    for (const ResultObservation& measurement : first.measurements) {
+        if (!measurement.value.is_boolean) {
+            shape.measurements.append(measurement.name + QChar(u'\x1f') + measurement.value.type);
+        }
+    }
+    for (const ResultObservation& value : first.derived_values) {
+        if (!value.value.is_boolean) {
+            shape.derived_values.append(value.name + QChar(u'\x1f') + value.value.type);
+        }
+    }
+    shape.measurements.sort();
+    shape.derived_values.sort();
+    shape.has_assertions = !first.assertions.isEmpty();
+    shape.has_calibrations = !model.calibrations().isEmpty();
+    return shape;
+}
+
+ResultsView::SavedSelection ResultsView::captureSelection() const {
+    SavedSelection saved;
+    if (tabs_->currentWidget() != nullptr) saved.page = tabs_->currentWidget()->objectName();
+    saved.plot_axis = plot_axis_->currentData().toString();
+    saved.plot_scalar = plot_scalar_->currentData().toString();
+    saved.heatmap_x = heatmap_x_->currentData().toString();
+    saved.heatmap_y = heatmap_y_->currentData().toString();
+    saved.heatmap_scalar = heatmap_scalar_->currentData().toString();
+    if (!model_.points().isEmpty()) {
+        const auto& coordinates = model_.points().front().coordinates;
+        for (qsizetype index = 0;
+             index < coordinates.size() && index < plot_fixed_filters_.size(); ++index) {
+            const QComboBox* filter = plot_fixed_filters_.at(index);
+            if (filter->currentIndex() > 0) {
+                saved.plot_fixed_values.insert(coordinates.at(index).name,
+                                               filter->currentData());
+            }
+        }
+    }
+    return saved;
+}
+
+int ResultsView::coordinateIndex(const QString& name) const {
+    if (!model_.isStructured() || model_.points().isEmpty()) return -1;
+    const auto& coordinates = model_.points().front().coordinates;
+    for (qsizetype index = 0; index < coordinates.size(); ++index) {
+        if (coordinates.at(index).name == name) return static_cast<int>(index);
+    }
+    return -1;
+}
+
+int ResultsView::tabIndex(const QString& page) const {
+    for (int index = 0; index < tabs_->count(); ++index) {
+        if (tabs_->widget(index)->objectName() == page) return index;
+    }
+    return -1;
+}
+
 const ResultValue* ResultsView::scalarValue(const ResultPoint& point,
                                              const QString& name) const {
     for (const ResultObservation& value : point.measurements) {
@@ -432,8 +504,13 @@ const ResultValue* ResultsView::scalarValue(const ResultPoint& point,
     return nullptr;
 }
 
-void ResultsView::setStructuredResults() {
+void ResultsView::setStructuredResults(const SavedSelection& saved, bool compatible) {
     const ResultPoint& first = model_.points().front();
+    const QSignalBlocker plotAxisBlocker(plot_axis_);
+    const QSignalBlocker plotScalarBlocker(plot_scalar_);
+    const QSignalBlocker heatmapXBlocker(heatmap_x_);
+    const QSignalBlocker heatmapYBlocker(heatmap_y_);
+    const QSignalBlocker heatmapScalarBlocker(heatmap_scalar_);
     while (coordinate_filter_layout_->rowCount() > 1) {
         coordinate_filter_layout_->removeRow(coordinate_filter_layout_->rowCount() - 1);
     }
@@ -447,9 +524,9 @@ void ResultsView::setStructuredResults() {
     heatmap_y_->clear();
     for (qsizetype dimension = 0; dimension < first.coordinates.size(); ++dimension) {
         const QString name = first.coordinates.at(dimension).name;
-        plot_axis_->addItem(name, dimension);
-        heatmap_x_->addItem(name, dimension);
-        heatmap_y_->addItem(name, dimension);
+        plot_axis_->addItem(name, name);
+        heatmap_x_->addItem(name, name);
+        heatmap_y_->addItem(name, name);
 
         auto populate = [this, dimension](QComboBox* combo) {
             combo->addItem(tr("All values"), QVariant{});
@@ -476,10 +553,7 @@ void ResultsView::setStructuredResults() {
         if (dimension != 0 && plotFilter->count() > 1) plotFilter->setCurrentIndex(1);
         plot_fixed_layout_->addRow(tr("Fix %1").arg(name), plotFilter);
         plot_fixed_filters_.append(plotFilter);
-        connect(plotFilter, &QComboBox::currentIndexChanged, this,
-                [this] { rebuildPlot(); });
     }
-    if (heatmap_y_->count() > 1) heatmap_y_->setCurrentIndex(1);
 
     plot_scalar_->clear();
     heatmap_scalar_->clear();
@@ -493,12 +567,106 @@ void ResultsView::setStructuredResults() {
     for (const ResultObservation& observation : first.measurements) addScalar(observation);
     for (const ResultObservation& observation : first.derived_values) addScalar(observation);
 
+    auto selectData = [](QComboBox* combo, const QVariant& value) {
+        const int index = combo->findData(value);
+        if (index >= 0) combo->setCurrentIndex(index);
+        return index >= 0;
+    };
+    auto preferredScalar = [&first] {
+        for (const ResultObservation& value : first.derived_values) {
+            if (!value.value.is_boolean && value.name == QStringLiteral("power_error")) {
+                return value.name;
+            }
+        }
+        for (const ResultObservation& value : first.derived_values) {
+            if (!value.value.is_boolean) return value.name;
+        }
+        for (const ResultObservation& value : first.measurements) {
+            if (!value.value.is_boolean) return value.name;
+        }
+        return QString{};
+    };
+    const QString defaultScalar = preferredScalar();
+
+    const QString defaultPlotAxis = coordinateIndex(QStringLiteral("frequency")) >= 0
+        ? QStringLiteral("frequency") : plot_axis_->itemData(0).toString();
+    if (!compatible || !selectData(plot_axis_, saved.plot_axis)) {
+        selectData(plot_axis_, defaultPlotAxis);
+    }
+    if (!compatible || !selectData(plot_scalar_, saved.plot_scalar)) {
+        selectData(plot_scalar_, defaultScalar);
+    }
+
+    const QString defaultHeatmapX = coordinateIndex(QStringLiteral("frequency")) >= 0
+        ? QStringLiteral("frequency") : heatmap_x_->itemData(0).toString();
+    QString defaultHeatmapY = coordinateIndex(QStringLiteral("temperature")) >= 0
+        ? QStringLiteral("temperature") : heatmap_y_->itemData(1).toString();
+    if (defaultHeatmapY == defaultHeatmapX && heatmap_y_->count() > 1) {
+        defaultHeatmapY = heatmap_y_->itemData(defaultHeatmapX == heatmap_y_->itemData(0).toString()
+                                                   ? 1 : 0).toString();
+    }
+    const bool restoredHeatmapX = compatible && selectData(heatmap_x_, saved.heatmap_x);
+    const bool restoredHeatmapY = compatible && selectData(heatmap_y_, saved.heatmap_y);
+    if (!restoredHeatmapX) selectData(heatmap_x_, defaultHeatmapX);
+    if (!restoredHeatmapY) selectData(heatmap_y_, defaultHeatmapY);
+    if (heatmap_x_->currentData() == heatmap_y_->currentData() && heatmap_y_->count() > 1) {
+        selectData(heatmap_y_, defaultHeatmapY);
+        if (heatmap_x_->currentData() == heatmap_y_->currentData()) {
+            heatmap_y_->setCurrentIndex(heatmap_x_->currentIndex() == 0 ? 1 : 0);
+        }
+    }
+    if (!compatible || !selectData(heatmap_scalar_, saved.heatmap_scalar)) {
+        selectData(heatmap_scalar_, defaultScalar);
+    }
+
+    const int plotAxisIndex = coordinateIndex(plot_axis_->currentData().toString());
+    for (qsizetype dimension = 0; dimension < plot_fixed_filters_.size(); ++dimension) {
+        QComboBox* filter = plot_fixed_filters_.at(dimension);
+        if (dimension == plotAxisIndex) {
+            filter->setCurrentIndex(0);
+            filter->setEnabled(false);
+        } else {
+            filter->setEnabled(true);
+            const QString name = first.coordinates.at(dimension).name;
+            const int restored = compatible && saved.plot_fixed_values.contains(name)
+                ? filter->findData(saved.plot_fixed_values.value(name)) : -1;
+            filter->setCurrentIndex(restored >= 0 ? restored : std::min(1, filter->count() - 1));
+        }
+        connect(filter, &QComboBox::currentIndexChanged, this,
+                [this] { rebuildPlot(); });
+    }
+
+    const bool plotUsable = plot_axis_->count() > 0 && plot_scalar_->count() > 0;
+    const bool heatmapUsable = heatmap_x_->count() > 1 && heatmap_scalar_->count() > 0;
+    const int pointsIndex = tabIndex(QStringLiteral("pointsPage"));
+    const int plotIndex = tabIndex(QStringLiteral("plotPage"));
+    const int heatmapIndex = tabIndex(QStringLiteral("heatmapPage"));
+    const int qualificationIndex = tabIndex(QStringLiteral("qualificationPage"));
+    const int calibrationIndex = tabIndex(QStringLiteral("calibrationPage"));
+    const int legacyIndex = tabIndex(QStringLiteral("legacyPage"));
+    tabs_->setTabEnabled(pointsIndex, true);
+    tabs_->setTabEnabled(plotIndex, plotUsable);
+    tabs_->setTabEnabled(heatmapIndex, heatmapUsable);
+    tabs_->setTabEnabled(qualificationIndex, !first.assertions.isEmpty());
+    tabs_->setTabEnabled(calibrationIndex, !model_.calibrations().isEmpty());
+    tabs_->setTabEnabled(legacyIndex, false);
+
+    const int savedPageIndex = compatible ? tabIndex(saved.page) : -1;
+    if (savedPageIndex >= 0 && tabs_->isTabEnabled(savedPageIndex)) {
+        tabs_->setCurrentIndex(savedPageIndex);
+    } else if (heatmapUsable) {
+        tabs_->setCurrentIndex(heatmapIndex);
+    } else if (plotUsable) {
+        tabs_->setCurrentIndex(plotIndex);
+    } else {
+        tabs_->setCurrentIndex(pointsIndex);
+    }
+
     has_results_ = true;
     status_->setText(model_.qualification().status == QStringLiteral("fail")
                          ? tr("Experiment completed; qualification failed.")
                          : tr("Experiment completed."));
     sample_count_->setText(tr("Points: %1").arg(model_.points().size()));
-    tabs_->setTabEnabled(tabs_->indexOf(metrics_->parentWidget()), false);
     rebuildPointTable();
     rebuildPlot();
     rebuildHeatmap();
@@ -567,7 +735,8 @@ void ResultsView::rebuildPlot() {
     selected_series_->clear();
     if (!model_.isStructured() || plot_axis_->currentIndex() < 0 ||
         plot_scalar_->currentIndex() < 0) return;
-    const int axis = plot_axis_->currentData().toInt();
+    const int axis = coordinateIndex(plot_axis_->currentData().toString());
+    if (axis < 0) return;
     for (qsizetype dimension = 0; dimension < plot_fixed_filters_.size(); ++dimension) {
         QComboBox* filter = plot_fixed_filters_.at(dimension);
         const QSignalBlocker blocker(filter);
@@ -627,8 +796,9 @@ void ResultsView::rebuildHeatmap() {
     if (!model_.isStructured() || heatmap_x_->count() < 2 ||
         heatmap_x_->currentIndex() == heatmap_y_->currentIndex() ||
         heatmap_scalar_->currentIndex() < 0) return;
-    const int xDimension = heatmap_x_->currentData().toInt();
-    const int yDimension = heatmap_y_->currentData().toInt();
+    const int xDimension = coordinateIndex(heatmap_x_->currentData().toString());
+    const int yDimension = coordinateIndex(heatmap_y_->currentData().toString());
+    if (xDimension < 0 || yDimension < 0 || xDimension == yDimension) return;
     const QString scalar = heatmap_scalar_->currentData().toString();
     const ResultPoint& first = model_.points().front();
     auto inSelectedSlice = [&](const ResultPoint& point) {

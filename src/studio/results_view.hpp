@@ -3,6 +3,9 @@
 
 #include "results_model.hpp"
 
+#include <QHash>
+#include <QStringList>
+#include <QVariant>
 #include <QWidget>
 
 class QCheckBox;
@@ -36,7 +39,35 @@ signals:
     void sourceNavigationRequested(int line, int column);
 
 private:
-    void setStructuredResults();
+    struct ResultShape {
+        QStringList coordinates;
+        QStringList measurements;
+        QStringList derived_values;
+        bool has_assertions = false;
+        bool has_calibrations = false;
+
+        [[nodiscard]] bool isCompatibleWith(const ResultShape& other) const {
+            return coordinates == other.coordinates &&
+                   measurements == other.measurements &&
+                   derived_values == other.derived_values;
+        }
+    };
+
+    struct SavedSelection {
+        QString page;
+        QString plot_axis;
+        QString plot_scalar;
+        QHash<QString, QVariant> plot_fixed_values;
+        QString heatmap_x;
+        QString heatmap_y;
+        QString heatmap_scalar;
+    };
+
+    void setStructuredResults(const SavedSelection& saved, bool compatible);
+    [[nodiscard]] ResultShape resultShape(const ResultsModel& model) const;
+    [[nodiscard]] SavedSelection captureSelection() const;
+    [[nodiscard]] int coordinateIndex(const QString& name) const;
+    [[nodiscard]] int tabIndex(const QString& page) const;
     void rebuildPointTable();
     void rebuildPlot();
     void rebuildHeatmap();

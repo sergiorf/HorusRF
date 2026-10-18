@@ -340,6 +340,9 @@ private slots:
         auto* selectedChart =
             view.findChild<QChartView*>(QStringLiteral("selectedChart"));
         auto* heatmap = view.findChild<QTableWidget*>(QStringLiteral("heatmapTable"));
+        auto* heatmapX = view.findChild<QComboBox*>(QStringLiteral("heatmapX"));
+        auto* heatmapY = view.findChild<QComboBox*>(QStringLiteral("heatmapY"));
+        auto* heatmapScalar = view.findChild<QComboBox*>(QStringLiteral("heatmapScalar"));
         auto* dashboard =
             view.findChild<QLabel*>(QStringLiteral("qualificationDashboard"));
         auto* failures = view.findChild<QTreeWidget*>(QStringLiteral("failureTree"));
@@ -352,6 +355,9 @@ private slots:
             QStringLiteral("selectedSeries"));
         QVERIFY(plot != nullptr);
         QVERIFY(heatmap != nullptr);
+        QVERIFY(heatmapX != nullptr);
+        QVERIFY(heatmapY != nullptr);
+        QVERIFY(heatmapScalar != nullptr);
         QVERIFY(dashboard != nullptr);
         QVERIFY(failures != nullptr);
         QVERIFY(calibration != nullptr);
@@ -360,6 +366,12 @@ private slots:
         QCOMPARE(plot->count(), 5);
         QCOMPARE(heatmap->columnCount(), 5);
         QCOMPARE(heatmap->rowCount(), 6);
+        auto* tabs = view.findChild<QTabWidget*>(QStringLiteral("resultTabs"));
+        QVERIFY(tabs != nullptr);
+        QCOMPARE(tabs->currentWidget()->objectName(), QStringLiteral("heatmapPage"));
+        QCOMPARE(heatmapX->currentData().toString(), QStringLiteral("frequency"));
+        QCOMPARE(heatmapY->currentData().toString(), QStringLiteral("temperature"));
+        QCOMPARE(heatmapScalar->currentData().toString(), QStringLiteral("power_error"));
         QCOMPARE(calibration->rowCount(), 30);
         QVERIFY(dashboard->text().contains(QStringLiteral("60.0%")));
         QCOMPARE(failures->topLevelItemCount(), 3);
@@ -374,8 +386,6 @@ private slots:
         QCOMPARE(table->rowCount(), 12);
 
         heatmap->itemClicked(heatmap->item(0, 0));
-        auto* tabs = view.findChild<QTabWidget*>(QStringLiteral("resultTabs"));
-        QVERIFY(tabs != nullptr);
         QCOMPARE(tabs->currentIndex(), 0);
         QCOMPARE(table->selectedItems().front()->data(Qt::UserRole).toInt(), 0);
         auto* temperatureFilter =
@@ -389,6 +399,49 @@ private slots:
         failures->itemActivated(failures->topLevelItem(1)->child(0), 0);
         QCOMPARE(navigation.count(), 1);
         QCOMPARE(navigation.front().at(0).toInt(), 10);
+
+        auto* plotScalar = view.findChild<QComboBox*>(QStringLiteral("plotScalar"));
+        auto* fixedFrequency =
+            view.findChild<QComboBox*>(QStringLiteral("plotFixed_frequency"));
+        QVERIFY(plotScalar != nullptr);
+        QVERIFY(fixedFrequency != nullptr);
+        plotAxis->setCurrentIndex(plotAxis->findData(QStringLiteral("temperature")));
+        plotScalar->setCurrentIndex(plotScalar->findData(QStringLiteral("carrier_error")));
+        fixedFrequency->setCurrentIndex(2);
+        heatmapX->setCurrentIndex(heatmapX->findData(QStringLiteral("temperature")));
+        heatmapY->setCurrentIndex(heatmapY->findData(QStringLiteral("frequency")));
+        heatmapScalar->setCurrentIndex(
+            heatmapScalar->findData(QStringLiteral("output_power")));
+        tabs->setCurrentWidget(view.findChild<QWidget*>(QStringLiteral("plotPage")));
+        const QVariant fixedFrequencyValue = fixedFrequency->currentData();
+
+        view.setResults(*model, runner.lastResult().standard_output);
+        QCOMPARE(tabs->currentWidget()->objectName(), QStringLiteral("plotPage"));
+        QCOMPARE(plotAxis->currentData().toString(), QStringLiteral("temperature"));
+        QCOMPARE(plotScalar->currentData().toString(), QStringLiteral("carrier_error"));
+        fixedFrequency = view.findChild<QComboBox*>(QStringLiteral("plotFixed_frequency"));
+        QVERIFY(fixedFrequency != nullptr);
+        QCOMPARE(fixedFrequency->currentData(), fixedFrequencyValue);
+        QCOMPARE(heatmapX->currentData().toString(), QStringLiteral("temperature"));
+        QCOMPARE(heatmapY->currentData().toString(), QStringLiteral("frequency"));
+        QCOMPARE(heatmapScalar->currentData().toString(), QStringLiteral("output_power"));
+
+        QString oneDimensionalSource = qualificationSource();
+        oneDimensionalSource.remove(
+            QStringLiteral("  sweep temperature -20 degC .. 80 degC step 20 deltaC\n"));
+        oneDimensionalSource.replace(QStringLiteral("over frequency, temperature"),
+                                     QStringLiteral("over frequency"));
+        QVERIFY(runner.run(oneDimensionalSource));
+        waitForCompletion(runner);
+        QVERIFY(runner.lastResult().producedResults());
+        const auto oneDimensionalModel = horusrf::studio::ResultsModel::fromJsonFile(
+            runner.lastResult().json_path, &error);
+        QVERIFY2(oneDimensionalModel.has_value(), qPrintable(error));
+        view.setResults(*oneDimensionalModel, runner.lastResult().standard_output);
+        QCOMPARE(tabs->currentWidget()->objectName(), QStringLiteral("plotPage"));
+        QCOMPARE(plotAxis->currentData().toString(), QStringLiteral("frequency"));
+        QVERIFY(!tabs->isTabEnabled(
+            tabs->indexOf(view.findChild<QWidget*>(QStringLiteral("heatmapPage")))));
     }
 
     void structuredResultsRejectMalformedAndUnsupportedJson() {
