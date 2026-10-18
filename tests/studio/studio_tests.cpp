@@ -243,6 +243,67 @@ private slots:
         QVERIFY(runner.lastResult().producedResults());
         QVERIFY(runner.lastResult().standard_output.contains(QStringLiteral("samples: 126")));
         QVERIFY(QFileInfo::exists(runner.lastResult().json_path));
+
+        QString error;
+        const auto model = horusrf::studio::ResultsModel::fromJsonFile(
+            runner.lastResult().json_path, &error);
+        QVERIFY2(model.has_value(), qPrintable(error));
+        QCOMPARE(model->characterization(), QStringLiteral("tx_qualification"));
+        QCOMPARE(model->points().size(), 126);
+        QCOMPARE(model->qualification().assertions.size(), 3);
+        QCOMPARE(model->calibrations().size(), 1);
+        QCOMPARE(model->calibrations().front().entries.size(), 126);
+        for (const auto& point : model->points()) {
+            QCOMPARE(point.measurements.size(), 3);
+            QCOMPARE(point.assertions.size(), 3);
+        }
+
+        horusrf::studio::ResultsView view;
+        view.setResults(*model, runner.lastResult().standard_output);
+        auto* tabs = view.findChild<QTabWidget*>(QStringLiteral("resultTabs"));
+        auto* heatmap = view.findChild<QTableWidget*>(QStringLiteral("heatmapTable"));
+        auto* heatmapX = view.findChild<QComboBox*>(QStringLiteral("heatmapX"));
+        auto* heatmapY = view.findChild<QComboBox*>(QStringLiteral("heatmapY"));
+        auto* heatmapScalar = view.findChild<QComboBox*>(QStringLiteral("heatmapScalar"));
+        QVERIFY(tabs != nullptr);
+        QVERIFY(heatmap != nullptr);
+        QVERIFY(heatmapX != nullptr);
+        QVERIFY(heatmapY != nullptr);
+        QVERIFY(heatmapScalar != nullptr);
+        QCOMPARE(tabs->currentWidget()->objectName(), QStringLiteral("heatmapPage"));
+        QCOMPARE(heatmapX->currentData().toString(), QStringLiteral("frequency"));
+        QCOMPARE(heatmapY->currentData().toString(), QStringLiteral("temperature"));
+        QCOMPARE(heatmapScalar->currentData().toString(), QStringLiteral("power_error"));
+        QCOMPARE(heatmap->columnCount(), 21);
+        QCOMPARE(heatmap->rowCount(), 6);
+    }
+
+    void examplesMenuLoadsEveryRegisteredResourceAsUntitledDocument() {
+        horusrf::studio::MainWindow window;
+        const QList<QPair<QString, QString>> examples{
+            {QStringLiteral("basicTxCalibrationExampleAction"),
+             QStringLiteral(":/examples/tx_path_characterization.hrf")},
+            {QStringLiteral("txQualificationExampleAction"),
+             QStringLiteral(":/examples/qualified_measurements.hrf")},
+            {QStringLiteral("temperatureCharacterizationExampleAction"),
+             QStringLiteral(":/examples/multidimensional_check.hrf")},
+            {QStringLiteral("namedRfMeasurementsExampleAction"),
+             QStringLiteral(":/examples/named_measurements.hrf")},
+            {QStringLiteral("completeStudioShowcaseExampleAction"),
+             QStringLiteral(":/examples/studio_default.hrf")},
+        };
+
+        for (const auto& [objectName, resource] : examples) {
+            auto* action = window.findChild<QAction*>(objectName);
+            QVERIFY2(action != nullptr, qPrintable(objectName));
+            QCOMPARE(action->data().toString(), resource);
+            action->trigger();
+            QVERIFY(!window.editor()->toPlainText().isEmpty());
+            QVERIFY(window.editor()->toPlainText().contains(QStringLiteral("characterize ")));
+            QVERIFY(window.currentFilePath().isEmpty());
+            QVERIFY(!window.editor()->document()->isModified());
+            QVERIFY(window.windowTitle().contains(QStringLiteral("Untitled")));
+        }
     }
 
     void mainWindowPresentsAndNavigatesDiagnostics() {
@@ -437,6 +498,36 @@ private slots:
         QCOMPARE(heatmapY->currentData().toString(), QStringLiteral("frequency"));
         QCOMPARE(heatmapScalar->currentData().toString(), QStringLiteral("output_power"));
 
+        plotAxis->setCurrentIndex(plotAxis->findData(QStringLiteral("frequency")));
+        auto* fixedTemperature =
+            view.findChild<QComboBox*>(QStringLiteral("plotFixed_temperature"));
+        QVERIFY(fixedTemperature != nullptr);
+        fixedTemperature->setCurrentIndex(fixedTemperature->count() - 1);
+        const QVariant removedTemperature = fixedTemperature->currentData();
+
+        QString reducedCoordinatesSource = qualificationSource();
+        reducedCoordinatesSource.replace(QStringLiteral(".. 80 degC"),
+                                         QStringLiteral(".. 60 degC"));
+        QVERIFY(runner.run(reducedCoordinatesSource));
+        waitForCompletion(runner);
+        QVERIFY(runner.lastResult().producedResults());
+        const auto reducedCoordinatesModel =
+            horusrf::studio::ResultsModel::fromJsonFile(
+                runner.lastResult().json_path, &error);
+        QVERIFY2(reducedCoordinatesModel.has_value(), qPrintable(error));
+        view.setResults(*reducedCoordinatesModel, runner.lastResult().standard_output);
+        QCOMPARE(tabs->currentWidget()->objectName(), QStringLiteral("plotPage"));
+        QCOMPARE(plotAxis->currentData().toString(), QStringLiteral("frequency"));
+        QCOMPARE(plotScalar->currentData().toString(), QStringLiteral("carrier_error"));
+        fixedTemperature =
+            view.findChild<QComboBox*>(QStringLiteral("plotFixed_temperature"));
+        QVERIFY(fixedTemperature != nullptr);
+        QVERIFY(fixedTemperature->currentData() != removedTemperature);
+        QCOMPARE(fixedTemperature->currentIndex(), 1);
+        QCOMPARE(heatmapX->currentData().toString(), QStringLiteral("temperature"));
+        QCOMPARE(heatmapY->currentData().toString(), QStringLiteral("frequency"));
+        QCOMPARE(heatmapScalar->currentData().toString(), QStringLiteral("output_power"));
+
         QString oneDimensionalSource = qualificationSource();
         oneDimensionalSource.remove(
             QStringLiteral("  sweep temperature -20 degC .. 80 degC step 20 deltaC\n"));
@@ -468,6 +559,22 @@ private slots:
         view.setResults(*assertionFreeModel, runner.lastResult().standard_output);
         QVERIFY(summary->text().contains(
             QStringLiteral("Qualification: not evaluated (no assertions)")));
+
+        QString passingSource = qualificationSource();
+        passingSource.replace(QStringLiteral("<= 1.5 dB"), QStringLiteral("<= 100 dB"));
+        passingSource.replace(QStringLiteral("<= 2 %"), QStringLiteral("<= 100 %"));
+        passingSource.replace(QStringLiteral("<= 20 kHz"), QStringLiteral("<= 100 MHz"));
+        QVERIFY(runner.run(passingSource));
+        waitForCompletion(runner);
+        QCOMPARE(runner.lastResult().exit_code, 0);
+        const auto passingModel = horusrf::studio::ResultsModel::fromJsonFile(
+            runner.lastResult().json_path, &error);
+        QVERIFY2(passingModel.has_value(), qPrintable(error));
+        view.setResults(*passingModel, runner.lastResult().standard_output);
+        QVERIFY(summary->text().contains(QStringLiteral("Qualification: passed")));
+        auto* status = view.findChild<QLabel*>(QStringLiteral("resultsStatus"));
+        QVERIFY(status != nullptr);
+        QCOMPARE(status->text(), QStringLiteral("Experiment completed."));
     }
 
     void structuredResultsRejectMalformedAndUnsupportedJson() {

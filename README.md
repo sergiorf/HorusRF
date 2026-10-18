@@ -76,23 +76,39 @@ For a multi-config generator, launch `build/<Configuration>/horusrf-studio`
 instead. Studio provides a resizable editor workspace, HorusRF syntax highlighting,
 line numbers with an emphasized current line, a live line-and-column status indicator,
 standard file and undo/redo actions, and editor zoom controls in the View menu.
-Use Ctrl++ and Ctrl+- to zoom, or Ctrl+0 to restore the default size. The canonical
-example opens as an initially unmodified, untitled template. F5 validates the current
-editor buffer and F6 runs it, including unsaved changes, by invoking the sibling `horusrf-run`
-executable. Compiler diagnostics are clickable, and raw standard output and standard
-error remain available in separate panes. Runs request the versioned JSON result
-from the CLI and present typed multidimensional coordinates, measurements, derived
-values, qualification state, and calibration entries without linking core libraries.
-The Points tab filters by coordinate and pass state. Plot controls select any scalar
-against a sweep axis and fix the remaining coordinates; the Heatmap tab maps a scalar
-over two dimensions with deterministic axes and selectable cells. Qualification
-failures are grouped by assertion and navigate back to the source. The original
-strict CSV loader and legacy frequency charts remain available for compatibility.
-Choose the checked-in
-[multidimensional qualification program](examples/studio_qualification.hrf) from
-the Examples menu to exercise the complete view. A later execution or result-load
-failure leaves the most recent valid result visible and reports the new failure
-separately.
+Use Ctrl++ and Ctrl+- to zoom, or Ctrl+0 to restore the default size.
+
+A fresh window opens the commented
+[`studio_default.hrf`](examples/studio_default.hrf) showcase as an untitled,
+unmodified buffer without executing it. The experiment sweeps 21 frequencies by 6
+temperatures for 126 points, captures named power, EVM, and frequency-error
+measurements, evaluates three qualification assertions, and produces a two-dimensional
+TX-power calibration surface. F5 validates the current editor buffer without operating
+the simulator; F6 executes the current buffer, including unsaved changes, by invoking
+the sibling `horusrf-run` executable.
+
+The Examples menu progresses from Basic TX Calibration through TX Qualification,
+Temperature Characterization, and Named RF Measurements to the Complete Studio
+Showcase. Every example loads as an untitled, unmodified copy, after the normal prompt
+for unsaved work, so the checked-in source is not overwritten accidentally.
+
+Runs request the versioned JSON result from the CLI and present typed multidimensional
+coordinates, measurements, derived values, qualification state, and calibration
+entries without linking core libraries. The Points tab filters by coordinate and pass
+state. Plot shows a scalar against one sweep axis while fixing the remaining
+coordinates. Heatmap shows a scalar over two dimensions and its selectable cells link
+back to Points. A new two-dimensional result initially opens Heatmap, preferring
+`frequency` on X, `temperature` on Y, and `power_error`; a one-dimensional result opens
+Plot. Compatible reruns preserve the selected tab, axes, scalar, and still-available
+fixed coordinates instead of replacing deliberate choices.
+
+Qualification failures are grouped by assertion and navigate back to the source.
+Exit status 6 means execution completed and produced results but qualification failed;
+it is distinct from a compiler, runtime, or process failure. The structured summary
+therefore remains available for completed qualification failures. A later validation,
+execution, or result-load failure also leaves the most recent valid result and summary
+visible while reporting the new failure separately. The original strict CSV loader and
+legacy frequency charts remain available for compatibility.
 
 For deployment, keep `horusrf-run` beside `horusrf-studio`; Studio deliberately
 finds and invokes that sibling process rather than linking the compiler or runtime.
