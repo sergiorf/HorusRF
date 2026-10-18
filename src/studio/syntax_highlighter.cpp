@@ -22,15 +22,13 @@ SyntaxHighlighter::SyntaxHighlighter(QTextDocument* document)
     : QSyntaxHighlighter(document),
       comment_pattern_(QStringLiteral("//[^\\n]*")),
       comment_format_(colored(QColor{106, 115, 125})) {
-    const auto identifier = colored(QColor{36, 41, 47});
     const auto keyword = colored(QColor{130, 80, 223}, true);
     const auto number = colored(QColor{9, 105, 218});
     const auto unit = colored(QColor{5, 125, 88}, true);
     const auto operation = colored(QColor{207, 34, 46});
 
-    // General tokens are applied first; more specific tokens override them.
-    rules_.push_back({QRegularExpression{QStringLiteral("\\b[A-Za-z][A-Za-z0-9_]*\\b")},
-                      identifier});
+    // Leave ordinary identifiers unformatted so they inherit the editor palette's
+    // text color. A fixed dark identifier color becomes unreadable in dark themes.
     rules_.push_back({QRegularExpression{QStringLiteral("\\b\\d+(?:\\.\\d+)?\\b")},
                       number});
     rules_.push_back({QRegularExpression{QStringLiteral("(?:<=|>=|==|!=|[+\\-<>])")}, operation});

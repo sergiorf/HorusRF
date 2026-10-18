@@ -106,25 +106,33 @@ private slots:
         QTextDocument document;
         horusrf::studio::SyntaxHighlighter highlighter(&document);
         const QString source = QStringLiteral(
-            "characterize sample { sweep temperature -20 degC assert abs(error) <= 1 dB // power 20 GHz");
+            "characterize sample { measure output_power = power "
+            "assert abs(output_power) <= 1 dB // power 20 GHz");
         document.setPlainText(source);
         highlighter.rehighlight();
 
         const QTextBlock block = document.firstBlock();
         const auto keyword = formatAt(block, source.indexOf(QStringLiteral("characterize")));
         const auto identifier = formatAt(block, source.indexOf(QStringLiteral("sample")));
-        const auto number = formatAt(block, source.indexOf(QStringLiteral("10")));
-        const auto unit = formatAt(block, source.indexOf(QStringLiteral("degC")));
-        const auto temperature =
-            formatAt(block, source.indexOf(QStringLiteral("temperature")));
+        const auto measurement =
+            formatAt(block, source.indexOf(QStringLiteral("output_power")));
+        const auto measurement_reference =
+            formatAt(block, source.lastIndexOf(QStringLiteral("output_power")));
+        const auto number = formatAt(block, source.indexOf(QStringLiteral("1 dB")));
+        const auto unit = formatAt(block, source.indexOf(QStringLiteral("dB")));
+        const auto measurement_keyword =
+            formatAt(block, source.indexOf(QStringLiteral("measure")));
         const auto assertion = formatAt(block, source.indexOf(QStringLiteral("assert")));
         const auto comparison = formatAt(block, source.indexOf(QStringLiteral("<=")));
         const int comment = source.indexOf(QStringLiteral("//"));
 
+        QCOMPARE(identifier.foreground().style(), Qt::NoBrush);
+        QCOMPARE(measurement.foreground().style(), Qt::NoBrush);
+        QCOMPARE(measurement_reference.foreground().style(), Qt::NoBrush);
         QVERIFY(keyword.foreground().color() != identifier.foreground().color());
         QVERIFY(number.foreground().color() != identifier.foreground().color());
         QVERIFY(unit.foreground().color() != identifier.foreground().color());
-        QCOMPARE(temperature.foreground().color(), keyword.foreground().color());
+        QCOMPARE(measurement_keyword.foreground().color(), keyword.foreground().color());
         QCOMPARE(assertion.foreground().color(), keyword.foreground().color());
         QVERIFY(comparison.foreground().color() != identifier.foreground().color());
         QCOMPARE(formatAt(block, comment + 3).foreground().color(),
