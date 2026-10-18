@@ -1,6 +1,9 @@
 # HorusRF Studio default experiment and showcase implementation plan
 
-Status: ready for implementation; repository reviewed on 2026-10-18.
+> **Archived as complete on 2026-10-18.** All five milestones were implemented.
+> The final Studio-enabled suite passed 20/20 tests, the Studio-disabled suite
+> passed 19/19 tests, and the instructions below are retained as the historical
+> implementation plan.
 
 ## Purpose
 

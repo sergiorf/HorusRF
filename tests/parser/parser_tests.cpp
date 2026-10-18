@@ -10,6 +10,7 @@
 #include "horusrf/parser/parser.hpp"
 
 void run_lexer_tests();
+void run_grammar_conformance_tests();
 
 namespace {
 
@@ -209,6 +210,7 @@ void diagnostic_tests() {
 int main() {
     try {
         run_lexer_tests();
+        run_grammar_conformance_tests();
         canonical_program_test();
         expression_tests();
         multiple_dimensions_test();

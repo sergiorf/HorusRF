@@ -158,6 +158,7 @@ if(BUILD_TESTING)
 
     add_executable(horusrf_parser_tests
         tests/parser/lexer_tests.cpp
+        tests/parser/grammar_conformance_tests.cpp
         tests/parser/parser_tests.cpp
     )
     target_compile_features(horusrf_parser_tests PRIVATE cxx_std_20)

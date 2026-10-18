@@ -38,60 +38,23 @@ inside the core dependency graph or lets runtime depend on a simulator class.
 
 ## Concrete syntax
 
-The Phase 1 grammar is the following complete replacement for the current grammar.
-It remains whitespace-delimited, line comments still begin with `//`, statement
-terminators are not introduced, and a source still contains one characterization.
+The implemented Phase 1 syntax is now maintained only in the authoritative
+[`grammar/horusrf.ebnf`](../grammar/horusrf.ebnf), with lexical conventions and the
+syntax/semantic boundary documented in the
+[`language reference`](language.md). It remains whitespace-delimited, line comments
+begin with `//`, statement terminators are not present, and a source contains one
+characterization.
 
-```ebnf
-program = characterization , end_of_file ;
-characterization = "characterize" , identifier , "{" , statement* , "}" ;
+`temperature` and `assert` are reserved words. `evm`, `frequency_error`, and `abs`
+are ordinary identifier tokens resolved by semantic analysis; declaring `abs` as a
+value is rejected semantically. `%`, `<`, `<=`, `>`, `>=`, `==`, and `!=` are
+tokens, a lone `!` is invalid, and comparisons do not chain.
 
-statement = reference_statement | sweep_statement | measurement_statement
-          | derive_statement | assertion_statement | calibration_statement ;
-
-reference_statement = "reference" , "power" , "=" , signed_quantity ;
-
-sweep_statement = "sweep" , sweep_dimension , signed_quantity , ".."
-                , signed_quantity , "step" , signed_quantity ;
-sweep_dimension = "frequency" | "temperature" ;
-
-measurement_statement = legacy_power_measurement | named_measurement ;
-legacy_power_measurement = "measure" , "power" ;
-named_measurement = "measure" , identifier , "=" , measurement_operation ;
-measurement_operation = "power" | "evm" | "frequency_error" ;
-
-derive_statement = "derive" , identifier , "=" , expression ;
-assertion_statement = "assert" , expression ;
-calibration_statement = "derive" , "calibration" , identifier , "{"
-          , "correction" , "=" , expression
-          , "over" , sweep_dimension , { "," , sweep_dimension } , "}" ;
-
-expression = comparison_expression ;
-comparison_expression = additive_expression
-          , [ comparison_operator , additive_expression ] ;
-comparison_operator = "<" | "<=" | ">" | ">=" | "==" | "!=" ;
-additive_expression = unary_expression , { ("+" | "-") , unary_expression } ;
-unary_expression = [ "-" ] , primary_expression ;
-primary_expression = signedless_quantity | reference | identifier | call
-          | "(" , expression , ")" ;
-call = identifier , "(" , expression , ")" ;
-reference = "reference" , "." , identifier ;
-
-signed_quantity = [ "-" ] , signedless_quantity ;
-signedless_quantity = number , unit ;
-unit = "Hz" | "kHz" | "MHz" | "GHz" | "dBm" | "dB" | "%"
-     | "K" | "degC" | "deltaK" | "deltaC" ;
-```
-
-`temperature`, `evm`, `frequency_error`, and `assert` become keywords. `abs` is a
-normal identifier resolved as the only Phase 1 built-in function; declaring `abs`
-as a value is rejected. The lexer adds `%`, `<`, `<=`, `>`, `>=`, `==`, and `!=`.
-A lone `!` remains invalid. Comparisons do not chain: `a < b < c` is a parse error.
-
-The legacy spelling `measure power` declares the value named `power` and is exactly
-equivalent to `measure power = power`, except that the latter is not accepted
-because a keyword cannot occupy the identifier position. New source should use a
-descriptive name such as `measure output_power = power`.
+The legacy spelling `measure power` declares the value named `power`. The parser
+also accepts `measure power = power` through its contextual-name compatibility
+rule, but semantic analysis rejects that named form because `power` is a reserved
+user value name. New source should use a descriptive name such as
+`measure output_power = power`.
 
 A Phase 1 characterization contains exactly one `reference power`, exactly one
 frequency sweep, an optional temperature sweep, at least one measurement, and
@@ -210,8 +173,8 @@ comparison returns `Boolean`, and an `assert` expression must be Boolean.
 ## Sweep contract
 
 - Supported dimensions are exactly `frequency` and `temperature`, at most once
-  each. The syntax is generic; an unknown dimension is a semantic error rather than
-  an implicit device property.
+  each. These two dimension spellings are syntactic; duplicate dimensions and
+  their type-specific constraints are semantic errors.
 - Dimensions and coordinates retain source declaration order. The last declared
   dimension varies fastest. For frequency followed by temperature, point order is
   `(f0,t0), (f0,t1), ..., (f1,t0), ...`.

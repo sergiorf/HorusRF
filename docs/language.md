@@ -7,13 +7,27 @@ grammar, lexer, parser, this reference, and tests synchronized.
 
 ## Lexical rules and source positions
 
-Whitespace separates tokens and `//` starts a comment through the end of its line.
-Identifiers start with an ASCII letter and continue with ASCII letters, digits, or
-underscores. Keywords are lowercase and unit spelling is exact. Decimal numbers
-require a leading digit and, when a decimal point is present, digits after it;
-scientific notation and leading-dot forms are rejected.
+ASCII whitespace is ignored and `//` starts a comment through the next line-feed
+or end of file. Identifiers start with an ASCII letter and continue with ASCII
+letters, digits, or underscores. Tokens use longest matching, are case-sensitive,
+and cannot contain non-ASCII letters. Decimal numbers require a leading digit and,
+when a decimal point is present, digits after it; signs are separate tokens.
+Scientific notation, leading-dot forms, trailing-dot forms, and a number joined
+directly to a word such as `1MHz` are rejected.
 
-Punctuation is `{ } = .. . + - ( ) , % < <= > >= == !=`. A lone `!` is invalid.
+The reserved words are `characterize`, `reference`, `power`, `sweep`, `frequency`,
+`temperature`, `step`, `measure`, `derive`, `calibration`, `correction`, `over`, and
+`assert`. Unit spellings are also dedicated tokens and cannot be identifiers.
+`evm`, `frequency_error`, and `abs` are ordinary identifier tokens whose meaning is
+resolved during semantic analysis. For compatibility, the parser permits the
+reserved words `power`, `frequency`, and `temperature` wherever an expression name,
+measurement name/operation, reference member, or calibration index is expected.
+Other reserved words are not valid names in those positions. Declaration sites
+such as characterization, derived-value, and calibration names require an ordinary
+identifier.
+
+Punctuation is `{ } = .. . + - ( ) , % < <= > >= == !=`. There are no semicolons
+or other statement terminators. A lone `!` is invalid.
 Units are `Hz`, `kHz`, `MHz`, `GHz`, `dBm`,
 `dB`, `%`, `K`, `degC`, `deltaK`, and `deltaC`. Source locations are one-based line and
 column numbers; spans use byte offsets internally.
@@ -79,6 +93,15 @@ Expressions contain quantities, identifiers, `reference.power`, parentheses, una
 minus, binary `+` and `-`, the built-in `abs()` function, and one optional comparison.
 Arithmetic operators have equal precedence and associate left to right; unary minus
 binds more tightly, and a comparison has lower precedence. Comparisons do not chain.
+The complete precedence and associativity contract, from tightest to loosest, is:
+
+| Form | Associativity |
+|---|---|
+| quantity, name, reference, one-argument call, parenthesized expression | n/a |
+| unary `-` | prefix; one occurrence per unary expression |
+| binary `+`, `-` | left |
+| `<`, `<=`, `>`, `>=`, `==`, `!=` | non-associative; at most one |
+
 Quantities normalize as follows:
 
 | Source unit | Semantic type | Canonical storage |
