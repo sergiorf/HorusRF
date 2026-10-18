@@ -73,6 +73,7 @@ private:
     void rebuildHeatmap();
     void rebuildQualification();
     void rebuildCalibration();
+    void rebuildStructuredSummary();
     [[nodiscard]] const ResultValue* scalarValue(const ResultPoint& point,
                                                   const QString& name) const;
     void updatePowerAxis();
@@ -89,6 +90,7 @@ private:
     QValueAxis* correction_axis_ = nullptr;
     QLabel* status_ = nullptr;
     QLabel* sample_count_ = nullptr;
+    QLabel* result_summary_ = nullptr;
     QLabel* metrics_ = nullptr;
     QLabel* overlap_notice_ = nullptr;
     QCheckBox* show_reference_ = nullptr;

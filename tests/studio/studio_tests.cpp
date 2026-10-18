@@ -345,6 +345,7 @@ private slots:
         auto* heatmapScalar = view.findChild<QComboBox*>(QStringLiteral("heatmapScalar"));
         auto* dashboard =
             view.findChild<QLabel*>(QStringLiteral("qualificationDashboard"));
+        auto* summary = view.findChild<QLabel*>(QStringLiteral("resultSummary"));
         auto* failures = view.findChild<QTreeWidget*>(QStringLiteral("failureTree"));
         auto* calibration =
             view.findChild<QTableWidget*>(QStringLiteral("calibrationTable"));
@@ -359,6 +360,7 @@ private slots:
         QVERIFY(heatmapY != nullptr);
         QVERIFY(heatmapScalar != nullptr);
         QVERIFY(dashboard != nullptr);
+        QVERIFY(summary != nullptr);
         QVERIFY(failures != nullptr);
         QVERIFY(calibration != nullptr);
         QCOMPARE(table->rowCount(), 30);
@@ -374,6 +376,15 @@ private slots:
         QCOMPARE(heatmapScalar->currentData().toString(), QStringLiteral("power_error"));
         QCOMPARE(calibration->rowCount(), 30);
         QVERIFY(dashboard->text().contains(QStringLiteral("60.0%")));
+        QVERIFY(summary->text().contains(QStringLiteral("studio_qualification — 30 points")));
+        QVERIFY(summary->text().contains(
+            QStringLiteral("Sweep dimensions: frequency, temperature")));
+        QVERIFY(summary->text().contains(QStringLiteral("output_power (power)")));
+        QVERIFY(summary->text().contains(QStringLiteral("evm_result (evm)")));
+        QVERIFY(summary->text().contains(
+            QStringLiteral("carrier_error (frequency_error)")));
+        QVERIFY(summary->text().contains(QStringLiteral("Qualification: failed")));
+        QVERIFY(summary->text().contains(QStringLiteral("Calibration surfaces: tx_power")));
         QCOMPARE(failures->topLevelItemCount(), 3);
         QCOMPARE(failures->topLevelItem(1)->childCount(), 12);
 
@@ -442,6 +453,21 @@ private slots:
         QCOMPARE(plotAxis->currentData().toString(), QStringLiteral("frequency"));
         QVERIFY(!tabs->isTabEnabled(
             tabs->indexOf(view.findChild<QWidget*>(QStringLiteral("heatmapPage")))));
+
+        QString assertionFreeSource = qualificationSource();
+        assertionFreeSource.remove(QStringLiteral("  assert abs(power_error) <= 1.5 dB\n"));
+        assertionFreeSource.remove(QStringLiteral("  assert evm_result <= 2 %\n"));
+        assertionFreeSource.remove(
+            QStringLiteral("  assert abs(carrier_error) <= 20 kHz\n"));
+        QVERIFY(runner.run(assertionFreeSource));
+        waitForCompletion(runner);
+        QVERIFY(runner.lastResult().producedResults());
+        const auto assertionFreeModel = horusrf::studio::ResultsModel::fromJsonFile(
+            runner.lastResult().json_path, &error);
+        QVERIFY2(assertionFreeModel.has_value(), qPrintable(error));
+        view.setResults(*assertionFreeModel, runner.lastResult().standard_output);
+        QVERIFY(summary->text().contains(
+            QStringLiteral("Qualification: not evaluated (no assertions)")));
     }
 
     void structuredResultsRejectMalformedAndUnsupportedJson() {
@@ -487,6 +513,7 @@ private slots:
         auto* count = view.findChild<QLabel*>(QStringLiteral("sampleCount"));
         auto* metrics = view.findChild<QLabel*>(QStringLiteral("resultMetrics"));
         auto* overlap = view.findChild<QLabel*>(QStringLiteral("overlapNotice"));
+        auto* summary = view.findChild<QLabel*>(QStringLiteral("resultSummary"));
         auto* correctionChart = view.findChild<QChartView*>(
             QStringLiteral("correctionChart"));
         QVERIFY(measured != nullptr);
@@ -498,6 +525,7 @@ private slots:
         QVERIFY(count != nullptr);
         QVERIFY(metrics != nullptr);
         QVERIFY(overlap != nullptr);
+        QVERIFY(summary != nullptr);
         QVERIFY(correctionChart != nullptr);
         auto* correction = correctionChart->chart()->findChild<QLineSeries*>(
             QStringLiteral("correctionSeries"));
@@ -533,6 +561,7 @@ private slots:
         QVERIFY(metrics->text().contains(QStringLiteral("Validation metrics")));
         QVERIFY(!metrics->text().contains(QStringLiteral("inf"), Qt::CaseInsensitive));
         QVERIFY(count->text().contains(QStringLiteral("2")));
+        QVERIFY(summary->isHidden());
 
         toggle->setChecked(false);
         QVERIFY(!reference->isVisible());
@@ -656,6 +685,12 @@ private slots:
         waitForCompletion(*window.runner());
         QVERIFY(view->hasResults());
         QCOMPARE(view->sampleCount(), 126);
+        auto* summary = view->findChild<QLabel*>(QStringLiteral("resultSummary"));
+        auto* status = view->findChild<QLabel*>(QStringLiteral("resultsStatus"));
+        QVERIFY(summary != nullptr);
+        QVERIFY(status != nullptr);
+        const QString successfulSummary = summary->text();
+        QVERIFY(successfulSummary.contains(QStringLiteral("tx_qualification — 126 points")));
 
         window.editor()->setPlainText(QStringLiteral(
             "characterize current_buffer {\n  measure @\n}\n"));
@@ -664,6 +699,8 @@ private slots:
         QVERIFY(!window.runner()->lastResult().succeeded());
         QVERIFY(view->hasResults());
         QCOMPARE(view->sampleCount(), 126);
+        QCOMPARE(summary->text(), successfulSummary);
+        QVERIFY(status->text().contains(QStringLiteral("failed with exit code")));
     }
 
     void mainWindowDisplaysQualificationFailureAndNavigatesToAssertion() {

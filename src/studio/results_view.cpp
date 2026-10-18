@@ -133,6 +133,11 @@ ResultsView::ResultsView(QWidget* parent) : QWidget(parent) {
 
     sample_count_ = new QLabel(this);
     sample_count_->setObjectName(QStringLiteral("sampleCount"));
+    result_summary_ = new QLabel(this);
+    result_summary_->setObjectName(QStringLiteral("resultSummary"));
+    result_summary_->setWordWrap(true);
+    result_summary_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    result_summary_->setVisible(false);
     metrics_ = new QLabel(this);
     metrics_->setObjectName(QStringLiteral("resultMetrics"));
     metrics_->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -329,6 +334,7 @@ ResultsView::ResultsView(QWidget* parent) : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     layout->addWidget(status_);
     layout->addWidget(sample_count_);
+    layout->addWidget(result_summary_);
     layout->addWidget(tabs_, 1);
 
     connect(show_reference_, &QCheckBox::toggled, this, [this](bool visible) {
@@ -385,6 +391,9 @@ void ResultsView::setResults(const ResultsModel& model, const QString& cliReport
     const int legacyIndex = tabs_->indexOf(metrics_->parentWidget());
     tabs_->setTabEnabled(legacyIndex, true);
     tabs_->setCurrentIndex(legacyIndex);
+    sample_count_->setVisible(true);
+    result_summary_->clear();
+    result_summary_->setVisible(false);
     reference_series_->clear();
     measured_series_->clear();
     corrected_series_->clear();
@@ -666,12 +675,56 @@ void ResultsView::setStructuredResults(const SavedSelection& saved, bool compati
     status_->setText(model_.qualification().status == QStringLiteral("fail")
                          ? tr("Experiment completed; qualification failed.")
                          : tr("Experiment completed."));
-    sample_count_->setText(tr("Points: %1").arg(model_.points().size()));
+    sample_count_->setVisible(false);
+    rebuildStructuredSummary();
     rebuildPointTable();
     rebuildPlot();
     rebuildHeatmap();
     rebuildQualification();
     rebuildCalibration();
+}
+
+void ResultsView::rebuildStructuredSummary() {
+    if (!model_.isStructured() || model_.points().isEmpty()) return;
+
+    const ResultPoint& first = model_.points().front();
+    QStringList dimensions;
+    for (const ResultCoordinate& coordinate : first.coordinates) {
+        dimensions.append(coordinate.name);
+    }
+
+    QStringList measurements;
+    for (const ResultObservation& measurement : first.measurements) {
+        measurements.append(tr("%1 (%2)").arg(measurement.name, measurement.operation));
+    }
+
+    QString qualification;
+    const QualificationSummary& summary = model_.qualification();
+    if (summary.assertions.isEmpty()) {
+        qualification = tr("not evaluated (no assertions)");
+    } else if (summary.status == QStringLiteral("pass")) {
+        qualification = tr("passed");
+    } else if (summary.status == QStringLiteral("fail")) {
+        qualification = tr("failed");
+    } else {
+        qualification = tr("not evaluated");
+    }
+
+    QStringList calibrations;
+    for (const CalibrationSurface& calibration : model_.calibrations()) {
+        calibrations.append(calibration.name);
+    }
+
+    result_summary_->setText(
+        tr("%1 — %2 points\nSweep dimensions: %3\nMeasurements: %4\n"
+           "Qualification: %5\nCalibration surfaces: %6")
+            .arg(model_.characterization())
+            .arg(model_.points().size())
+            .arg(dimensions.isEmpty() ? tr("none") : dimensions.join(QStringLiteral(", ")))
+            .arg(measurements.isEmpty() ? tr("none") : measurements.join(QStringLiteral(", ")))
+            .arg(qualification)
+            .arg(calibrations.isEmpty() ? tr("none") : calibrations.join(QStringLiteral(", "))));
+    result_summary_->setVisible(true);
 }
 
 void ResultsView::rebuildPointTable() {
