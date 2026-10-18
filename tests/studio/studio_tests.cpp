@@ -10,12 +10,16 @@
 #include <QChart>
 #include <QChartView>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QEventLoop>
 #include <QFileInfo>
 #include <QLabel>
 #include <QLineSeries>
 #include <QListWidget>
 #include <QPen>
+#include <QTableWidget>
+#include <QTabWidget>
+#include <QTreeWidget>
 #include <QValueAxis>
 #include <QTextBlock>
 #include <QTextDocument>
@@ -42,6 +46,26 @@ QTextCharFormat formatAt(const QTextBlock& block, int position) {
         }
     }
     return {};
+}
+
+QString qualificationSource() {
+    return QStringLiteral(
+        "characterize studio_qualification {\n"
+        "  reference power = -10 dBm\n"
+        "  sweep frequency 2.40 GHz .. 2.50 GHz step 25 MHz\n"
+        "  sweep temperature -20 degC .. 80 degC step 20 deltaC\n"
+        "  measure output_power = power\n"
+        "  measure evm_result = evm\n"
+        "  measure carrier_error = frequency_error\n"
+        "  derive power_error = output_power - reference.power\n"
+        "  assert abs(power_error) <= 1.5 dB\n"
+        "  assert evm_result <= 2 %\n"
+        "  assert abs(carrier_error) <= 20 kHz\n"
+        "  derive calibration tx_power {\n"
+        "    correction = -power_error\n"
+        "    over frequency, temperature\n"
+        "  }\n"
+        "}\n");
 }
 
 } // namespace
@@ -184,7 +208,7 @@ private slots:
         waitForCompletion(runner);
         QVERIFY(runner.lastResult().succeeded());
         QVERIFY(runner.lastResult().standard_output.contains(QStringLiteral("samples: 101")));
-        QVERIFY(QFileInfo::exists(runner.lastResult().csv_path));
+        QVERIFY(QFileInfo::exists(runner.lastResult().json_path));
     }
 
     void mainWindowPresentsAndNavigatesDiagnostics() {
@@ -251,6 +275,97 @@ private slots:
             QVERIFY(!horusrf::studio::ResultsModel::fromCsv(csv, &error).has_value());
             QVERIFY(!error.isEmpty());
         }
+    }
+
+    void structuredResultsDriveFiltersPlotsHeatmapsAndQualificationNavigation() {
+        horusrf::studio::ExperimentRunner runner(runnerPath());
+        QVERIFY(runner.run(qualificationSource()));
+        waitForCompletion(runner);
+        QCOMPARE(runner.lastResult().exit_code, 6);
+        QVERIFY(runner.lastResult().producedResults());
+
+        QString error;
+        const auto model = horusrf::studio::ResultsModel::fromJsonFile(
+            runner.lastResult().json_path, &error);
+        QVERIFY2(model.has_value(), qPrintable(error));
+        QVERIFY(model->isStructured());
+        QCOMPARE(model->characterization(), QStringLiteral("studio_qualification"));
+        QCOMPARE(model->points().size(), 30);
+        QCOMPARE(model->points().front().coordinates.size(), 2);
+        QCOMPARE(model->points().front().measurements.size(), 3);
+        QCOMPARE(model->qualification().status, QStringLiteral("fail"));
+        QCOMPARE(model->qualification().failed_points, 12);
+        QCOMPARE(model->calibrations().front().entries.size(), 30);
+
+        horusrf::studio::ResultsView view;
+        view.setResults(*model, runner.lastResult().standard_output);
+        QCOMPARE(view.sampleCount(), 30);
+        auto* table = view.findChild<QTableWidget*>(QStringLiteral("pointTable"));
+        auto* qualificationFilter =
+            view.findChild<QComboBox*>(QStringLiteral("qualificationFilter"));
+        auto* selectedChart =
+            view.findChild<QChartView*>(QStringLiteral("selectedChart"));
+        auto* heatmap = view.findChild<QTableWidget*>(QStringLiteral("heatmapTable"));
+        auto* dashboard =
+            view.findChild<QLabel*>(QStringLiteral("qualificationDashboard"));
+        auto* failures = view.findChild<QTreeWidget*>(QStringLiteral("failureTree"));
+        auto* calibration =
+            view.findChild<QTableWidget*>(QStringLiteral("calibrationTable"));
+        QVERIFY(table != nullptr);
+        QVERIFY(qualificationFilter != nullptr);
+        QVERIFY(selectedChart != nullptr);
+        auto* plot = selectedChart->chart()->findChild<QLineSeries*>(
+            QStringLiteral("selectedSeries"));
+        QVERIFY(plot != nullptr);
+        QVERIFY(heatmap != nullptr);
+        QVERIFY(dashboard != nullptr);
+        QVERIFY(failures != nullptr);
+        QVERIFY(calibration != nullptr);
+        QCOMPARE(table->rowCount(), 30);
+        QCOMPARE(table->columnCount(), 7);
+        QCOMPARE(plot->count(), 5);
+        QCOMPARE(heatmap->columnCount(), 5);
+        QCOMPARE(heatmap->rowCount(), 6);
+        QCOMPARE(calibration->rowCount(), 30);
+        QVERIFY(dashboard->text().contains(QStringLiteral("60.0%")));
+        QCOMPARE(failures->topLevelItemCount(), 3);
+        QCOMPARE(failures->topLevelItem(1)->childCount(), 12);
+
+        auto* plotAxis = view.findChild<QComboBox*>(QStringLiteral("plotAxis"));
+        QVERIFY(plotAxis != nullptr);
+        plotAxis->setCurrentIndex(1);
+        QCOMPARE(plot->count(), 6);
+
+        qualificationFilter->setCurrentIndex(2);
+        QCOMPARE(table->rowCount(), 12);
+
+        heatmap->itemClicked(heatmap->item(0, 0));
+        auto* tabs = view.findChild<QTabWidget*>(QStringLiteral("resultTabs"));
+        QVERIFY(tabs != nullptr);
+        QCOMPARE(tabs->currentIndex(), 0);
+        QCOMPARE(table->selectedItems().front()->data(Qt::UserRole).toInt(), 0);
+        auto* temperatureFilter =
+            view.findChild<QComboBox*>(QStringLiteral("coordinateFilter_temperature"));
+        QVERIFY(temperatureFilter != nullptr);
+        temperatureFilter->setCurrentIndex(1);
+        QCOMPARE(table->rowCount(), 5);
+
+        QSignalSpy navigation(&view,
+            &horusrf::studio::ResultsView::sourceNavigationRequested);
+        failures->itemActivated(failures->topLevelItem(1)->child(0), 0);
+        QCOMPARE(navigation.count(), 1);
+        QCOMPARE(navigation.front().at(0).toInt(), 10);
+    }
+
+    void structuredResultsRejectMalformedAndUnsupportedJson() {
+        QString error;
+        QVERIFY(!horusrf::studio::ResultsModel::fromJson(QByteArray("{"), &error));
+        QVERIFY(!error.isEmpty());
+        error.clear();
+        QVERIFY(!horusrf::studio::ResultsModel::fromJson(
+            QByteArray(R"({"schema":{"name":"horusrf.characterization-result","version":2}})"),
+            &error));
+        QVERIFY(error.contains(QStringLiteral("version")));
     }
 
     void resultsViewConfiguresSeriesAxesAndReferenceToggle() {
@@ -462,6 +577,28 @@ private slots:
         QVERIFY(!window.runner()->lastResult().succeeded());
         QVERIFY(view->hasResults());
         QCOMPARE(view->sampleCount(), 101);
+    }
+
+    void mainWindowDisplaysQualificationFailureAndNavigatesToAssertion() {
+        horusrf::studio::MainWindow window(nullptr, runnerPath());
+        window.editor()->setPlainText(qualificationSource());
+        auto* run = window.findChild<QAction*>(QStringLiteral("runAction"));
+        auto* view = window.findChild<horusrf::studio::ResultsView*>(
+            QStringLiteral("resultsView"));
+        QVERIFY(run != nullptr);
+        QVERIFY(view != nullptr);
+        run->trigger();
+        waitForCompletion(*window.runner());
+        QCOMPARE(window.runner()->lastResult().exit_code, 6);
+        QVERIFY(view->hasResults());
+        QCOMPARE(view->sampleCount(), 30);
+
+        auto* failures = view->findChild<QTreeWidget*>(QStringLiteral("failureTree"));
+        QVERIFY(failures != nullptr);
+        QVERIFY(failures->topLevelItem(1)->childCount() > 0);
+        failures->itemActivated(failures->topLevelItem(1)->child(0), 0);
+        QCOMPARE(window.editor()->textCursor().blockNumber(), 9);
+        QCOMPARE(window.editor()->textCursor().positionInBlock(), 9);
     }
 };
 

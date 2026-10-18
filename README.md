@@ -79,13 +79,19 @@ standard file and undo/redo actions, and the canonical example as an initially
 unmodified, untitled template. F5 validates the current editor buffer and
 F6 runs it, including unsaved changes, by invoking the sibling `horusrf-run`
 executable. Compiler diagnostics are clickable, and raw standard output and standard
-error remain available in separate panes. Successful runs plot measured, reference,
-and corrected power against frequency and show the engine-produced calibration
-correction in a second frequency plot. Both charts use padded bounds and GHz/dBm/dB
-units; the reference curve remains toggleable. Studio formats the CLI-reported values
-as calibration-fit metrics and explicitly notes that they are not independent
-validation metrics. A later failure leaves the most recent successful graphs visible
-and reports the new failure separately.
+error remain available in separate panes. Runs request the versioned JSON result
+from the CLI and present typed multidimensional coordinates, measurements, derived
+values, qualification state, and calibration entries without linking core libraries.
+The Points tab filters by coordinate and pass state. Plot controls select any scalar
+against a sweep axis and fix the remaining coordinates; the Heatmap tab maps a scalar
+over two dimensions with deterministic axes and selectable cells. Qualification
+failures are grouped by assertion and navigate back to the source. The original
+strict CSV loader and legacy frequency charts remain available for compatibility.
+Choose the checked-in
+[multidimensional qualification program](examples/studio_qualification.hrf) from
+the Examples menu to exercise the complete view. A later execution or result-load
+failure leaves the most recent valid result visible and reports the new failure
+separately.
 
 For deployment, keep `horusrf-run` beside `horusrf-studio`; Studio deliberately
 finds and invokes that sibling process rather than linking the compiler or runtime.

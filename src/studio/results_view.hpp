@@ -6,8 +6,14 @@
 #include <QWidget>
 
 class QCheckBox;
+class QComboBox;
+class QFormLayout;
 class QLabel;
 class QLineSeries;
+class QTableWidget;
+class QTabWidget;
+class QTreeWidget;
+class QTreeWidgetItem;
 class QValueAxis;
 
 namespace horusrf::studio {
@@ -23,10 +29,21 @@ public:
 
     [[nodiscard]] bool hasResults() const noexcept { return has_results_; }
     [[nodiscard]] qsizetype sampleCount() const noexcept {
-        return model_.samples().size();
+        return model_.isStructured() ? model_.points().size() : model_.samples().size();
     }
 
+signals:
+    void sourceNavigationRequested(int line, int column);
+
 private:
+    void setStructuredResults();
+    void rebuildPointTable();
+    void rebuildPlot();
+    void rebuildHeatmap();
+    void rebuildQualification();
+    void rebuildCalibration();
+    [[nodiscard]] const ResultValue* scalarValue(const ResultPoint& point,
+                                                  const QString& name) const;
     void updatePowerAxis();
     void updateOverlapNotice();
 
@@ -44,6 +61,25 @@ private:
     QLabel* metrics_ = nullptr;
     QLabel* overlap_notice_ = nullptr;
     QCheckBox* show_reference_ = nullptr;
+    QTabWidget* tabs_ = nullptr;
+    QTableWidget* point_table_ = nullptr;
+    QComboBox* qualification_filter_ = nullptr;
+    QFormLayout* coordinate_filter_layout_ = nullptr;
+    QVector<QComboBox*> coordinate_filters_;
+    QComboBox* plot_axis_ = nullptr;
+    QComboBox* plot_scalar_ = nullptr;
+    QFormLayout* plot_fixed_layout_ = nullptr;
+    QVector<QComboBox*> plot_fixed_filters_;
+    QLineSeries* selected_series_ = nullptr;
+    QValueAxis* selected_x_axis_ = nullptr;
+    QValueAxis* selected_y_axis_ = nullptr;
+    QComboBox* heatmap_x_ = nullptr;
+    QComboBox* heatmap_y_ = nullptr;
+    QComboBox* heatmap_scalar_ = nullptr;
+    QTableWidget* heatmap_ = nullptr;
+    QLabel* qualification_dashboard_ = nullptr;
+    QTreeWidget* failure_tree_ = nullptr;
+    QTableWidget* calibration_table_ = nullptr;
     bool has_results_ = false;
     bool curves_overlap_ = false;
 };

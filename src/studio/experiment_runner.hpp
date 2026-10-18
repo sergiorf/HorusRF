@@ -33,10 +33,14 @@ public:
         QString standard_output;
         QString standard_error;
         QVector<SourceDiagnostic> diagnostics;
-        QString csv_path;
+        QString json_path;
 
         [[nodiscard]] bool succeeded() const noexcept {
             return exit_status == QProcess::NormalExit && exit_code == 0;
+        }
+        [[nodiscard]] bool producedResults() const noexcept {
+            return operation == Operation::Run && exit_status == QProcess::NormalExit &&
+                   (exit_code == 0 || exit_code == 6) && !json_path.isEmpty();
         }
     };
 

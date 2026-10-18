@@ -4,18 +4,27 @@
 #include <QChart>
 #include <QChartView>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QCursor>
+#include <QFormLayout>
+#include <QHeaderView>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineSeries>
 #include <QPen>
+#include <QSignalBlocker>
 #include <QStringList>
+#include <QTableWidget>
+#include <QTabWidget>
 #include <QToolTip>
+#include <QTreeWidget>
 #include <QValueAxis>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <set>
 
 namespace horusrf::studio {
 namespace {
@@ -210,24 +219,162 @@ ResultsView::ResultsView(QWidget* parent) : QWidget(parent) {
     correctionChartView->setObjectName(QStringLiteral("correctionChart"));
     correctionChartView->setRenderHint(QPainter::Antialiasing);
 
+    tabs_ = new QTabWidget(this);
+    tabs_->setObjectName(QStringLiteral("resultTabs"));
+
+    auto* tablePage = new QWidget(tabs_);
+    auto* tableLayout = new QVBoxLayout(tablePage);
+    auto* filters = new QWidget(tablePage);
+    coordinate_filter_layout_ = new QFormLayout(filters);
+    qualification_filter_ = new QComboBox(filters);
+    qualification_filter_->setObjectName(QStringLiteral("qualificationFilter"));
+    qualification_filter_->addItems({tr("All points"), tr("Pass"), tr("Fail"),
+                                     tr("Not evaluated")});
+    coordinate_filter_layout_->addRow(tr("Qualification"), qualification_filter_);
+    point_table_ = new QTableWidget(tablePage);
+    point_table_->setObjectName(QStringLiteral("pointTable"));
+    point_table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    point_table_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    point_table_->horizontalHeader()->setStretchLastSection(true);
+    tableLayout->addWidget(filters);
+    tableLayout->addWidget(point_table_, 1);
+    tabs_->addTab(tablePage, tr("Points"));
+
+    auto* plotPage = new QWidget(tabs_);
+    auto* plotLayout = new QVBoxLayout(plotPage);
+    auto* plotSelectors = new QWidget(plotPage);
+    plot_fixed_layout_ = new QFormLayout(plotSelectors);
+    plot_axis_ = new QComboBox(plotSelectors);
+    plot_axis_->setObjectName(QStringLiteral("plotAxis"));
+    plot_scalar_ = new QComboBox(plotSelectors);
+    plot_scalar_->setObjectName(QStringLiteral("plotScalar"));
+    plot_fixed_layout_->addRow(tr("Sweep axis"), plot_axis_);
+    plot_fixed_layout_->addRow(tr("Value"), plot_scalar_);
+    auto* selectedChart = new QChart;
+    selectedChart->setTitle(tr("Selected result"));
+    selected_series_ = new QLineSeries(selectedChart);
+    selected_series_->setObjectName(QStringLiteral("selectedSeries"));
+    selectedChart->addSeries(selected_series_);
+    selected_x_axis_ = new QValueAxis(selectedChart);
+    selected_y_axis_ = new QValueAxis(selectedChart);
+    selected_x_axis_->setObjectName(QStringLiteral("selectedXAxis"));
+    selected_y_axis_->setObjectName(QStringLiteral("selectedYAxis"));
+    selectedChart->addAxis(selected_x_axis_, Qt::AlignBottom);
+    selectedChart->addAxis(selected_y_axis_, Qt::AlignLeft);
+    selected_series_->attachAxis(selected_x_axis_);
+    selected_series_->attachAxis(selected_y_axis_);
+    auto* selectedChartView = new QChartView(selectedChart, plotPage);
+    selectedChartView->setObjectName(QStringLiteral("selectedChart"));
+    selectedChartView->setRenderHint(QPainter::Antialiasing);
+    plotLayout->addWidget(plotSelectors);
+    plotLayout->addWidget(selectedChartView, 1);
+    tabs_->addTab(plotPage, tr("Plot"));
+
+    auto* heatmapPage = new QWidget(tabs_);
+    auto* heatmapLayout = new QVBoxLayout(heatmapPage);
+    auto* heatmapSelectors = new QHBoxLayout;
+    heatmap_x_ = new QComboBox(heatmapPage);
+    heatmap_x_->setObjectName(QStringLiteral("heatmapX"));
+    heatmap_y_ = new QComboBox(heatmapPage);
+    heatmap_y_->setObjectName(QStringLiteral("heatmapY"));
+    heatmap_scalar_ = new QComboBox(heatmapPage);
+    heatmap_scalar_->setObjectName(QStringLiteral("heatmapScalar"));
+    heatmapSelectors->addWidget(new QLabel(tr("X:"), heatmapPage));
+    heatmapSelectors->addWidget(heatmap_x_);
+    heatmapSelectors->addWidget(new QLabel(tr("Y:"), heatmapPage));
+    heatmapSelectors->addWidget(heatmap_y_);
+    heatmapSelectors->addWidget(new QLabel(tr("Value:"), heatmapPage));
+    heatmapSelectors->addWidget(heatmap_scalar_);
+    heatmap_ = new QTableWidget(heatmapPage);
+    heatmap_->setObjectName(QStringLiteral("heatmapTable"));
+    heatmap_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    heatmapLayout->addLayout(heatmapSelectors);
+    heatmapLayout->addWidget(heatmap_, 1);
+    tabs_->addTab(heatmapPage, tr("Heatmap"));
+
+    auto* qualificationPage = new QWidget(tabs_);
+    auto* qualificationLayout = new QVBoxLayout(qualificationPage);
+    qualification_dashboard_ = new QLabel(qualificationPage);
+    qualification_dashboard_->setObjectName(QStringLiteral("qualificationDashboard"));
+    failure_tree_ = new QTreeWidget(qualificationPage);
+    failure_tree_->setObjectName(QStringLiteral("failureTree"));
+    failure_tree_->setHeaderLabels({tr("Assertion / point"), tr("Observed"), tr("Threshold")});
+    qualificationLayout->addWidget(qualification_dashboard_);
+    qualificationLayout->addWidget(failure_tree_, 1);
+    tabs_->addTab(qualificationPage, tr("Qualification"));
+
+    auto* calibrationPage = new QWidget(tabs_);
+    auto* calibrationLayout = new QVBoxLayout(calibrationPage);
+    calibration_table_ = new QTableWidget(calibrationPage);
+    calibration_table_->setObjectName(QStringLiteral("calibrationTable"));
+    calibration_table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    calibrationLayout->addWidget(calibration_table_);
+    tabs_->addTab(calibrationPage, tr("Calibration"));
+
+    auto* legacyPage = new QWidget(tabs_);
+    auto* legacyLayout = new QVBoxLayout(legacyPage);
+    legacyLayout->addWidget(metrics_);
+    legacyLayout->addWidget(show_reference_);
+    legacyLayout->addWidget(overlap_notice_);
+    legacyLayout->addWidget(chartView, 1);
+    legacyLayout->addWidget(correctionChartView, 1);
+    tabs_->addTab(legacyPage, tr("Legacy chart"));
+
     auto* layout = new QVBoxLayout(this);
     layout->addWidget(status_);
     layout->addWidget(sample_count_);
-    layout->addWidget(metrics_);
-    layout->addWidget(show_reference_);
-    layout->addWidget(overlap_notice_);
-    layout->addWidget(chartView, 1);
-    layout->addWidget(correctionChartView, 1);
+    layout->addWidget(tabs_, 1);
 
     connect(show_reference_, &QCheckBox::toggled, this, [this](bool visible) {
         reference_series_->setVisible(visible);
         updatePowerAxis();
         updateOverlapNotice();
     });
+    connect(qualification_filter_, &QComboBox::currentIndexChanged, this,
+            [this] { rebuildPointTable(); });
+    connect(plot_axis_, &QComboBox::currentIndexChanged, this,
+            [this] { rebuildPlot(); });
+    connect(plot_scalar_, &QComboBox::currentIndexChanged, this,
+            [this] { rebuildPlot(); });
+    connect(heatmap_x_, &QComboBox::currentIndexChanged, this,
+            [this] { rebuildHeatmap(); });
+    connect(heatmap_y_, &QComboBox::currentIndexChanged, this,
+            [this] { rebuildHeatmap(); });
+    connect(heatmap_scalar_, &QComboBox::currentIndexChanged, this,
+            [this] { rebuildHeatmap(); });
+    connect(heatmap_, &QTableWidget::itemClicked, this,
+            [this](QTableWidgetItem* item) {
+                if (!item || !item->data(Qt::UserRole).isValid()) return;
+                const int pointIndex = item->data(Qt::UserRole).toInt();
+                qualification_filter_->setCurrentIndex(0);
+                for (QComboBox* filter : coordinate_filters_) filter->setCurrentIndex(0);
+                rebuildPointTable();
+                for (int row = 0; row < point_table_->rowCount(); ++row) {
+                    if (point_table_->item(row, 0)->data(Qt::UserRole).toInt() == pointIndex) {
+                        point_table_->selectRow(row);
+                        point_table_->scrollToItem(point_table_->item(row, 0));
+                        break;
+                    }
+                }
+                tabs_->setCurrentIndex(0);
+            });
+    connect(failure_tree_, &QTreeWidget::itemActivated, this,
+            [this](QTreeWidgetItem* item) {
+                const int line = item->data(0, Qt::UserRole).toInt();
+                const int column = item->data(0, Qt::UserRole + 1).toInt();
+                if (line > 0 && column > 0) emit sourceNavigationRequested(line, column);
+            });
 }
 
 void ResultsView::setResults(const ResultsModel& model, const QString& cliReport) {
     model_ = model;
+    if (model_.isStructured()) {
+        setStructuredResults();
+        return;
+    }
+    const int legacyIndex = tabs_->indexOf(metrics_->parentWidget());
+    tabs_->setTabEnabled(legacyIndex, true);
+    tabs_->setCurrentIndex(legacyIndex);
     reference_series_->clear();
     measured_series_->clear();
     corrected_series_->clear();
@@ -272,6 +419,331 @@ void ResultsView::setResults(const ResultsModel& model, const QString& cliReport
     status_->setText(tr("Experiment completed."));
     sample_count_->setText(tr("Samples: %1").arg(model_.samples().size()));
     metrics_->setText(metricText(cliReport));
+}
+
+const ResultValue* ResultsView::scalarValue(const ResultPoint& point,
+                                             const QString& name) const {
+    for (const ResultObservation& value : point.measurements) {
+        if (value.name == name) return &value.value;
+    }
+    for (const ResultObservation& value : point.derived_values) {
+        if (value.name == name) return &value.value;
+    }
+    return nullptr;
+}
+
+void ResultsView::setStructuredResults() {
+    const ResultPoint& first = model_.points().front();
+    while (coordinate_filter_layout_->rowCount() > 1) {
+        coordinate_filter_layout_->removeRow(coordinate_filter_layout_->rowCount() - 1);
+    }
+    while (plot_fixed_layout_->rowCount() > 2) {
+        plot_fixed_layout_->removeRow(plot_fixed_layout_->rowCount() - 1);
+    }
+    coordinate_filters_.clear();
+    plot_fixed_filters_.clear();
+    plot_axis_->clear();
+    heatmap_x_->clear();
+    heatmap_y_->clear();
+    for (qsizetype dimension = 0; dimension < first.coordinates.size(); ++dimension) {
+        const QString name = first.coordinates.at(dimension).name;
+        plot_axis_->addItem(name, dimension);
+        heatmap_x_->addItem(name, dimension);
+        heatmap_y_->addItem(name, dimension);
+
+        auto populate = [this, dimension](QComboBox* combo) {
+            combo->addItem(tr("All values"), QVariant{});
+            std::set<double> seen;
+            for (const ResultPoint& point : model_.points()) {
+                if (dimension >= point.coordinates.size()) continue;
+                const auto& coordinate = point.coordinates.at(dimension);
+                if (seen.insert(coordinate.value.value).second) {
+                    combo->addItem(coordinate.value.displayText(), coordinate.value.value);
+                }
+            }
+        };
+        auto* tableFilter = new QComboBox(this);
+        tableFilter->setObjectName(QStringLiteral("coordinateFilter_%1").arg(name));
+        populate(tableFilter);
+        coordinate_filter_layout_->addRow(name, tableFilter);
+        coordinate_filters_.append(tableFilter);
+        connect(tableFilter, &QComboBox::currentIndexChanged, this,
+                [this] { rebuildPointTable(); });
+
+        auto* plotFilter = new QComboBox(this);
+        plotFilter->setObjectName(QStringLiteral("plotFixed_%1").arg(name));
+        populate(plotFilter);
+        if (dimension != 0 && plotFilter->count() > 1) plotFilter->setCurrentIndex(1);
+        plot_fixed_layout_->addRow(tr("Fix %1").arg(name), plotFilter);
+        plot_fixed_filters_.append(plotFilter);
+        connect(plotFilter, &QComboBox::currentIndexChanged, this,
+                [this] { rebuildPlot(); });
+    }
+    if (heatmap_y_->count() > 1) heatmap_y_->setCurrentIndex(1);
+
+    plot_scalar_->clear();
+    heatmap_scalar_->clear();
+    auto addScalar = [this](const ResultObservation& observation) {
+        if (observation.value.is_boolean) return;
+        const QString label = QStringLiteral("%1 (%2)")
+                                  .arg(observation.name, observation.value.display_unit);
+        plot_scalar_->addItem(label, observation.name);
+        heatmap_scalar_->addItem(label, observation.name);
+    };
+    for (const ResultObservation& observation : first.measurements) addScalar(observation);
+    for (const ResultObservation& observation : first.derived_values) addScalar(observation);
+
+    has_results_ = true;
+    status_->setText(model_.qualification().status == QStringLiteral("fail")
+                         ? tr("Experiment completed; qualification failed.")
+                         : tr("Experiment completed."));
+    sample_count_->setText(tr("Points: %1").arg(model_.points().size()));
+    tabs_->setTabEnabled(tabs_->indexOf(metrics_->parentWidget()), false);
+    rebuildPointTable();
+    rebuildPlot();
+    rebuildHeatmap();
+    rebuildQualification();
+    rebuildCalibration();
+}
+
+void ResultsView::rebuildPointTable() {
+    if (!model_.isStructured() || model_.points().isEmpty()) return;
+    const ResultPoint& first = model_.points().front();
+    QStringList headers;
+    for (const auto& coordinate : first.coordinates) {
+        headers.append(QStringLiteral("%1 (%2)").arg(coordinate.name,
+                                                      coordinate.value.display_unit));
+    }
+    for (const auto& observation : first.measurements) {
+        headers.append(QStringLiteral("%1 (%2)").arg(observation.name,
+                                                      observation.value.display_unit));
+    }
+    for (const auto& value : first.derived_values) {
+        headers.append(QStringLiteral("%1 (%2)").arg(value.name, value.value.display_unit));
+    }
+    headers.append(tr("Qualification"));
+    point_table_->clear();
+    point_table_->setColumnCount(headers.size());
+    point_table_->setHorizontalHeaderLabels(headers);
+    point_table_->setRowCount(0);
+    const QStringList states{QString{}, QStringLiteral("pass"), QStringLiteral("fail"),
+                             QStringLiteral("not_evaluated")};
+    const QString requiredState = states.value(qualification_filter_->currentIndex());
+    for (qsizetype pointIndex = 0; pointIndex < model_.points().size(); ++pointIndex) {
+        const ResultPoint& point = model_.points().at(pointIndex);
+        if (!requiredState.isEmpty() && point.qualification != requiredState) continue;
+        bool matches = true;
+        for (qsizetype dimension = 0; dimension < coordinate_filters_.size(); ++dimension) {
+            const QComboBox* filter = coordinate_filters_.at(dimension);
+            if (filter->currentIndex() > 0 &&
+                point.coordinates.at(dimension).value.value != filter->currentData().toDouble()) {
+                matches = false;
+                break;
+            }
+        }
+        if (!matches) continue;
+        const int row = point_table_->rowCount();
+        point_table_->insertRow(row);
+        int column = 0;
+        auto addValue = [&](const ResultValue& value) {
+            auto* item = new QTableWidgetItem(value.displayText());
+            item->setData(Qt::UserRole, pointIndex);
+            point_table_->setItem(row, column++, item);
+        };
+        for (const auto& coordinate : point.coordinates) addValue(coordinate.value);
+        for (const auto& observation : point.measurements) addValue(observation.value);
+        for (const auto& value : point.derived_values) addValue(value.value);
+        auto* state = new QTableWidgetItem(point.qualification);
+        state->setData(Qt::UserRole, pointIndex);
+        state->setForeground(point.qualification == QStringLiteral("fail")
+                                 ? QColor(QStringLiteral("#b71c1c"))
+                                 : QColor(QStringLiteral("#1b5e20")));
+        point_table_->setItem(row, column, state);
+    }
+    point_table_->resizeColumnsToContents();
+}
+
+void ResultsView::rebuildPlot() {
+    selected_series_->clear();
+    if (!model_.isStructured() || plot_axis_->currentIndex() < 0 ||
+        plot_scalar_->currentIndex() < 0) return;
+    const int axis = plot_axis_->currentData().toInt();
+    for (qsizetype dimension = 0; dimension < plot_fixed_filters_.size(); ++dimension) {
+        QComboBox* filter = plot_fixed_filters_.at(dimension);
+        const QSignalBlocker blocker(filter);
+        filter->setEnabled(dimension != axis);
+        if (dimension == axis) {
+            filter->setCurrentIndex(0);
+        } else if (filter->currentIndex() == 0 && filter->count() > 1) {
+            filter->setCurrentIndex(1);
+        }
+    }
+    const QString scalar = plot_scalar_->currentData().toString();
+    QString xUnit;
+    QString yUnit;
+    QList<QPointF> selectedPoints;
+    for (const ResultPoint& point : model_.points()) {
+        bool matches = true;
+        for (qsizetype dimension = 0; dimension < plot_fixed_filters_.size(); ++dimension) {
+            if (dimension == axis) continue;
+            const QComboBox* filter = plot_fixed_filters_.at(dimension);
+            if (filter->currentIndex() > 0 &&
+                point.coordinates.at(dimension).value.value != filter->currentData().toDouble()) {
+                matches = false;
+                break;
+            }
+        }
+        const ResultValue* y = scalarValue(point, scalar);
+        if (!matches || y == nullptr || y->is_boolean) continue;
+        const ResultValue& x = point.coordinates.at(axis).value;
+        selectedPoints.append(QPointF{x.display_value, y->display_value});
+        xUnit = x.display_unit;
+        yUnit = y->display_unit;
+    }
+    std::sort(selectedPoints.begin(), selectedPoints.end(),
+              [](const QPointF& left, const QPointF& right) { return left.x() < right.x(); });
+    selected_series_->replace(selectedPoints);
+    selected_x_axis_->setTitleText(QStringLiteral("%1 (%2)").arg(plot_axis_->currentText(), xUnit));
+    selected_y_axis_->setTitleText(QStringLiteral("%1 (%2)").arg(scalar, yUnit));
+    if (selected_series_->count() == 0) return;
+    double minX = selected_series_->at(0).x();
+    double maxX = minX;
+    double minY = selected_series_->at(0).y();
+    double maxY = minY;
+    for (const QPointF& point : selected_series_->points()) {
+        minX = std::min(minX, point.x()); maxX = std::max(maxX, point.x());
+        minY = std::min(minY, point.y()); maxY = std::max(maxY, point.y());
+    }
+    const AxisRange xRange = paddedRange(minX, maxX, 1.0);
+    const AxisRange yRange = paddedRange(minY, maxY, 1.0);
+    selected_x_axis_->setRange(xRange.minimum, xRange.maximum);
+    selected_y_axis_->setRange(yRange.minimum, yRange.maximum);
+}
+
+void ResultsView::rebuildHeatmap() {
+    heatmap_->clear();
+    heatmap_->setRowCount(0);
+    heatmap_->setColumnCount(0);
+    if (!model_.isStructured() || heatmap_x_->count() < 2 ||
+        heatmap_x_->currentIndex() == heatmap_y_->currentIndex() ||
+        heatmap_scalar_->currentIndex() < 0) return;
+    const int xDimension = heatmap_x_->currentData().toInt();
+    const int yDimension = heatmap_y_->currentData().toInt();
+    const QString scalar = heatmap_scalar_->currentData().toString();
+    const ResultPoint& first = model_.points().front();
+    auto inSelectedSlice = [&](const ResultPoint& point) {
+        for (qsizetype dimension = 0; dimension < point.coordinates.size(); ++dimension) {
+            if (dimension == xDimension || dimension == yDimension) continue;
+            if (point.coordinates.at(dimension).value.value !=
+                first.coordinates.at(dimension).value.value) return false;
+        }
+        return true;
+    };
+    QVector<double> xs;
+    QVector<double> ys;
+    QStringList xLabels;
+    QStringList yLabels;
+    for (const ResultPoint& point : model_.points()) {
+        const auto& x = point.coordinates.at(xDimension).value;
+        const auto& y = point.coordinates.at(yDimension).value;
+        if (!xs.contains(x.value)) { xs.append(x.value); xLabels.append(x.displayText()); }
+        if (!ys.contains(y.value)) { ys.append(y.value); yLabels.append(y.displayText()); }
+    }
+    heatmap_->setColumnCount(xs.size());
+    heatmap_->setRowCount(ys.size());
+    heatmap_->setHorizontalHeaderLabels(xLabels);
+    heatmap_->setVerticalHeaderLabels(yLabels);
+    double minimum = std::numeric_limits<double>::infinity();
+    double maximum = -std::numeric_limits<double>::infinity();
+    for (const ResultPoint& point : model_.points()) {
+        if (!inSelectedSlice(point)) continue;
+        const ResultValue* value = scalarValue(point, scalar);
+        if (value != nullptr) { minimum = std::min(minimum, value->display_value);
+                               maximum = std::max(maximum, value->display_value); }
+    }
+    for (int row = 0; row < ys.size(); ++row) {
+        for (int column = 0; column < xs.size(); ++column) {
+            auto* item = new QTableWidgetItem(QStringLiteral("—"));
+            item->setTextAlignment(Qt::AlignCenter);
+            heatmap_->setItem(row, column, item);
+        }
+    }
+    for (qsizetype index = 0; index < model_.points().size(); ++index) {
+        const ResultPoint& point = model_.points().at(index);
+        if (!inSelectedSlice(point)) continue;
+        const int column = static_cast<int>(xs.indexOf(point.coordinates.at(xDimension).value.value));
+        const int row = static_cast<int>(ys.indexOf(point.coordinates.at(yDimension).value.value));
+        const ResultValue* value = scalarValue(point, scalar);
+        if (row < 0 || column < 0 || value == nullptr) continue;
+        auto* item = heatmap_->item(row, column);
+        item->setText(value->displayText());
+        item->setData(Qt::UserRole, index);
+        const double fraction = maximum > minimum
+            ? (value->display_value - minimum) / (maximum - minimum) : 0.5;
+        item->setBackground(QColor::fromHsvF(
+            static_cast<float>(0.66 * (1.0 - fraction)), 0.55F, 0.95F));
+    }
+    heatmap_->resizeColumnsToContents();
+}
+
+void ResultsView::rebuildQualification() {
+    const QualificationSummary& summary = model_.qualification();
+    const double percentage = summary.total_points == 0
+        ? 0.0 : 100.0 * summary.passed_points / summary.total_points;
+    qualification_dashboard_->setText(
+        tr("Overall: %1 | Points: %2 total, %3 passed, %4 failed | Pass: %5%")
+            .arg(summary.status).arg(summary.total_points).arg(summary.passed_points)
+            .arg(summary.failed_points).arg(percentage, 0, 'f', 1));
+    failure_tree_->clear();
+    for (const AssertionSummary& assertion : summary.assertions) {
+        auto* group = new QTreeWidgetItem(failure_tree_,
+            {tr("%1 — %2/%3 failed").arg(assertion.id).arg(assertion.failed).arg(assertion.total)});
+        for (const ResultPoint& point : model_.points()) {
+            for (const ResultAssertion& outcome : point.assertions) {
+                if (outcome.id != assertion.id || outcome.passed) continue;
+                QStringList coordinates;
+                for (const auto& coordinate : point.coordinates) {
+                    coordinates.append(QStringLiteral("%1=%2").arg(coordinate.name,
+                                                                    coordinate.value.displayText()));
+                }
+                auto* failure = new QTreeWidgetItem(group,
+                    {coordinates.join(QStringLiteral(", ")), outcome.left.displayText(),
+                     outcome.right.displayText()});
+                failure->setData(0, Qt::UserRole, outcome.begin.line);
+                failure->setData(0, Qt::UserRole + 1, outcome.begin.column);
+                failure->setToolTip(0, tr("Activate to navigate to the assertion source."));
+            }
+        }
+        group->setExpanded(assertion.failed > 0);
+    }
+    failure_tree_->resizeColumnToContents(0);
+}
+
+void ResultsView::rebuildCalibration() {
+    calibration_table_->clear();
+    if (model_.calibrations().isEmpty()) {
+        calibration_table_->setRowCount(0);
+        calibration_table_->setColumnCount(0);
+        return;
+    }
+    const CalibrationSurface& surface = model_.calibrations().front();
+    QStringList headers;
+    for (const auto& dimension : surface.dimensions) headers.append(dimension.name);
+    headers.append(QStringLiteral("%1 correction (%2)").arg(surface.name, surface.canonical_unit));
+    calibration_table_->setColumnCount(headers.size());
+    calibration_table_->setHorizontalHeaderLabels(headers);
+    calibration_table_->setRowCount(surface.entries.size());
+    for (qsizetype row = 0; row < surface.entries.size(); ++row) {
+        const CalibrationEntry& entry = surface.entries.at(row);
+        int column = 0;
+        for (const auto& coordinate : entry.coordinates) {
+            calibration_table_->setItem(row, column++,
+                                         new QTableWidgetItem(coordinate.value.displayText()));
+        }
+        calibration_table_->setItem(row, column,
+                                     new QTableWidgetItem(entry.correction.displayText()));
+    }
+    calibration_table_->resizeColumnsToContents();
 }
 
 void ResultsView::updatePowerAxis() {

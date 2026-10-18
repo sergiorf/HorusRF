@@ -90,9 +90,9 @@ bool ExperimentRunner::start(Operation operation, const QString& source) {
     if (operation == Operation::Validate) {
         arguments.append(QStringLiteral("--check"));
     } else {
-        last_result_.csv_path = temporary_directory_->filePath(
-            QStringLiteral("results.csv"));
-        arguments.append({QStringLiteral("--csv"), last_result_.csv_path});
+        last_result_.json_path = temporary_directory_->filePath(
+            QStringLiteral("results.json"));
+        arguments.append({QStringLiteral("--json"), last_result_.json_path});
     }
 
     process_.setProgram(executable_path_);

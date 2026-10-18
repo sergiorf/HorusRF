@@ -132,7 +132,9 @@ if(HORUSRF_BUILD_STUDIO)
     qt_add_resources(horusrf_studio_ui "studio_resources"
         PREFIX "/examples"
         BASE "${CMAKE_CURRENT_SOURCE_DIR}/examples"
-        FILES examples/tx_path_characterization.hrf
+        FILES
+            examples/tx_path_characterization.hrf
+            examples/studio_qualification.hrf
     )
     horusrf_enable_warnings(horusrf_studio_ui)
 

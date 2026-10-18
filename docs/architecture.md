@@ -314,12 +314,14 @@ temporary source file and invokes the sibling `horusrf-run` executable asynchron
 for validation or execution. It never links compiler, runtime, device, simulator,
 or output targets. Structured source diagnostics are parsed from standard error for
 navigation while raw standard output and standard error remain distinct. A successful
-run's CSV is parsed strictly into a Studio-owned results model and displayed through
-Qt Charts. The Studio plots the CSV's measured, reference, corrected, and calibration
-correction fields directly; it does not repeat the domain calibration calculation.
-Chart bounds and metric labels are presentation concerns and remain in the Studio.
+run's versioned JSON is validated and parsed into a typed, Studio-owned results model.
+Studio presents multidimensional tables and filters, selectable one-dimensional
+plots, two-dimensional heatmaps, qualification summaries and grouped failures, and
+calibration entries. Assertion failures retain source spans for editor navigation.
+The strict legacy CSV parser and original frequency charts remain compatibility
+presentation paths; Studio never recomputes domain values or calibration results.
 This path does not introduce a core or output-library link. The most recent valid
-results remain visible if a later run or CSV load fails. This keeps the GPL-3.0-only
+results remain visible if a later run or result load fails. This keeps the GPL-3.0-only
 desktop application outside the Apache-2.0 core and CLI target graph.
 
 ## Approved Phase 1 evolution boundaries
@@ -328,8 +330,8 @@ The accepted M0 design is specified in
 [`docs/dsl-evolution.md`](dsl-evolution.md). M1's typed sweep compiler
 representation, M2's typed Cartesian runtime, and M3's named measurement pipeline
 are implemented; assertions and qualification were added in M4, and calibration
-surfaces plus versioned JSON were added in M5. The remaining items are boundaries
-for M6.
+surfaces plus versioned JSON were added in M5. Studio JSON integration was completed
+in M6 without changing the dependency direction.
 
 - Parser, AST, semantic analysis, and IR generalize in their existing order. AST
   remains syntactic; semantic analysis resolves typed names and operations; IR
@@ -349,9 +351,9 @@ for M6.
   Non-finite observations or computations remain execution failures rather than
   failed assertions.
 - Multidimensional and qualification results use versioned JSON. The original CSV
-  remains a terminal, exact schema for only the legacy experiment shape. M6 will
-  move Studio ingestion to JSON through the existing CLI process boundary; Studio
-  continues to own all presentation models.
+  remains a terminal, exact schema for only the legacy experiment shape. Studio
+  ingests JSON through the existing CLI process boundary and owns all presentation
+  models, filters, plot selection, heatmap mapping, and qualification grouping.
 - Calibration-fit, qualification, and independent-validation metrics are distinct.
   No in-sample calibration statistic is labeled as validation.
 

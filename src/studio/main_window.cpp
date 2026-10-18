@@ -57,6 +57,17 @@ MainWindow::MainWindow(QWidget* parent, const QString& runnerExecutable)
     updateCursorPosition();
     connect(runner_, &ExperimentRunner::completed, this,
             &MainWindow::experimentCompleted);
+    connect(results_, &ResultsView::sourceNavigationRequested, this,
+            [this](int line, int column) {
+                const QTextBlock block = editor_->document()->findBlockByNumber(line - 1);
+                if (!block.isValid()) return;
+                QTextCursor cursor(block);
+                cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor,
+                                    qMin(column - 1, qMax(0, block.length() - 1)));
+                editor_->setTextCursor(cursor);
+                editor_->setFocus();
+                editor_->centerCursor();
+            });
 }
 
 void MainWindow::createLayout() {
@@ -146,6 +157,22 @@ void MainWindow::createActions() {
     connect(editor_, &QPlainTextEdit::redoAvailable, redo, &QAction::setEnabled);
 
     auto* experiment = menuBar()->addMenu(tr("&Experiment"));
+    auto* examples = menuBar()->addMenu(tr("E&xamples"));
+    auto addExample = [this, examples](const QString& label, const QString& resource) {
+        auto* action = examples->addAction(label);
+        connect(action, &QAction::triggered, this, [this, resource] {
+            if (!confirmSaveIfModified()) return;
+            QFile file(resource);
+            if (!file.open(QIODevice::ReadOnly)) return;
+            editor_->setPlainText(QString::fromUtf8(file.readAll()));
+            editor_->document()->setModified(false);
+            setCurrentFile({});
+        });
+    };
+    addExample(tr("Legacy TX path"),
+               QStringLiteral(":/examples/tx_path_characterization.hrf"));
+    addExample(tr("Multidimensional qualification"),
+               QStringLiteral(":/examples/studio_qualification.hrf"));
     auto* experimentToolbar = addToolBar(tr("Experiment"));
     experimentToolbar->setObjectName(QStringLiteral("experimentToolBar"));
 
@@ -210,12 +237,12 @@ void MainWindow::experimentCompleted() {
     }
     if (result.diagnostics.isEmpty()) diagnostics_->addItem(tr("No diagnostics."));
 
-    if (result.succeeded()) {
+    if (result.succeeded() || result.producedResults()) {
         if (result.operation == ExperimentRunner::Operation::Validate) {
             results_->setStatusMessage(tr("Validation succeeded."));
         } else {
             QString parseError;
-            const auto model = ResultsModel::fromCsvFile(result.csv_path, &parseError);
+            const auto model = ResultsModel::fromJsonFile(result.json_path, &parseError);
             if (model.has_value()) {
                 results_->setResults(*model, result.standard_output);
             } else {

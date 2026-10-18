@@ -278,6 +278,8 @@ Acceptance:
 
 ### M6 - Full Studio integration
 
+Status: complete on 2026-10-18.
+
 Keep `QProcess` integration and switch rich-result ingestion to the versioned CLI
 JSON contract. Studio owns its presentation model and does not link core libraries
 or repeat domain calculations.
