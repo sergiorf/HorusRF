@@ -198,6 +198,13 @@ Acceptance criteria:
 
 #### Migration milestone 2 — Add the reproducible ANTLR toolchain
 
+Status: Completed on 2026-10-19. The official ANTLR 4.13.2 generator and matching
+C++ runtime source are pinned under `third_party/antlr4`. CMake verifies the
+generator checksum and runtime version, generates a test-only smoke parser under
+`build/generated/`, and compiles and exercises it through CTest. Generation and
+ordinary builds perform no dependency downloads. Because generated C++ is kept in
+`build/` rather than committed, a stale-checked-in-source test is not applicable.
+
 1. Pin one ANTLR release for the Java generator and C++ runtime.
 2. Integrate generation and compilation with C++20 and the existing `build/`
    directory on Windows and Linux.

@@ -6,6 +6,20 @@ are GPL-3.0-only as described in [`LICENSE-GPL-3.0`](LICENSE-GPL-3.0).
 Third-party software remains under its own license; it is not relicensed by
 HorusRF.
 
+## ANTLR 4
+
+Parser modernization uses the ANTLR 4.13.2 complete Java generator and matching
+C++ runtime source. Both are vendored under `third_party/antlr4` so builds and
+tests do not fetch dependencies. ANTLR is Copyright (c) 2012-2022 The ANTLR
+Project and is distributed under the BSD 3-Clause License; the complete text is
+in [`third_party/antlr4/LICENSE.txt`](third_party/antlr4/LICENSE.txt).
+
+The complete generator JAR also bundles ANTLR 3, StringTemplate 4, and
+`org.abego.treelayout`; those components retain their own upstream licenses. The
+JAR is a build tool and is not linked into or distributed as part of HorusRF
+executables. Source locations and artifact checksums are recorded in
+[`third_party/antlr4/README.md`](third_party/antlr4/README.md).
+
 ## Qt 6
 
 HorusRF Studio uses the Qt 6 Core, GUI, Widgets, and Charts modules, with Qt Test

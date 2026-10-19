@@ -11,14 +11,28 @@ look; it is not a staged product roadmap.
 
 ## Prerequisites and build
 
-Use CMake 3.20 or newer and a C++20 compiler. Configure, build, and run all tests
-from the repository root using the single `build/` directory:
+Use CMake 3.20 or newer, a C++20 compiler, and Java 11 or newer. Java is used only
+to run the pinned ANTLR generator during parser-toolchain tests; the generator JAR
+and matching C++ runtime source are vendored, so configuration, compilation, and
+tests do not download dependencies. Configure, build, and run all tests from the
+repository root using the single `build/` directory:
 
 ```sh
 cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+To regenerate the current ANTLR smoke parser explicitly, build its generation
+target. Generated files stay under `build/generated/` and are never committed:
+
+```sh
+cmake --build build --target horusrf_antlr_toolchain_smoke_generated
+```
+
+With a multi-config generator, add `--config Debug` (or the configuration in use).
+The production HorusRF parser remains handwritten until the later grammar, adapter,
+parity, and cutover milestones pass.
 
 For a multi-config generator, choose one configuration consistently, for example:
 

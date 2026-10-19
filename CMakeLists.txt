@@ -184,6 +184,33 @@ if(BUILD_TESTING)
         COMMAND horusrf_parser_migration_regression_tests
     )
 
+    include(cmake/HorusRfAntlr.cmake)
+    horusrf_add_antlr4_runtime()
+    set(antlr_smoke_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/antlr-smoke")
+    horusrf_antlr4_generate(horusrf_antlr_toolchain_smoke_generated
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/antlr/HorusRfAntlrSmoke.g4"
+        "${antlr_smoke_output_dir}"
+    )
+    add_executable(horusrf_antlr_toolchain_smoke_tests
+        tests/antlr/toolchain_smoke.cpp
+        ${horusrf_antlr_toolchain_smoke_generated_SOURCES}
+        ${horusrf_antlr_toolchain_smoke_generated_HEADERS}
+    )
+    add_dependencies(horusrf_antlr_toolchain_smoke_tests
+        horusrf_antlr_toolchain_smoke_generated
+    )
+    target_compile_features(horusrf_antlr_toolchain_smoke_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_antlr_toolchain_smoke_tests PRIVATE
+        "${antlr_smoke_output_dir}"
+    )
+    target_link_libraries(horusrf_antlr_toolchain_smoke_tests PRIVATE
+        horusrf::antlr4_runtime
+    )
+    horusrf_enable_warnings(horusrf_antlr_toolchain_smoke_tests)
+    add_test(NAME horusrf_antlr_toolchain_smoke_tests
+        COMMAND horusrf_antlr_toolchain_smoke_tests
+    )
+
     add_executable(horusrf_domain_tests
         tests/domain/quantity_tests.cpp
         tests/domain/results_tests.cpp
@@ -388,6 +415,7 @@ if(BUILD_TESTING)
     set_tests_properties(
         horusrf_parser_tests
         horusrf_parser_migration_regression_tests
+        horusrf_antlr_toolchain_smoke_tests
         horusrf_domain_tests
         horusrf_semantic_tests
         horusrf_ir_tests

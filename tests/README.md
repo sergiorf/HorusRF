@@ -33,6 +33,12 @@ call `require_equivalent` over `regression_corpus.hpp`; generated parser types s
 behind the adapter. These tests are the behavioral guard used when synchronizing
 the grammar and frontend implementations.
 
+`horusrf_antlr_toolchain_smoke_tests` generates a small test-only C++ lexer and
+parser with the vendored ANTLR 4.13.2 JAR, compiles them against the matching
+vendored runtime, and parses a fixed input. This keeps tool/runtime versioning,
+offline generation, and C++ linkage under CTest without changing the production
+parser before the migration parity gate.
+
 The equivalence suite is intentionally separate from the declarative end-to-end
 suite. The CLI suite crosses a process boundary; unit tests should not do so.
 
