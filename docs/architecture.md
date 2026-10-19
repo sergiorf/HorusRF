@@ -236,6 +236,14 @@ classDiagram
   diagnostics without exposing ANTLR types. The
   [ANTLR cutover decision](adr/0002-adopt-antlr-generated-parser.md) records the
   boundary; the earlier recursive-descent decision is retained as history.
+- `horusrf_frontend` is the Qt-free language-service boundary. Its public
+  `frontend::parse()` and `frontend::validate()` operations return structured
+  results rather than parse exceptions, classify diagnostics as syntax or
+  semantic, and preserve stable codes, messages, and source spans. Validation
+  stops before IR lowering, runtime, device construction, or hardware access.
+  The lower-level parser and semantic APIs remain available for compatibility
+  and focused compiler-layer use. The CLI consumes this boundary; Studio reaches
+  it through the CLI's existing asynchronous `--check` process workflow.
 - Semantic analysis resolves declarations, references, dimensions, expression
   types, calibration indexes, and canonical units.
 - IR is a typed, device-independent plan of values and operations. Runtime consumes

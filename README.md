@@ -36,6 +36,14 @@ The generated frontend is the production HorusRF parser. Its ANTLR parse tree,
 AST builder, and diagnostic adapter remain private to `horusrf_parser`; public
 callers continue to use the existing HorusRF AST and diagnostic types.
 
+Qt-free callers that need structured language services can include
+`horusrf/frontend/language_services.hpp` and link `horusrf_frontend`.
+`frontend::parse(source)` returns either an AST or syntax diagnostics;
+`frontend::validate(source)` returns either an analyzed program or diagnostics
+classified as syntax or semantic. Both preserve stable diagnostic codes,
+messages, and source spans, and neither lowers nor executes the experiment. The
+lower-level throwing `parser::parse()` API remains available for compatibility.
+
 For a multi-config generator, choose one configuration consistently, for example:
 
 ```sh

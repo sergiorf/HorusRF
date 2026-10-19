@@ -12,12 +12,11 @@
 #include <vector>
 
 #include "horusrf/device/simulated_rf_device.hpp"
+#include "horusrf/frontend/language_services.hpp"
 #include "horusrf/ir/lowering.hpp"
 #include "horusrf/output/csv.hpp"
 #include "horusrf/output/json.hpp"
-#include "horusrf/parser/parser.hpp"
 #include "horusrf/runtime/characterization.hpp"
-#include "horusrf/semantic/analyzer.hpp"
 
 namespace {
 namespace fs = std::filesystem;
@@ -93,6 +92,16 @@ bool same_path(const fs::path& left, const fs::path& right) {
         return !equivalent_error && equivalent;
     }
     return false;
+}
+
+template <typename Diagnostics>
+void print_frontend_diagnostics(const fs::path& source, const Diagnostics& diagnostics) {
+    for (const auto& diagnostic : diagnostics) {
+        const auto& position = diagnostic.span.begin;
+        std::cerr << source.string() << ':' << position.line << ':' << position.column
+                  << ": " << diagnostic.code << ": "
+                  << diagnostic.message << '\n';
+    }
 }
 
 template <typename Diagnostics, typename CodeName>
@@ -211,22 +220,12 @@ int run(const Arguments& arguments) {
         return io_error;
     }
 
-    ast::Program syntax;
-    try {
-        syntax = parser::parse(*source);
-    } catch (const parser::ParseError& error) {
-        const std::vector<parser::Diagnostic> diagnostics{error.diagnostic()};
-        print_diagnostics(arguments.source, diagnostics, parser::diagnostic_code_name);
+    auto validated = frontend::validate(*source);
+    if (!validated.ok()) {
+        print_frontend_diagnostics(arguments.source, validated.diagnostics);
         return diagnostic_error;
     }
-
-    auto analyzed = semantic::analyze(syntax);
-    if (!analyzed.ok()) {
-        print_diagnostics(arguments.source, analyzed.diagnostics,
-                          semantic::diagnostic_code_name);
-        return diagnostic_error;
-    }
-    auto lowered = ir::lower(*analyzed.program);
+    auto lowered = ir::lower(*validated.program);
     if (!lowered.ok()) {
         print_diagnostics(arguments.source, lowered.diagnostics, ir::diagnostic_code_name);
         return diagnostic_error;

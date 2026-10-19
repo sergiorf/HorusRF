@@ -3,14 +3,14 @@
 Status: active implementation plan.
 
 This document contains only unfinished work. Completed grammar formalization,
-ANTLR adoption, parser parity, production cutover, and Windows verification are
-recorded in the architecture documentation and ADRs rather than repeated here.
+ANTLR adoption, parser parity, production cutover, reusable language services,
+and Windows verification are recorded in the architecture documentation and ADRs
+rather than repeated here.
 
 ## Objective
 
-Finish the reusable language-service boundary, remove the remaining duplication in
-Studio syntax definitions, and expose deterministic compiler capabilities suitable
-for future automation.
+Remove the remaining duplication in Studio syntax definitions and expose
+deterministic compiler capabilities suitable for future automation.
 
 ## Constraints
 
@@ -27,31 +27,6 @@ for future automation.
 Run the full unfiltered CTest suite on Linux using the existing `build/` directory.
 Fix only genuine portability issues and record the result. The ANTLR migration is
 complete when both the existing Windows Release result and this Linux result pass.
-
-## Milestone 1 - Reusable language services
-
-Add a Qt-free public API that parses and validates source without executing an
-experiment.
-
-Requirements:
-
-1. Return structured results instead of requiring callers to catch parse
-   exceptions.
-2. Distinguish syntax diagnostics from semantic diagnostics.
-3. Preserve stable diagnostic codes, messages, and precise source spans.
-4. Preserve existing parser and semantic APIs as compatibility wrappers where
-   practical.
-5. Support multiple diagnostics only where recovery is conservative and does not
-   produce misleading cascades.
-
-Add focused tests for successful parsing and validation, syntax failures, semantic
-failures, diagnostic classification, and source spans.
-
-Acceptance criteria:
-
-- A non-Qt caller can parse or validate a script without running it.
-- Failure is available as machine-readable data.
-- Existing CLI, Studio, and runtime behavior remains unchanged.
 
 ## Milestone 2 - Share language definitions with Studio
 

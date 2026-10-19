@@ -5,7 +5,7 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 
 | Suite | Responsibility | CTest label |
 |---|---|---|
-| parser, domain, semantic, IR | syntax, quantities, analysis, lowering | `unit` |
+| parser, frontend, domain, semantic, IR | syntax, structured language services, quantities, analysis, lowering | `unit` |
 | device, executor, characterization | separated simulated equipment and runtime routing | `unit` |
 | procedural example, CSV, JSON | independent orchestration and serialization | `unit` |
 | declarative end-to-end | actual fixture through compiler and runtime | `integration` |
@@ -30,6 +30,12 @@ as a compatibility contract.
 `tests/parser/regression_support.hpp` defines normalized token, AST, and diagnostic
 snapshots. Generated parser types stay inside `horusrf_parser`; the snapshots are
 the permanent behavioral guard for grammar and frontend changes.
+
+`horusrf_frontend_tests` covers the Qt-free structured `parse` and `validate`
+services: successful results, syntax and semantic classification, stable codes,
+messages and spans, conservative fail-fast syntax handling, and multiple semantic
+diagnostics. CLI and Studio suites separately retain their application-boundary
+coverage.
 
 `horusrf_antlr_toolchain_smoke_tests` generates a small test-only C++ lexer and
 parser with the vendored ANTLR 4.13.2 JAR, compiles them against the matching

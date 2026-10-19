@@ -79,6 +79,16 @@ target_include_directories(horusrf_semantic PUBLIC
 target_link_libraries(horusrf_semantic PUBLIC horusrf_domain horusrf_parser)
 horusrf_enable_warnings(horusrf_semantic)
 
+add_library(horusrf_frontend STATIC
+    src/frontend/language_services.cpp
+)
+target_compile_features(horusrf_frontend PUBLIC cxx_std_20)
+target_include_directories(horusrf_frontend PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_frontend PUBLIC horusrf_parser horusrf_semantic)
+horusrf_enable_warnings(horusrf_frontend)
+
 add_library(horusrf_ir STATIC
     src/ir/lowering.cpp
 )
@@ -114,8 +124,7 @@ horusrf_enable_warnings(horusrf_output)
 add_executable(horusrf-run src/cli/main.cpp)
 target_compile_features(horusrf-run PRIVATE cxx_std_20)
 target_link_libraries(horusrf-run PRIVATE
-    horusrf_output horusrf_runtime horusrf_simulator horusrf_parser
-    horusrf_semantic horusrf_ir
+    horusrf_output horusrf_runtime horusrf_simulator horusrf_frontend horusrf_ir
 )
 horusrf_enable_warnings(horusrf-run)
 
@@ -266,6 +275,15 @@ if(BUILD_TESTING)
     )
     horusrf_enable_warnings(horusrf_semantic_tests)
     add_test(NAME horusrf_semantic_tests COMMAND horusrf_semantic_tests)
+
+    add_executable(horusrf_frontend_tests
+        tests/frontend/language_services_tests.cpp
+    )
+    target_compile_features(horusrf_frontend_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_frontend_tests PRIVATE tests)
+    target_link_libraries(horusrf_frontend_tests PRIVATE horusrf_frontend)
+    horusrf_enable_warnings(horusrf_frontend_tests)
+    add_test(NAME horusrf_frontend_tests COMMAND horusrf_frontend_tests)
 
     add_executable(horusrf_ir_tests tests/ir/lowering_tests.cpp)
     target_compile_features(horusrf_ir_tests PRIVATE cxx_std_20)
@@ -455,6 +473,7 @@ if(BUILD_TESTING)
         horusrf_antlr_grammar_recognition_tests
         horusrf_domain_tests
         horusrf_semantic_tests
+        horusrf_frontend_tests
         horusrf_ir_tests
         horusrf_simulator_tests
         horusrf_runtime_tests
