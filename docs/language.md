@@ -4,6 +4,9 @@ This document describes the currently implemented demonstration language. The
 authoritative concrete syntax is
 [`grammar/horusrf.ebnf`](../grammar/horusrf.ebnf); syntax changes must keep the
 grammar, lexer, parser, this reference, and tests synchronized.
+The parser remains a deliberately small recursive-descent implementation; its
+[architecture decision](adr/0001-retain-recursive-descent-parser.md) documents
+the grammar synchronization and conformance strategy.
 
 ## Lexical rules and source positions
 

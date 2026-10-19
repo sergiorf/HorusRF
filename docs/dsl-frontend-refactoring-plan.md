@@ -80,6 +80,13 @@ Acceptance criteria:
 
 ## Milestone 2 — Evaluate grammar-driven parser implementation
 
+Status: Evaluation completed on 2026-10-19. The initial decision was to retain the
+recursive-descent parser, but the implementation direction was subsequently
+reopened because policy-enforced EBNF authority still permits implementation
+drift. The approved follow-up is the ANTLR migration plan below. The original
+[parser architecture decision](adr/0001-retain-recursive-descent-parser.md) is
+retained as an evaluation record.
+
 Evaluate whether replacing the handwritten parser with a grammar-generated parser
 would improve maintainability.
 
@@ -137,6 +144,119 @@ Acceptance criteria:
 - No regression in AST structure or semantic meaning.
 - Invalid programs produce useful structured diagnostics.
 - The parser remains independent of Studio and runtime execution.
+
+### ANTLR migration plan
+
+The migration replaces policy-enforced synchronization with a mechanically
+authoritative grammar. It is incremental: the handwritten frontend remains the
+production implementation until the generated frontend passes every parity gate.
+The milestones below are sequential, and regression coverage is the first
+implementation milestone rather than cleanup performed after cutover.
+
+#### Migration milestone 1 — Lock behavior with regression tests
+
+Build a deterministic regression baseline before adding the production ANTLR
+dependency or changing `parser::parse()`.
+
+Tasks:
+
+1. Turn the existing valid and invalid grammar-conformance sources into a shared
+   parser regression corpus usable by both implementations during migration.
+2. Retain every checked-in `.hrf` example in that corpus, including examples that
+   are syntactically valid but intentionally fail semantic analysis.
+3. Add token regression cases for token kind, lexeme, and complete source span.
+   Cover every keyword, unit, punctuation token, comments, ASCII whitespace,
+   CRLF handling, end of file, malformed numbers, invalid characters, and the
+   required number/unit boundary.
+4. Add AST regression coverage for every statement and expression node, including
+   written names, declaration order, precedence, associativity, grouping, and
+   complete byte-offset spans.
+5. Add diagnostic regression cases for every stable parse diagnostic code and its
+   source span. Lock messages only where wording is an intentional public contract.
+6. Retain separate semantic, end-to-end, equivalence, CLI-process, and Studio
+   suites so parser regression tests do not substitute for cross-layer coverage.
+7. Keep the corpus deterministic and offline; do not use random fuzzing, wall-clock
+   behavior, network access, or machine-specific paths.
+
+Deliverables:
+
+- Shared deterministic parser regression corpus.
+- Complete token, AST, source-span, and diagnostic baseline for the handwritten
+  frontend.
+- Documented comparison helpers that can run the same cases against ANTLR later.
+
+Acceptance criteria:
+
+- Every checked-in example is classified at the correct syntax/semantic boundary.
+- Every public AST variant and parse diagnostic code has regression coverage.
+- Lexical edge cases have exact token and span expectations.
+- The full unfiltered CTest suite passes before ANTLR production integration begins.
+
+#### Migration milestone 2 — Add the reproducible ANTLR toolchain
+
+1. Pin one ANTLR release for the Java generator and C++ runtime.
+2. Integrate generation and compilation with C++20 and the existing `build/`
+   directory on Windows and Linux.
+3. Choose an offline, reproducible dependency strategy; tests and ordinary builds
+   must not download tools or runtime sources.
+4. Add third-party licensing notices and document the regeneration command.
+5. Add a deterministic stale-generated-source check if generated C++ is committed.
+
+The tool and runtime versions must match. Do not expose ANTLR headers or types from
+public HorusRF targets.
+
+#### Migration milestone 3 — Establish the authoritative ANTLR grammar
+
+1. Translate the complete implemented syntax into a checked-in `.g4` grammar.
+2. Preserve lexical behavior for malformed numbers, joined number/unit text,
+   comments, whitespace, contextual expression names, and invalid characters.
+3. Preserve expression precedence, associativity, and non-associative comparisons.
+4. Make the `.g4` file the sole manually maintained syntax definition.
+5. Generate `grammar/horusrf.ebnf` from the authoritative grammar or replace it
+   with generated/reference documentation; never maintain both grammars manually.
+
+The grammar-recognition tests must pass before AST integration starts.
+
+#### Migration milestone 4 — Build the private AST and diagnostic adapters
+
+1. Implement a visitor or builder that constructs the existing HorusRF AST without
+   changing downstream semantic interfaces.
+2. Preserve one-based line/column positions and byte-offset source spans.
+3. Add a custom error listener and recovery policy that maps failures to existing
+   structured diagnostic codes and preserves intentional fail-fast behavior.
+4. Keep generated parse-tree types private to `horusrf_parser`.
+
+#### Migration milestone 5 — Prove dual-parser parity
+
+Run the handwritten and generated implementations against the shared regression
+corpus in test code only. Compare:
+
+- accepted versus rejected sources;
+- complete token streams where applicable;
+- complete AST structure and spans;
+- diagnostic codes and spans; and
+- downstream semantic results for syntactically valid programs.
+
+Do not switch `parser::parse()` while any unexplained difference remains. Add each
+resolved difference to the permanent regression corpus.
+
+#### Migration milestone 6 — Cut over and remove duplication
+
+1. Route the existing public parser API through the generated implementation.
+2. Run the full unfiltered CTest suite on supported Windows and Linux toolchains.
+3. Remove the handwritten lexer/parser and dual-parser-only comparison machinery.
+4. Retain the shared regression corpus as permanent generated-parser coverage.
+5. Update language, architecture, build, testing, and contributor documentation.
+6. Record the final architecture decision and mark the earlier recursive-descent
+   decision as superseded.
+
+Final acceptance criteria:
+
+- The checked-in `.g4` grammar mechanically drives production lexer/parser code.
+- There is only one manually maintained authoritative grammar.
+- Existing public AST, diagnostic, semantic, CLI, and Studio behavior is preserved.
+- Parser generation and all tests are deterministic and require no network access.
+- No handwritten production parser or temporary migration build artifacts remain.
 
 ## Milestone 3 — Introduce reusable language services
 

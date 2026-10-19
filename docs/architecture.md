@@ -230,6 +230,9 @@ classDiagram
 
 - The AST preserves written statement/expression structure and source spans. It has
   no semantic, device, or runtime dependency.
+- The language frontend uses the canonical EBNF with a handwritten lexer and
+  recursive-descent parser. The [parser architecture decision](adr/0001-retain-recursive-descent-parser.md)
+  records the ANTLR evaluation and the required synchronization tests.
 - Semantic analysis resolves declarations, references, dimensions, expression
   types, calibration indexes, and canonical units.
 - IR is a typed, device-independent plan of values and operations. Runtime consumes

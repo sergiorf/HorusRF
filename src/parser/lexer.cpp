@@ -1,8 +1,8 @@
 #include "horusrf/parser/lexer.hpp"
 
+#include <array>
 #include <cctype>
 #include <string>
-#include <unordered_map>
 
 namespace horusrf::parser {
 namespace {
@@ -13,46 +13,55 @@ bool is_ascii_letter(char c) noexcept {
 bool is_ascii_digit(char c) noexcept { return c >= '0' && c <= '9'; }
 bool is_word_tail(char c) noexcept { return is_ascii_letter(c) || is_ascii_digit(c) || c == '_'; }
 
-TokenKind word_kind(std::string_view word) {
-    static const std::unordered_map<std::string_view, TokenKind> words{
-        {"characterize", TokenKind::Characterize}, {"reference", TokenKind::Reference},
-        {"power", TokenKind::Power}, {"sweep", TokenKind::Sweep},
-        {"frequency", TokenKind::Frequency}, {"step", TokenKind::Step},
-        {"temperature", TokenKind::Temperature},
-        {"measure", TokenKind::Measure}, {"derive", TokenKind::Derive},
-        {"calibration", TokenKind::Calibration}, {"correction", TokenKind::Correction},
-        {"over", TokenKind::Over}, {"assert", TokenKind::Assert},
-        {"Hz", TokenKind::UnitHz},
-        {"kHz", TokenKind::UnitKHz}, {"MHz", TokenKind::UnitMHz},
-        {"GHz", TokenKind::UnitGHz}, {"dBm", TokenKind::UnitDBm},
-        {"dB", TokenKind::UnitDB},
-        {"K", TokenKind::UnitK}, {"degC", TokenKind::UnitDegC},
-        {"deltaK", TokenKind::UnitDeltaK}, {"deltaC", TokenKind::UnitDeltaC},
-    };
-    const auto found = words.find(word);
-    return found == words.end() ? TokenKind::Identifier : found->second;
+struct WordToken {
+    std::string_view spelling;
+    TokenKind kind;
+    bool unit;
+};
+
+constexpr std::array word_tokens{
+    WordToken{"characterize", TokenKind::Characterize, false},
+    WordToken{"reference", TokenKind::Reference, false},
+    WordToken{"power", TokenKind::Power, false},
+    WordToken{"sweep", TokenKind::Sweep, false},
+    WordToken{"frequency", TokenKind::Frequency, false},
+    WordToken{"temperature", TokenKind::Temperature, false},
+    WordToken{"step", TokenKind::Step, false},
+    WordToken{"measure", TokenKind::Measure, false},
+    WordToken{"derive", TokenKind::Derive, false},
+    WordToken{"calibration", TokenKind::Calibration, false},
+    WordToken{"correction", TokenKind::Correction, false},
+    WordToken{"over", TokenKind::Over, false},
+    WordToken{"assert", TokenKind::Assert, false},
+    WordToken{"Hz", TokenKind::UnitHz, true},
+    WordToken{"kHz", TokenKind::UnitKHz, true},
+    WordToken{"MHz", TokenKind::UnitMHz, true},
+    WordToken{"GHz", TokenKind::UnitGHz, true},
+    WordToken{"dBm", TokenKind::UnitDBm, true},
+    WordToken{"dB", TokenKind::UnitDB, true},
+    WordToken{"K", TokenKind::UnitK, true},
+    WordToken{"degC", TokenKind::UnitDegC, true},
+    WordToken{"deltaK", TokenKind::UnitDeltaK, true},
+    WordToken{"deltaC", TokenKind::UnitDeltaC, true},
+};
+
+TokenKind word_kind(std::string_view word) noexcept {
+    for (const auto& token : word_tokens) {
+        if (token.spelling == word) return token.kind;
+    }
+    return TokenKind::Identifier;
 }
 
 } // namespace
 
 std::string_view token_kind_name(TokenKind kind) noexcept {
+    for (const auto& token : word_tokens) {
+        if (token.kind == kind) return token.spelling;
+    }
     switch (kind) {
     case TokenKind::EndOfFile: return "end of file";
     case TokenKind::Identifier: return "identifier";
     case TokenKind::Number: return "number";
-    case TokenKind::Characterize: return "characterize";
-    case TokenKind::Reference: return "reference";
-    case TokenKind::Power: return "power";
-    case TokenKind::Sweep: return "sweep";
-    case TokenKind::Frequency: return "frequency";
-    case TokenKind::Temperature: return "temperature";
-    case TokenKind::Step: return "step";
-    case TokenKind::Measure: return "measure";
-    case TokenKind::Derive: return "derive";
-    case TokenKind::Calibration: return "calibration";
-    case TokenKind::Correction: return "correction";
-    case TokenKind::Over: return "over";
-    case TokenKind::Assert: return "assert";
     case TokenKind::LeftBrace: return "{";
     case TokenKind::RightBrace: return "}";
     case TokenKind::Equal: return "=";
@@ -69,29 +78,41 @@ std::string_view token_kind_name(TokenKind kind) noexcept {
     case TokenKind::LeftParen: return "(";
     case TokenKind::RightParen: return ")";
     case TokenKind::Comma: return ",";
-    case TokenKind::UnitHz: return "Hz";
-    case TokenKind::UnitKHz: return "kHz";
-    case TokenKind::UnitMHz: return "MHz";
-    case TokenKind::UnitGHz: return "GHz";
-    case TokenKind::UnitDBm: return "dBm";
-    case TokenKind::UnitDB: return "dB";
-    case TokenKind::UnitK: return "K";
-    case TokenKind::UnitDegC: return "degC";
-    case TokenKind::UnitDeltaK: return "deltaK";
-    case TokenKind::UnitDeltaC: return "deltaC";
     case TokenKind::UnitPercent: return "%";
     case TokenKind::Invalid: return "invalid token";
+    case TokenKind::Characterize:
+    case TokenKind::Reference:
+    case TokenKind::Power:
+    case TokenKind::Sweep:
+    case TokenKind::Frequency:
+    case TokenKind::Temperature:
+    case TokenKind::Step:
+    case TokenKind::Measure:
+    case TokenKind::Derive:
+    case TokenKind::Calibration:
+    case TokenKind::Correction:
+    case TokenKind::Over:
+    case TokenKind::Assert:
+    case TokenKind::UnitHz:
+    case TokenKind::UnitKHz:
+    case TokenKind::UnitMHz:
+    case TokenKind::UnitGHz:
+    case TokenKind::UnitDBm:
+    case TokenKind::UnitDB:
+    case TokenKind::UnitK:
+    case TokenKind::UnitDegC:
+    case TokenKind::UnitDeltaK:
+    case TokenKind::UnitDeltaC: break;
     }
     return "unknown token";
 }
 
 bool is_unit(TokenKind kind) noexcept {
-    return kind == TokenKind::UnitHz || kind == TokenKind::UnitKHz ||
-           kind == TokenKind::UnitMHz || kind == TokenKind::UnitGHz ||
-           kind == TokenKind::UnitDBm || kind == TokenKind::UnitDB ||
-           kind == TokenKind::UnitK || kind == TokenKind::UnitDegC ||
-           kind == TokenKind::UnitDeltaK || kind == TokenKind::UnitDeltaC ||
-           kind == TokenKind::UnitPercent;
+    if (kind == TokenKind::UnitPercent) return true;
+    for (const auto& token : word_tokens) {
+        if (token.kind == kind) return token.unit;
+    }
+    return false;
 }
 
 bool Lexer::at_end() const noexcept { return position_.offset >= source_.size(); }

@@ -10,6 +10,11 @@ namespace {
 
 SourceSpan joined(SourcePosition begin, SourcePosition end) { return SourceSpan{begin, end}; }
 
+bool is_expression_name(TokenKind kind) noexcept {
+    return kind == TokenKind::Identifier || kind == TokenKind::Power ||
+           kind == TokenKind::Frequency || kind == TokenKind::Temperature;
+}
+
 } // namespace
 
 std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
@@ -66,8 +71,7 @@ const Token& Parser::consume_expression_name(std::string message) {
     reject_invalid();
     // These words introduce statement syntax, but the grammar also uses them
     // as names in expressions, references, and calibration indexes.
-    if (check(TokenKind::Identifier) || check(TokenKind::Power) ||
-        check(TokenKind::Frequency) || check(TokenKind::Temperature)) {
+    if (is_expression_name(current().kind)) {
         ++index_;
         return previous();
     }
@@ -305,8 +309,7 @@ ast::Expression Parser::parse_primary() {
         const auto span = joined(start, member.span.end);
         return ast::Expression{ast::ReferenceExpression{"reference", member.lexeme, span}, span};
     }
-    if (check(TokenKind::Identifier) || check(TokenKind::Power) ||
-        check(TokenKind::Frequency) || check(TokenKind::Temperature)) {
+    if (is_expression_name(current().kind)) {
         const auto& identifier = current();
         ++index_;
         if (match(TokenKind::LeftParen)) {

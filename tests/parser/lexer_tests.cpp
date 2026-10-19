@@ -7,36 +7,48 @@
 
 using horusrf::parser::SourcePosition;
 using horusrf::parser::TokenKind;
+using horusrf::parser::is_unit;
 using horusrf::parser::lex;
+using horusrf::parser::token_kind_name;
 
 void run_lexer_tests() {
     {
         constexpr std::string_view source =
             "characterize reference power sweep frequency temperature step measure derive "
-            "calibration correction over name abc_123";
+            "calibration correction over assert name abc_123";
         const auto tokens = lex(source);
         const std::array expected{
             TokenKind::Characterize, TokenKind::Reference, TokenKind::Power,
             TokenKind::Sweep, TokenKind::Frequency, TokenKind::Temperature, TokenKind::Step,
             TokenKind::Measure, TokenKind::Derive, TokenKind::Calibration,
-            TokenKind::Correction, TokenKind::Over, TokenKind::Identifier,
+            TokenKind::Correction, TokenKind::Over, TokenKind::Assert, TokenKind::Identifier,
             TokenKind::Identifier, TokenKind::EndOfFile};
         CHECK_EQ(tokens.size(), expected.size());
-        for (std::size_t index = 0; index < expected.size(); ++index)
+        for (std::size_t index = 0; index < expected.size(); ++index) {
             CHECK_EQ(tokens[index].kind, expected[index]);
+            if (expected[index] != TokenKind::Identifier &&
+                expected[index] != TokenKind::EndOfFile) {
+                CHECK_EQ(token_kind_name(expected[index]), tokens[index].lexeme);
+            }
+        }
     }
     {
-        const auto tokens = lex("0 42 2.40 Hz kHz MHz GHz dBm dB K degC deltaK deltaC");
+        const auto tokens = lex("0 42 2.40 Hz kHz MHz GHz dBm dB K degC deltaK deltaC %");
         const std::array expected{
             TokenKind::Number, TokenKind::Number, TokenKind::Number,
             TokenKind::UnitHz, TokenKind::UnitKHz, TokenKind::UnitMHz,
             TokenKind::UnitGHz, TokenKind::UnitDBm, TokenKind::UnitDB,
             TokenKind::UnitK, TokenKind::UnitDegC, TokenKind::UnitDeltaK,
-            TokenKind::UnitDeltaC,
+            TokenKind::UnitDeltaC, TokenKind::UnitPercent,
             TokenKind::EndOfFile};
         CHECK_EQ(tokens.size(), expected.size());
-        for (std::size_t index = 0; index < expected.size(); ++index)
+        for (std::size_t index = 0; index < expected.size(); ++index) {
             CHECK_EQ(tokens[index].kind, expected[index]);
+            if (index >= 3 && expected[index] != TokenKind::EndOfFile) {
+                CHECK(is_unit(expected[index]));
+                CHECK_EQ(token_kind_name(expected[index]), tokens[index].lexeme);
+            }
+        }
         CHECK_EQ(tokens[2].lexeme, "2.40");
     }
     {

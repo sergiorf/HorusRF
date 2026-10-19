@@ -13,6 +13,12 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 | CLI acceptance | process exits, streams, check mode, diagnostics, CSV/JSON side effects | `cli` |
 | Studio | headless editor/results behavior, strict CSV parsing, process orchestration, diagnostic navigation | `unit` |
 
+The parser suite includes grammar-conformance cases for every checked-in `.hrf`
+file plus focused accepted and rejected syntax. Lexer coverage verifies every
+reserved word and unit against its canonical token spelling. These tests are the
+behavioral conformance guard used when synchronizing `grammar/horusrf.ebnf` and
+the handwritten frontend.
+
 The equivalence suite is intentionally separate from the declarative end-to-end
 suite. The CLI suite crosses a process boundary; unit tests should not do so.
 
