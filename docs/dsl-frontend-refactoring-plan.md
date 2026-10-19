@@ -155,6 +155,10 @@ implementation milestone rather than cleanup performed after cutover.
 
 #### Migration milestone 1 — Lock behavior with regression tests
 
+Status: Completed on 2026-10-19. The shared corpus, normalized frontend comparison
+adapter, and exact handwritten token/AST/diagnostic baselines live under
+`tests/parser/`. The production parser remains unchanged.
+
 Build a deterministic regression baseline before adding the production ANTLR
 dependency or changing `parser::parse()`.
 

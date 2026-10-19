@@ -13,11 +13,25 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 | CLI acceptance | process exits, streams, check mode, diagnostics, CSV/JSON side effects | `cli` |
 | Studio | headless editor/results behavior, strict CSV parsing, process orchestration, diagnostic navigation | `unit` |
 
-The parser suite includes grammar-conformance cases for every checked-in `.hrf`
-file plus focused accepted and rejected syntax. Lexer coverage verifies every
-reserved word and unit against its canonical token spelling. These tests are the
-behavioral conformance guard used when synchronizing `grammar/horusrf.ebnf` and
-the handwritten frontend.
+The parser suite includes a shared migration corpus for every checked-in `.hrf`
+file plus focused accepted and rejected syntax. A filesystem inventory test fails
+when a new example has not been classified as either valid or intentionally
+semantic-invalid, and the semantic suite verifies that classification.
+
+`horusrf_parser_migration_regression_tests` locks complete normalized token, AST,
+source-span, and parse-diagnostic observations for the handwritten frontend. The
+token baseline covers every token kind, comments, ASCII whitespace, CRLF input,
+malformed numbers, invalid characters, EOF, and the number/unit boundary. The AST
+baseline covers every statement and expression variant, declaration order,
+written names, grouping, precedence, associativity, and byte-offset spans. It also
+covers every stable parse diagnostic code and span without treating message wording
+as a compatibility contract.
+
+`tests/parser/regression_support.hpp` defines a frontend adapter and normalized
+comparison helper. During dual-parser migration, add an ANTLR-backed adapter and
+call `require_equivalent` over `regression_corpus.hpp`; generated parser types stay
+behind the adapter. These tests are the behavioral guard used when synchronizing
+the grammar and frontend implementations.
 
 The equivalence suite is intentionally separate from the declarative end-to-end
 suite. The CLI suite crosses a process boundary; unit tests should not do so.

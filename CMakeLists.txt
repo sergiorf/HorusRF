@@ -170,6 +170,20 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_parser_tests)
     add_test(NAME horusrf_parser_tests COMMAND horusrf_parser_tests)
 
+    add_executable(horusrf_parser_migration_regression_tests
+        tests/parser/migration_regression_tests.cpp
+        tests/parser/regression_support.cpp
+    )
+    target_compile_features(horusrf_parser_migration_regression_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_parser_migration_regression_tests PRIVATE
+        tests tests/parser
+    )
+    target_link_libraries(horusrf_parser_migration_regression_tests PRIVATE horusrf_parser)
+    horusrf_enable_warnings(horusrf_parser_migration_regression_tests)
+    add_test(NAME horusrf_parser_migration_regression_tests
+        COMMAND horusrf_parser_migration_regression_tests
+    )
+
     add_executable(horusrf_domain_tests
         tests/domain/quantity_tests.cpp
         tests/domain/results_tests.cpp
@@ -182,7 +196,7 @@ if(BUILD_TESTING)
 
     add_executable(horusrf_semantic_tests tests/semantic/analyzer_tests.cpp)
     target_compile_features(horusrf_semantic_tests PRIVATE cxx_std_20)
-    target_include_directories(horusrf_semantic_tests PRIVATE tests)
+    target_include_directories(horusrf_semantic_tests PRIVATE tests tests/parser)
     target_link_libraries(horusrf_semantic_tests PRIVATE horusrf_semantic)
     target_compile_definitions(horusrf_semantic_tests PRIVATE
         HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
@@ -373,6 +387,7 @@ if(BUILD_TESTING)
 
     set_tests_properties(
         horusrf_parser_tests
+        horusrf_parser_migration_regression_tests
         horusrf_domain_tests
         horusrf_semantic_tests
         horusrf_ir_tests

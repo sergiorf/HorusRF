@@ -10,6 +10,7 @@
 
 #include "horusrf/parser/parser.hpp"
 #include "horusrf/semantic/analyzer.hpp"
+#include "regression_corpus.hpp"
 
 namespace {
 using namespace horusrf;
@@ -21,8 +22,23 @@ std::string fixture() {
     return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
 }
 
+std::string read_source(std::string_view relative_path) {
+    std::ifstream input(std::string{HORUSRF_SOURCE_DIR} + "/" +
+                        std::string{relative_path}, std::ios::binary);
+    CHECK(input.good());
+    return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+}
+
 semantic::AnalysisResult analyze_source(std::string_view source) {
     return semantic::analyze(parser::parse(source));
+}
+
+void example_boundary_classification_test() {
+    using namespace horusrf::test::parser_regression;
+    for (const auto& example : example_cases) {
+        const auto result = analyze_source(read_source(example.path));
+        CHECK_EQ(result.ok(), example.classification == ExampleClassification::ValidProgram);
+    }
 }
 
 bool has_code(const semantic::AnalysisResult& result, semantic::DiagnosticCode code) {
@@ -466,6 +482,7 @@ characterize duplicate {
 int main() {
     try {
         canonical_fixture_test();
+        example_boundary_classification_test();
         supported_expression_tests();
         assertion_tests();
         frequency_unit_tests();
