@@ -230,9 +230,12 @@ classDiagram
 
 - The AST preserves written statement/expression structure and source spans. It has
   no semantic, device, or runtime dependency.
-- The language frontend uses the canonical EBNF with a handwritten lexer and
-  recursive-descent parser. The [parser architecture decision](adr/0001-retain-recursive-descent-parser.md)
-  records the ANTLR evaluation and the required synchronization tests.
+- The language frontend's authoritative concrete syntax is `grammar/HorusRf.g4`.
+  A generated recognizer validates the shared syntax corpus, while the handwritten
+  lexer and recursive-descent parser remain the production frontend until the
+  adapter, parity, and cutover gates pass. The
+  [parser architecture decision](adr/0001-retain-recursive-descent-parser.md)
+  records the earlier decision and the migration context.
 - Semantic analysis resolves declarations, references, dimensions, expression
   types, calibration indexes, and canonical units.
 - IR is a typed, device-independent plan of values and operations. Runtime consumes

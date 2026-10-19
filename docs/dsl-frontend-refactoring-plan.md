@@ -218,6 +218,13 @@ public HorusRF targets.
 
 #### Migration milestone 3 — Establish the authoritative ANTLR grammar
 
+Status: Completed on 2026-10-19. `grammar/HorusRf.g4` now defines the complete
+implemented syntax and lexical behavior. The generated C++ recognizer is exercised
+against every checked-in example, the shared accepted/rejected corpus, malformed
+numbers, token boundaries, ignored input, contextual names, and invalid characters.
+The historical `grammar/horusrf.ebnf` path is retained as a compatibility pointer,
+not a second maintained grammar.
+
 1. Translate the complete implemented syntax into a checked-in `.g4` grammar.
 2. Preserve lexical behavior for malformed numbers, joined number/unit text,
    comments, whitespace, contextual expression names, and invalid characters.

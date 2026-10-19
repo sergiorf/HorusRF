@@ -211,6 +211,35 @@ if(BUILD_TESTING)
         COMMAND horusrf_antlr_toolchain_smoke_tests
     )
 
+    set(antlr_grammar_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/antlr-horusrf")
+    horusrf_antlr4_generate(horusrf_antlr_grammar_generated
+        "${CMAKE_CURRENT_SOURCE_DIR}/grammar/HorusRf.g4"
+        "${antlr_grammar_output_dir}"
+    )
+    add_executable(horusrf_antlr_grammar_recognition_tests
+        tests/antlr/grammar_recognition.cpp
+        ${horusrf_antlr_grammar_generated_SOURCES}
+        ${horusrf_antlr_grammar_generated_HEADERS}
+    )
+    add_dependencies(horusrf_antlr_grammar_recognition_tests
+        horusrf_antlr_grammar_generated
+    )
+    target_compile_features(horusrf_antlr_grammar_recognition_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_antlr_grammar_recognition_tests PRIVATE
+        "${antlr_grammar_output_dir}"
+        tests
+    )
+    target_compile_definitions(horusrf_antlr_grammar_recognition_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(horusrf_antlr_grammar_recognition_tests PRIVATE
+        horusrf::antlr4_runtime
+    )
+    horusrf_enable_warnings(horusrf_antlr_grammar_recognition_tests)
+    add_test(NAME horusrf_antlr_grammar_recognition_tests
+        COMMAND horusrf_antlr_grammar_recognition_tests
+    )
+
     add_executable(horusrf_domain_tests
         tests/domain/quantity_tests.cpp
         tests/domain/results_tests.cpp
@@ -416,6 +445,7 @@ if(BUILD_TESTING)
         horusrf_parser_tests
         horusrf_parser_migration_regression_tests
         horusrf_antlr_toolchain_smoke_tests
+        horusrf_antlr_grammar_recognition_tests
         horusrf_domain_tests
         horusrf_semantic_tests
         horusrf_ir_tests

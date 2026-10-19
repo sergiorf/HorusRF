@@ -38,8 +38,8 @@ inside the core dependency graph or lets runtime depend on a simulator class.
 
 ## Concrete syntax
 
-The implemented Phase 1 syntax is now maintained only in the authoritative
-[`grammar/horusrf.ebnf`](../grammar/horusrf.ebnf), with lexical conventions and the
+The implemented Phase 1 syntax is now maintained only in the authoritative ANTLR
+grammar [`grammar/HorusRf.g4`](../grammar/HorusRf.g4), with lexical conventions and the
 syntax/semantic boundary documented in the
 [`language reference`](language.md). It remains whitespace-delimited, line comments
 begin with `//`, statement terminators are not present, and a source contains one
@@ -460,6 +460,6 @@ Each later milestone must retain these fixtures in addition to its focused tests
 | Studio behavior | headless Studio suite | JSON rejection, models, filters, source navigation, last-good result |
 
 Tests remain deterministic, offline, independent of the wall clock, randomness,
-and hardware. Syntax work updates `grammar/horusrf.ebnf`, `docs/language.md`, syntax
+and hardware. Syntax work updates `grammar/HorusRf.g4`, `docs/language.md`, syntax
 highlighting, and tests in the same milestone. Cross-layer milestones finish with
 the full unfiltered CTest suite.

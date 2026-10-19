@@ -23,16 +23,17 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-To regenerate the current ANTLR smoke parser explicitly, build its generation
-target. Generated files stay under `build/generated/` and are never committed:
+To regenerate the authoritative HorusRF ANTLR parser explicitly, build its
+generation target. Generated files stay under `build/generated/` and are never
+committed:
 
 ```sh
-cmake --build build --target horusrf_antlr_toolchain_smoke_generated
+cmake --build build --target horusrf_antlr_grammar_generated
 ```
 
 With a multi-config generator, add `--config Debug` (or the configuration in use).
-The production HorusRF parser remains handwritten until the later grammar, adapter,
-parity, and cutover milestones pass.
+The production HorusRF parser remains handwritten until the adapter, parity, and
+cutover milestones pass.
 
 For a multi-config generator, choose one configuration consistently, for example:
 

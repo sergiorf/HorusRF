@@ -39,6 +39,13 @@ vendored runtime, and parses a fixed input. This keeps tool/runtime versioning,
 offline generation, and C++ linkage under CTest without changing the production
 parser before the migration parity gate.
 
+`horusrf_antlr_grammar_recognition_tests` generates a recognizer from the
+authoritative `grammar/HorusRf.g4` and checks every example plus the shared syntax
+corpus. Focused token checks cover malformed numeric runs, the number/unit and
+number/range boundaries, comments, ASCII whitespace, contextual names, and invalid
+characters. AST construction and diagnostic mapping remain deferred to the next
+migration milestone.
+
 The equivalence suite is intentionally separate from the declarative end-to-end
 suite. The CLI suite crosses a process boundary; unit tests should not do so.
 

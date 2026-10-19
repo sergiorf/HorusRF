@@ -1,10 +1,13 @@
 # HorusRF language reference
 
 This document describes the currently implemented demonstration language. The
-authoritative concrete syntax is
-[`grammar/horusrf.ebnf`](../grammar/horusrf.ebnf); syntax changes must keep the
-grammar, lexer, parser, this reference, and tests synchronized.
-The parser remains a deliberately small recursive-descent implementation; its
+authoritative concrete syntax is the ANTLR grammar
+[`grammar/HorusRf.g4`](../grammar/HorusRf.g4). The historical
+[`grammar/horusrf.ebnf`](../grammar/horusrf.ebnf) path is a compatibility pointer,
+not a second syntax definition. Syntax changes must keep the grammar, production
+frontend behavior, this reference, and tests synchronized.
+The production parser remains a deliberately small recursive-descent implementation
+until the migration's adapter, parity, and cutover gates pass; its
 [architecture decision](adr/0001-retain-recursive-descent-parser.md) documents
 the grammar synchronization and conformance strategy.
 
