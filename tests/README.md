@@ -28,10 +28,10 @@ covers every stable parse diagnostic code and span without treating message word
 as a compatibility contract.
 
 `tests/parser/regression_support.hpp` defines a frontend adapter and normalized
-comparison helper. During dual-parser migration, add an ANTLR-backed adapter and
-call `require_equivalent` over `regression_corpus.hpp`; generated parser types stay
-behind the adapter. These tests are the behavioral guard used when synchronizing
-the grammar and frontend implementations.
+comparison helper for the dual-parser parity milestone. The source-private ANTLR
+adapter exposes only the existing AST and diagnostics; generated parser types stay
+inside `horusrf_parser`. These tests are the behavioral guard used when
+synchronizing the grammar and frontend implementations.
 
 `horusrf_antlr_toolchain_smoke_tests` generates a small test-only C++ lexer and
 parser with the vendored ANTLR 4.13.2 JAR, compiles them against the matching
@@ -39,12 +39,14 @@ vendored runtime, and parses a fixed input. This keeps tool/runtime versioning,
 offline generation, and C++ linkage under CTest without changing the production
 parser before the migration parity gate.
 
-`horusrf_antlr_grammar_recognition_tests` generates a recognizer from the
+`horusrf_antlr_grammar_recognition_tests` exercises the generated recognizer from the
 authoritative `grammar/HorusRf.g4` and checks every example plus the shared syntax
 corpus. Focused token checks cover malformed numeric runs, the number/unit and
 number/range boundaries, comments, ASCII whitespace, contextual names, and invalid
-characters. AST construction and diagnostic mapping remain deferred to the next
-migration milestone.
+characters. `horusrf_antlr_adapter_tests` constructs every checked-in and shared
+valid program through the private adapter, covers every AST variant, checks
+one-based positions and byte-offset spans, and verifies every stable parse
+diagnostic code while the public parser remains handwritten.
 
 The equivalence suite is intentionally separate from the declarative end-to-end
 suite. The CLI suite crosses a process boundary; unit tests should not do so.

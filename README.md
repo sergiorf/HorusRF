@@ -11,10 +11,10 @@ look; it is not a staged product roadmap.
 
 ## Prerequisites and build
 
-Use CMake 3.20 or newer, a C++20 compiler, and Java 11 or newer. Java is used only
-to run the pinned ANTLR generator during parser-toolchain tests; the generator JAR
-and matching C++ runtime source are vendored, so configuration, compilation, and
-tests do not download dependencies. Configure, build, and run all tests from the
+Use CMake 3.20 or newer, a C++20 compiler, and Java 11 or newer. Java runs the
+pinned ANTLR generator for the source-private generated frontend; the generator
+JAR and matching C++ runtime source are vendored, so configuration, compilation,
+and tests do not download dependencies. Configure, build, and run all tests from the
 repository root using the single `build/` directory:
 
 ```sh
@@ -32,8 +32,9 @@ cmake --build build --target horusrf_antlr_grammar_generated
 ```
 
 With a multi-config generator, add `--config Debug` (or the configuration in use).
-The production HorusRF parser remains handwritten until the adapter, parity, and
-cutover milestones pass.
+The public HorusRF parser remains routed through the handwritten frontend until
+the remaining parity and cutover milestones pass. The generated frontend's AST
+and diagnostic adapters are private to `horusrf_parser`.
 
 For a multi-config generator, choose one configuration consistently, for example:
 

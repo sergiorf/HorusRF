@@ -7,14 +7,30 @@ include(cmake/warnings.cmake)
 
 option(HORUSRF_BUILD_STUDIO "Build the optional HorusRF Studio application" OFF)
 
+include(cmake/HorusRfAntlr.cmake)
+horusrf_add_antlr4_runtime()
+set(antlr_grammar_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/antlr-horusrf")
+horusrf_antlr4_generate(horusrf_antlr_grammar_generated
+    "${CMAKE_CURRENT_SOURCE_DIR}/grammar/HorusRf.g4"
+    "${antlr_grammar_output_dir}"
+)
+
 add_library(horusrf_parser STATIC
     src/parser/lexer.cpp
     src/parser/parser.cpp
+    src/parser/antlr_parser.cpp
+    ${horusrf_antlr_grammar_generated_SOURCES}
+    ${horusrf_antlr_grammar_generated_HEADERS}
 )
+add_dependencies(horusrf_parser horusrf_antlr_grammar_generated)
 target_compile_features(horusrf_parser PUBLIC cxx_std_20)
 target_include_directories(horusrf_parser PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
+target_include_directories(horusrf_parser PRIVATE
+    "${antlr_grammar_output_dir}"
+)
+target_link_libraries(horusrf_parser PRIVATE horusrf::antlr4_runtime)
 horusrf_enable_warnings(horusrf_parser)
 
 add_library(horusrf_domain STATIC
@@ -184,8 +200,6 @@ if(BUILD_TESTING)
         COMMAND horusrf_parser_migration_regression_tests
     )
 
-    include(cmake/HorusRfAntlr.cmake)
-    horusrf_add_antlr4_runtime()
     set(antlr_smoke_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/antlr-smoke")
     horusrf_antlr4_generate(horusrf_antlr_toolchain_smoke_generated
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/antlr/HorusRfAntlrSmoke.g4"
@@ -211,11 +225,6 @@ if(BUILD_TESTING)
         COMMAND horusrf_antlr_toolchain_smoke_tests
     )
 
-    set(antlr_grammar_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/antlr-horusrf")
-    horusrf_antlr4_generate(horusrf_antlr_grammar_generated
-        "${CMAKE_CURRENT_SOURCE_DIR}/grammar/HorusRf.g4"
-        "${antlr_grammar_output_dir}"
-    )
     add_executable(horusrf_antlr_grammar_recognition_tests
         tests/antlr/grammar_recognition.cpp
         ${horusrf_antlr_grammar_generated_SOURCES}
@@ -239,6 +248,21 @@ if(BUILD_TESTING)
     add_test(NAME horusrf_antlr_grammar_recognition_tests
         COMMAND horusrf_antlr_grammar_recognition_tests
     )
+
+    add_executable(horusrf_antlr_adapter_tests
+        tests/antlr/adapter_tests.cpp
+        tests/parser/regression_support.cpp
+    )
+    target_compile_features(horusrf_antlr_adapter_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_antlr_adapter_tests PRIVATE
+        tests tests/parser src/parser
+    )
+    target_compile_definitions(horusrf_antlr_adapter_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(horusrf_antlr_adapter_tests PRIVATE horusrf_parser)
+    horusrf_enable_warnings(horusrf_antlr_adapter_tests)
+    add_test(NAME horusrf_antlr_adapter_tests COMMAND horusrf_antlr_adapter_tests)
 
     add_executable(horusrf_domain_tests
         tests/domain/quantity_tests.cpp
@@ -446,6 +470,7 @@ if(BUILD_TESTING)
         horusrf_parser_migration_regression_tests
         horusrf_antlr_toolchain_smoke_tests
         horusrf_antlr_grammar_recognition_tests
+        horusrf_antlr_adapter_tests
         horusrf_domain_tests
         horusrf_semantic_tests
         horusrf_ir_tests

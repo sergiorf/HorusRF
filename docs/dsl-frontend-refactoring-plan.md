@@ -236,6 +236,13 @@ The grammar-recognition tests must pass before AST integration starts.
 
 #### Migration milestone 4 — Build the private AST and diagnostic adapters
 
+Status: Completed on 2026-10-19. `horusrf_parser` now compiles the generated
+frontend and a source-private builder that constructs the existing AST with
+one-based positions and byte-offset spans. A fail-fast error listener maps ANTLR
+failures to the existing diagnostic codes. Focused adapter tests cover every AST
+variant, every stable parse diagnostic code, non-ASCII byte spans, and construction
+of the shared corpus. The public `parser::parse()` entry point remains handwritten.
+
 1. Implement a visitor or builder that constructs the existing HorusRF AST without
    changing downstream semantic interfaces.
 2. Preserve one-based line/column positions and byte-offset source spans.

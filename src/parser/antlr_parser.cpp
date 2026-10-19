@@ -1,0 +1,360 @@
+#include "antlr_parser.hpp"
+
+#include "HorusRfLexer.h"
+#include "HorusRfParser.h"
+
+#include <antlr4-runtime.h>
+
+#include <algorithm>
+#include <cstddef>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "horusrf/parser/parser.hpp"
+
+namespace horusrf::parser::antlr_frontend {
+namespace {
+
+class SourceMap {
+public:
+    explicit SourceMap(std::string_view source) {
+        positions_.reserve(source.size() + 1);
+        SourcePosition position{};
+        for (const char byte : source) {
+            positions_.push_back(position);
+            ++position.offset;
+            if (byte == '\n') {
+                ++position.line;
+                position.column = 1;
+            } else {
+                ++position.column;
+            }
+        }
+        positions_.push_back(position);
+
+        symbol_offsets_.push_back(0);
+        for (std::size_t offset = 0; offset < source.size();) {
+            const auto lead = static_cast<unsigned char>(source[offset]);
+            std::size_t width = 1;
+            if ((lead & 0xE0U) == 0xC0U) width = 2;
+            else if ((lead & 0xF0U) == 0xE0U) width = 3;
+            else if ((lead & 0xF8U) == 0xF0U) width = 4;
+            if (offset + width > source.size()) width = 1;
+            for (std::size_t index = 1; index < width; ++index) {
+                if ((static_cast<unsigned char>(source[offset + index]) & 0xC0U) != 0x80U) {
+                    width = 1;
+                    break;
+                }
+            }
+            offset += width;
+            symbol_offsets_.push_back(offset);
+        }
+    }
+
+    [[nodiscard]] SourcePosition position(std::size_t symbol_offset) const {
+        const auto index = std::min(symbol_offset, symbol_offsets_.size() - 1);
+        return positions_[symbol_offsets_[index]];
+    }
+
+    [[nodiscard]] SourceSpan span(const antlr4::Token* token) const {
+        if (token->getType() == antlr4::Token::EOF) {
+            const auto end = positions_.back();
+            return {end, end};
+        }
+        const auto begin = position(token->getStartIndex());
+        const auto end = position(token->getStopIndex() + 1);
+        return {begin, end};
+    }
+
+    [[nodiscard]] SourceSpan span(const antlr4::ParserRuleContext* context) const {
+        return {span(context->getStart()).begin, span(context->getStop()).end};
+    }
+
+private:
+    std::vector<SourcePosition> positions_;
+    std::vector<std::size_t> symbol_offsets_;
+};
+
+bool contains(const antlr4::misc::IntervalSet& tokens, std::size_t type) {
+    return tokens.contains(type);
+}
+
+bool expects_only_names(const antlr4::misc::IntervalSet& expected) {
+    bool found = false;
+    for (const auto type : {HorusRfParser::IDENTIFIER, HorusRfParser::POWER,
+                            HorusRfParser::FREQUENCY, HorusRfParser::TEMPERATURE}) {
+        found = found || contains(expected, type);
+    }
+    if (!found) return false;
+    for (const auto type : expected.toList()) {
+        if (type != HorusRfParser::IDENTIFIER && type != HorusRfParser::POWER &&
+            type != HorusRfParser::FREQUENCY && type != HorusRfParser::TEMPERATURE) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool expects_unit(const antlr4::misc::IntervalSet& expected) {
+    for (std::size_t type = HorusRfParser::UNIT_HZ; type <= HorusRfParser::UNIT_PERCENT; ++type) {
+        if (contains(expected, type)) return true;
+    }
+    return false;
+}
+
+bool expects_expression(const antlr4::misc::IntervalSet& expected) {
+    for (const auto type : {HorusRfParser::MINUS, HorusRfParser::NUMBER,
+                            HorusRfParser::REFERENCE, HorusRfParser::IDENTIFIER,
+                            HorusRfParser::POWER, HorusRfParser::FREQUENCY,
+                            HorusRfParser::TEMPERATURE, HorusRfParser::LEFT_PAREN}) {
+        if (contains(expected, type)) return true;
+    }
+    return false;
+}
+
+class ErrorListener final : public antlr4::BaseErrorListener {
+public:
+    ErrorListener(const SourceMap& source_map, HorusRfParser& parser)
+        : source_map_(source_map), parser_(parser) {}
+
+    void syntaxError(antlr4::Recognizer*, antlr4::Token* offending_symbol,
+                     std::size_t, std::size_t, const std::string&,
+                     std::exception_ptr) override {
+        const auto type = offending_symbol->getType();
+        if (type == HorusRfParser::INVALID || type == HorusRfParser::MALFORMED_NUMBER) {
+            throw ParseError({DiagnosticCode::InvalidToken,
+                              "invalid token '" + offending_symbol->getText() + "'",
+                              source_map_.span(offending_symbol)});
+        }
+
+        const auto expected = parser_.getExpectedTokens();
+        const auto rule = parser_.getContext() == nullptr
+                              ? HorusRfParser::RuleProgram
+                              : parser_.getContext()->getRuleIndex();
+        DiagnosticCode code = DiagnosticCode::UnexpectedToken;
+        std::string message = "unexpected token '" + offending_symbol->getText() + "'";
+        if (expects_only_names(expected)) {
+            code = DiagnosticCode::ExpectedIdentifier;
+            message = "expected identifier";
+        } else if (rule == HorusRfParser::RuleUnit && expects_unit(expected)) {
+            code = DiagnosticCode::ExpectedUnit;
+            message = "expected unit after quantity number";
+        } else if ((rule == HorusRfParser::RuleQuantity ||
+                    rule == HorusRfParser::RuleSignedQuantity) &&
+                   contains(expected, HorusRfParser::NUMBER)) {
+            code = DiagnosticCode::ExpectedQuantity;
+            message = "expected quantity number";
+        } else if ((rule == HorusRfParser::RuleExpression ||
+                    rule == HorusRfParser::RuleComparisonExpression ||
+                    rule == HorusRfParser::RuleAdditiveExpression ||
+                    rule == HorusRfParser::RuleUnaryExpression ||
+                    rule == HorusRfParser::RulePrimaryExpression ||
+                    rule == HorusRfParser::RuleCall) &&
+                   expects_expression(expected)) {
+            code = DiagnosticCode::ExpectedExpression;
+            message = "expected expression";
+        } else if (type == antlr4::Token::EOF) {
+            code = DiagnosticCode::UnexpectedEndOfFile;
+            message = "unexpected end of file";
+        }
+        throw ParseError({code, std::move(message), source_map_.span(offending_symbol)});
+    }
+
+private:
+    const SourceMap& source_map_;
+    HorusRfParser& parser_;
+};
+
+class FailFastErrorStrategy final : public antlr4::DefaultErrorStrategy {
+public:
+    void recover(antlr4::Parser* recognizer, std::exception_ptr error) override {
+        recognizer->notifyErrorListeners(recognizer->getCurrentToken(), "syntax error", error);
+        throw std::runtime_error("unreachable ANTLR recovery");
+    }
+
+    antlr4::Token* recoverInline(antlr4::Parser* recognizer) override {
+        recognizer->notifyErrorListeners(recognizer->getCurrentToken(), "syntax error", nullptr);
+        throw std::runtime_error("unreachable ANTLR inline recovery");
+    }
+};
+
+class AstBuilder {
+public:
+    AstBuilder(const SourceMap& source_map, antlr4::CommonTokenStream& tokens)
+        : source_map_(source_map), tokens_(tokens) {}
+
+    ast::Program build(HorusRfParser::ProgramContext* context) {
+        auto characterization = build_characterization(context->characterization());
+        return {characterization, characterization.span};
+    }
+
+private:
+    ast::Characterization build_characterization(HorusRfParser::CharacterizationContext* context) {
+        std::vector<ast::Statement> statements;
+        statements.reserve(context->statement().size());
+        for (auto* statement : context->statement()) statements.push_back(build_statement(statement));
+        return {context->IDENTIFIER()->getText(), std::move(statements), source_map_.span(context)};
+    }
+
+    ast::Statement build_statement(HorusRfParser::StatementContext* context) {
+        if (auto* value = context->referenceStatement()) return build_reference_statement(value);
+        if (auto* value = context->sweepStatement()) return build_sweep_statement(value);
+        if (auto* value = context->measurementStatement()) return build_measurement_statement(value);
+        if (auto* value = context->deriveStatement()) return build_derive_statement(value);
+        if (auto* value = context->assertionStatement()) return build_assertion_statement(value);
+        return build_calibration_statement(context->calibrationStatement());
+    }
+
+    ast::ReferenceStatement build_reference_statement(HorusRfParser::ReferenceStatementContext* context) {
+        return {build_signed_quantity(context->signedQuantity()), source_map_.span(context)};
+    }
+
+    ast::SweepStatement build_sweep_statement(HorusRfParser::SweepStatementContext* context) {
+        const auto quantities = context->signedQuantity();
+        return {context->sweepDimension()->getText(), build_signed_quantity(quantities[0]),
+                build_signed_quantity(quantities[1]), build_signed_quantity(quantities[2]),
+                source_map_.span(context)};
+    }
+
+    ast::MeasurementStatement build_measurement_statement(
+        HorusRfParser::MeasurementStatementContext* context) {
+        if (context->POWER() != nullptr) {
+            return {"power", "power", true, source_map_.span(context)};
+        }
+        const auto names = context->expressionName();
+        return {names[0]->getText(), names[1]->getText(), false, source_map_.span(context)};
+    }
+
+    ast::DeriveStatement build_derive_statement(HorusRfParser::DeriveStatementContext* context) {
+        return {context->IDENTIFIER()->getText(), build_expression(context->expression()),
+                source_map_.span(context)};
+    }
+
+    ast::AssertionStatement build_assertion_statement(
+        HorusRfParser::AssertionStatementContext* context) {
+        return {build_expression(context->expression()), source_map_.span(context)};
+    }
+
+    ast::CalibrationStatement build_calibration_statement(
+        HorusRfParser::CalibrationStatementContext* context) {
+        std::vector<std::string> dimensions;
+        dimensions.reserve(context->expressionName().size());
+        for (auto* name : context->expressionName()) dimensions.push_back(name->getText());
+        return {context->IDENTIFIER()->getText(), build_expression(context->expression()),
+                std::move(dimensions), source_map_.span(context)};
+    }
+
+    ast::QuantityLiteral build_signed_quantity(HorusRfParser::SignedQuantityContext* context) {
+        auto quantity = build_quantity(context->quantity());
+        if (context->MINUS() != nullptr) {
+            quantity.number.insert(quantity.number.begin(), '-');
+            quantity.span = source_map_.span(context);
+        }
+        return quantity;
+    }
+
+    ast::QuantityLiteral build_quantity(HorusRfParser::QuantityContext* context) {
+        return {context->NUMBER()->getText(), context->unit()->getText(), source_map_.span(context)};
+    }
+
+    ast::Expression build_expression(HorusRfParser::ExpressionContext* context) {
+        return build_comparison(context->comparisonExpression());
+    }
+
+    ast::Expression build_comparison(HorusRfParser::ComparisonExpressionContext* context) {
+        const auto operands = context->additiveExpression();
+        auto left = build_additive(operands[0]);
+        if (operands.size() == 1) return left;
+        auto right = build_additive(operands[1]);
+        ast::ComparisonOperator op = ast::ComparisonOperator::Equal;
+        switch (context->comparisonOperator()->getStart()->getType()) {
+        case HorusRfParser::LESS: op = ast::ComparisonOperator::Less; break;
+        case HorusRfParser::LESS_EQUAL: op = ast::ComparisonOperator::LessEqual; break;
+        case HorusRfParser::GREATER: op = ast::ComparisonOperator::Greater; break;
+        case HorusRfParser::GREATER_EQUAL: op = ast::ComparisonOperator::GreaterEqual; break;
+        case HorusRfParser::NOT_EQUAL: op = ast::ComparisonOperator::NotEqual; break;
+        default: break;
+        }
+        const SourceSpan span{left.span.begin, right.span.end};
+        return {ast::ComparisonExpression{op,
+                    std::make_shared<ast::Expression>(std::move(left)),
+                    std::make_shared<ast::Expression>(std::move(right)), span}, span};
+    }
+
+    ast::Expression build_additive(HorusRfParser::AdditiveExpressionContext* context) {
+        const auto operands = context->unaryExpression();
+        auto expression = build_unary(operands[0]);
+        for (std::size_t index = 1; index < operands.size(); ++index) {
+            auto right = build_unary(operands[index]);
+            const auto operator_index = operands[index]->getStart()->getTokenIndex() - 1;
+            const auto type = tokens_.get(operator_index)->getType();
+            const SourceSpan span{expression.span.begin, right.span.end};
+            ast::BinaryExpression binary{
+                type == HorusRfParser::PLUS ? ast::BinaryOperator::Add
+                                            : ast::BinaryOperator::Subtract,
+                std::make_shared<ast::Expression>(std::move(expression)),
+                std::make_shared<ast::Expression>(std::move(right)), span};
+            expression = {std::move(binary), span};
+        }
+        return expression;
+    }
+
+    ast::Expression build_unary(HorusRfParser::UnaryExpressionContext* context) {
+        auto operand = build_primary(context->primaryExpression());
+        if (context->MINUS() == nullptr) return operand;
+        const SourceSpan span{source_map_.span(context->MINUS()->getSymbol()).begin,
+                              operand.span.end};
+        return {ast::UnaryExpression{ast::UnaryOperator::Negate,
+                    std::make_shared<ast::Expression>(std::move(operand)), span}, span};
+    }
+
+    ast::Expression build_primary(HorusRfParser::PrimaryExpressionContext* context) {
+        if (auto* quantity = context->quantity()) {
+            auto result = build_quantity(quantity);
+            return {result, result.span};
+        }
+        if (auto* reference = context->reference()) {
+            const auto span = source_map_.span(reference);
+            return {ast::ReferenceExpression{"reference", reference->expressionName()->getText(), span}, span};
+        }
+        if (auto* call = context->call()) {
+            auto argument = build_expression(call->expression());
+            const auto span = source_map_.span(call);
+            return {ast::CallExpression{call->expressionName()->getText(),
+                        std::make_shared<ast::Expression>(std::move(argument)), span}, span};
+        }
+        if (auto* name = context->expressionName()) {
+            const auto span = source_map_.span(name);
+            return {ast::IdentifierExpression{name->getText(), span}, span};
+        }
+        auto expression = build_expression(context->expression());
+        expression.span = source_map_.span(context);
+        return expression;
+    }
+
+    const SourceMap& source_map_;
+    antlr4::CommonTokenStream& tokens_;
+};
+
+} // namespace
+
+ast::Program parse(std::string_view source) {
+    const std::string owned_source{source};
+    SourceMap source_map{owned_source};
+    antlr4::ANTLRInputStream input{owned_source};
+    HorusRfLexer lexer{&input};
+    lexer.removeErrorListeners();
+    antlr4::CommonTokenStream tokens{&lexer};
+    HorusRfParser parser{&tokens};
+    parser.removeErrorListeners();
+    ErrorListener listener{source_map, parser};
+    parser.addErrorListener(&listener);
+    parser.setErrorHandler(std::make_shared<FailFastErrorStrategy>());
+    auto* tree = parser.program();
+    return AstBuilder{source_map, tokens}.build(tree);
+}
+
+} // namespace horusrf::parser::antlr_frontend
