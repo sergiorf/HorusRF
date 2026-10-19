@@ -252,6 +252,14 @@ of the shared corpus. The public `parser::parse()` entry point remains handwritt
 
 #### Migration milestone 5 — Prove dual-parser parity
 
+Status: Completed on 2026-10-19. A migration-only normalized ANTLR token adapter
+and `horusrf_antlr_parity_tests` now run both frontends over every checked-in
+example and the shared accepted/rejected corpus. The suite compares complete token
+and AST snapshots, parse diagnostic codes and spans, and normalized semantic
+results for every syntactically valid source. The parity run exposed and fixed the
+ANTLR diagnostic classification for a reserved word used as a derive name. The
+public `parser::parse()` entry point remains handwritten until milestone 6.
+
 Run the handwritten and generated implementations against the shared regression
 corpus in test code only. Compare:
 

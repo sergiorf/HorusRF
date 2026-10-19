@@ -48,6 +48,12 @@ valid program through the private adapter, covers every AST variant, checks
 one-based positions and byte-offset spans, and verifies every stable parse
 diagnostic code while the public parser remains handwritten.
 
+`horusrf_antlr_parity_tests` runs the handwritten and generated frontends over the
+entire shared corpus. It compares normalized complete token streams, AST structure
+and spans, parse diagnostics, and downstream semantic results. This is the
+migration parity gate; the public parser remains handwritten until the separate
+cutover milestone.
+
 The equivalence suite is intentionally separate from the declarative end-to-end
 suite. The CLI suite crosses a process boundary; unit tests should not do so.
 

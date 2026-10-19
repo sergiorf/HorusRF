@@ -264,6 +264,23 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_antlr_adapter_tests)
     add_test(NAME horusrf_antlr_adapter_tests COMMAND horusrf_antlr_adapter_tests)
 
+    add_executable(horusrf_antlr_parity_tests
+        tests/antlr/parity_tests.cpp
+        tests/parser/regression_support.cpp
+    )
+    target_compile_features(horusrf_antlr_parity_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_antlr_parity_tests PRIVATE
+        tests tests/parser src/parser
+    )
+    target_compile_definitions(horusrf_antlr_parity_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(horusrf_antlr_parity_tests PRIVATE
+        horusrf_parser horusrf_semantic
+    )
+    horusrf_enable_warnings(horusrf_antlr_parity_tests)
+    add_test(NAME horusrf_antlr_parity_tests COMMAND horusrf_antlr_parity_tests)
+
     add_executable(horusrf_domain_tests
         tests/domain/quantity_tests.cpp
         tests/domain/results_tests.cpp
@@ -471,6 +488,7 @@ if(BUILD_TESTING)
         horusrf_antlr_toolchain_smoke_tests
         horusrf_antlr_grammar_recognition_tests
         horusrf_antlr_adapter_tests
+        horusrf_antlr_parity_tests
         horusrf_domain_tests
         horusrf_semantic_tests
         horusrf_ir_tests

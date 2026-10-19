@@ -78,6 +78,57 @@ private:
     std::vector<std::size_t> symbol_offsets_;
 };
 
+TokenKind token_kind(std::size_t type) {
+    switch (type) {
+    case antlr4::Token::EOF: return TokenKind::EndOfFile;
+    case HorusRfLexer::IDENTIFIER: return TokenKind::Identifier;
+    case HorusRfLexer::NUMBER: return TokenKind::Number;
+    case HorusRfLexer::CHARACTERIZE: return TokenKind::Characterize;
+    case HorusRfLexer::REFERENCE: return TokenKind::Reference;
+    case HorusRfLexer::POWER: return TokenKind::Power;
+    case HorusRfLexer::SWEEP: return TokenKind::Sweep;
+    case HorusRfLexer::FREQUENCY: return TokenKind::Frequency;
+    case HorusRfLexer::TEMPERATURE: return TokenKind::Temperature;
+    case HorusRfLexer::STEP: return TokenKind::Step;
+    case HorusRfLexer::MEASURE: return TokenKind::Measure;
+    case HorusRfLexer::DERIVE: return TokenKind::Derive;
+    case HorusRfLexer::CALIBRATION: return TokenKind::Calibration;
+    case HorusRfLexer::CORRECTION: return TokenKind::Correction;
+    case HorusRfLexer::OVER: return TokenKind::Over;
+    case HorusRfLexer::ASSERT: return TokenKind::Assert;
+    case HorusRfLexer::LEFT_BRACE: return TokenKind::LeftBrace;
+    case HorusRfLexer::RIGHT_BRACE: return TokenKind::RightBrace;
+    case HorusRfLexer::EQUAL: return TokenKind::Equal;
+    case HorusRfLexer::EQUAL_EQUAL: return TokenKind::EqualEqual;
+    case HorusRfLexer::NOT_EQUAL: return TokenKind::NotEqual;
+    case HorusRfLexer::LESS: return TokenKind::Less;
+    case HorusRfLexer::LESS_EQUAL: return TokenKind::LessEqual;
+    case HorusRfLexer::GREATER: return TokenKind::Greater;
+    case HorusRfLexer::GREATER_EQUAL: return TokenKind::GreaterEqual;
+    case HorusRfLexer::RANGE: return TokenKind::Range;
+    case HorusRfLexer::DOT: return TokenKind::Dot;
+    case HorusRfLexer::PLUS: return TokenKind::Plus;
+    case HorusRfLexer::MINUS: return TokenKind::Minus;
+    case HorusRfLexer::LEFT_PAREN: return TokenKind::LeftParen;
+    case HorusRfLexer::RIGHT_PAREN: return TokenKind::RightParen;
+    case HorusRfLexer::COMMA: return TokenKind::Comma;
+    case HorusRfLexer::UNIT_HZ: return TokenKind::UnitHz;
+    case HorusRfLexer::UNIT_KHZ: return TokenKind::UnitKHz;
+    case HorusRfLexer::UNIT_MHZ: return TokenKind::UnitMHz;
+    case HorusRfLexer::UNIT_GHZ: return TokenKind::UnitGHz;
+    case HorusRfLexer::UNIT_DBM: return TokenKind::UnitDBm;
+    case HorusRfLexer::UNIT_DB: return TokenKind::UnitDB;
+    case HorusRfLexer::UNIT_K: return TokenKind::UnitK;
+    case HorusRfLexer::UNIT_DEGC: return TokenKind::UnitDegC;
+    case HorusRfLexer::UNIT_DELTA_K: return TokenKind::UnitDeltaK;
+    case HorusRfLexer::UNIT_DELTA_C: return TokenKind::UnitDeltaC;
+    case HorusRfLexer::UNIT_PERCENT: return TokenKind::UnitPercent;
+    case HorusRfLexer::MALFORMED_NUMBER:
+    case HorusRfLexer::INVALID: return TokenKind::Invalid;
+    default: throw std::logic_error("unmapped ANTLR token type");
+    }
+}
+
 bool contains(const antlr4::misc::IntervalSet& tokens, std::size_t type) {
     return tokens.contains(type);
 }
@@ -92,6 +143,16 @@ bool expects_only_names(const antlr4::misc::IntervalSet& expected) {
     for (const auto type : expected.toList()) {
         if (type != HorusRfParser::IDENTIFIER && type != HorusRfParser::POWER &&
             type != HorusRfParser::FREQUENCY && type != HorusRfParser::TEMPERATURE) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool expects_derive_name(const antlr4::misc::IntervalSet& expected) {
+    if (!contains(expected, HorusRfParser::IDENTIFIER)) return false;
+    for (const auto type : expected.toList()) {
+        if (type != HorusRfParser::IDENTIFIER && type != HorusRfParser::CALIBRATION) {
             return false;
         }
     }
@@ -131,12 +192,16 @@ public:
         }
 
         const auto expected = parser_.getExpectedTokens();
+        const auto token_index = offending_symbol->getTokenIndex();
+        const bool follows_derive =
+            token_index > 0 &&
+            parser_.getTokenStream()->get(token_index - 1)->getType() == HorusRfParser::DERIVE;
         const auto rule = parser_.getContext() == nullptr
                               ? HorusRfParser::RuleProgram
                               : parser_.getContext()->getRuleIndex();
         DiagnosticCode code = DiagnosticCode::UnexpectedToken;
         std::string message = "unexpected token '" + offending_symbol->getText() + "'";
-        if (expects_only_names(expected)) {
+        if (expects_only_names(expected) || expects_derive_name(expected) || follows_derive) {
             code = DiagnosticCode::ExpectedIdentifier;
             message = "expected identifier";
         } else if (rule == HorusRfParser::RuleUnit && expects_unit(expected)) {
@@ -340,6 +405,26 @@ private:
 };
 
 } // namespace
+
+std::vector<Token> tokenize(std::string_view source) {
+    const std::string owned_source{source};
+    SourceMap source_map{owned_source};
+    antlr4::ANTLRInputStream input{owned_source};
+    HorusRfLexer lexer{&input};
+    lexer.removeErrorListeners();
+    antlr4::CommonTokenStream tokens{&lexer};
+    tokens.fill();
+
+    std::vector<Token> result;
+    result.reserve(tokens.getTokens().size());
+    for (const auto* token : tokens.getTokens()) {
+        const auto type = token->getType();
+        result.push_back(Token{token_kind(type),
+                               type == antlr4::Token::EOF ? std::string{} : token->getText(),
+                               source_map.span(token)});
+    }
+    return result;
+}
 
 ast::Program parse(std::string_view source) {
     const std::string owned_source{source};
