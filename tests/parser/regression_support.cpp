@@ -1,7 +1,6 @@
 #include "regression_support.hpp"
 
 #include <sstream>
-#include <stdexcept>
 #include <type_traits>
 #include <variant>
 
@@ -126,10 +125,6 @@ void append_statement(std::ostringstream& output, const ast::Statement& statemen
 
 } // namespace
 
-Frontend handwritten_frontend() {
-    return Frontend{"handwritten", parser::lex, parser::parse};
-}
-
 std::string token_snapshot(const std::vector<parser::Token>& tokens) {
     std::ostringstream output;
     for (const auto& token : tokens) {
@@ -155,29 +150,6 @@ std::string ast_snapshot(const ast::Program& program) {
 std::string diagnostic_snapshot(const parser::Diagnostic& diagnostic) {
     return std::string{parser::diagnostic_code_name(diagnostic.code)} + '|' +
            span_text(diagnostic.span);
-}
-
-Observation observe(const Frontend& frontend, std::string_view source) {
-    try {
-        const auto tokens = frontend.tokenize(source);
-        const auto program = frontend.parse(source);
-        return Observation{true, token_snapshot(tokens) + ast_snapshot(program)};
-    } catch (const parser::ParseError& error) {
-        return Observation{false, diagnostic_snapshot(error.diagnostic())};
-    }
-}
-
-void require_equivalent(const Frontend& expected, const Frontend& actual,
-                        std::string_view case_name, std::string_view source) {
-    const auto expected_observation = observe(expected, source);
-    const auto actual_observation = observe(actual, source);
-    if (expected_observation == actual_observation) return;
-
-    std::ostringstream message;
-    message << "frontend mismatch for " << case_name << " (" << expected.name << " vs "
-            << actual.name << ")\nexpected:\n" << expected_observation.snapshot
-            << "\nactual:\n" << actual_observation.snapshot;
-    throw std::runtime_error(message.str());
 }
 
 } // namespace horusrf::test::parser_regression

@@ -32,9 +32,9 @@ cmake --build build --target horusrf_antlr_grammar_generated
 ```
 
 With a multi-config generator, add `--config Debug` (or the configuration in use).
-The public HorusRF parser remains routed through the handwritten frontend until
-the remaining parity and cutover milestones pass. The generated frontend's AST
-and diagnostic adapters are private to `horusrf_parser`.
+The generated frontend is the production HorusRF parser. Its ANTLR parse tree,
+AST builder, and diagnostic adapter remain private to `horusrf_parser`; public
+callers continue to use the existing HorusRF AST and diagnostic types.
 
 For a multi-config generator, choose one configuration consistently, for example:
 

@@ -1,21 +1,497 @@
 #include "horusrf/parser/parser.hpp"
 
+#include "HorusRfLexer.h"
+#include "HorusRfParser.h"
+
+#include <antlr4-runtime.h>
+
+#include <algorithm>
+#include <cstddef>
 #include <memory>
+#include <stdexcept>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "horusrf/parser/lexer.hpp"
 
 namespace horusrf::parser {
 namespace {
 
-SourceSpan joined(SourcePosition begin, SourcePosition end) { return SourceSpan{begin, end}; }
+class SourceMap {
+public:
+    explicit SourceMap(std::string_view source) {
+        positions_.reserve(source.size() + 1);
+        SourcePosition position{};
+        for (const char byte : source) {
+            positions_.push_back(position);
+            ++position.offset;
+            if (byte == '\n') {
+                ++position.line;
+                position.column = 1;
+            } else {
+                ++position.column;
+            }
+        }
+        positions_.push_back(position);
 
-bool is_expression_name(TokenKind kind) noexcept {
-    return kind == TokenKind::Identifier || kind == TokenKind::Power ||
-           kind == TokenKind::Frequency || kind == TokenKind::Temperature;
+        symbol_offsets_.push_back(0);
+        for (std::size_t offset = 0; offset < source.size();) {
+            const auto lead = static_cast<unsigned char>(source[offset]);
+            std::size_t width = 1;
+            if ((lead & 0xE0U) == 0xC0U) width = 2;
+            else if ((lead & 0xF0U) == 0xE0U) width = 3;
+            else if ((lead & 0xF8U) == 0xF0U) width = 4;
+            if (offset + width > source.size()) width = 1;
+            for (std::size_t index = 1; index < width; ++index) {
+                if ((static_cast<unsigned char>(source[offset + index]) & 0xC0U) != 0x80U) {
+                    width = 1;
+                    break;
+                }
+            }
+            offset += width;
+            symbol_offsets_.push_back(offset);
+        }
+    }
+
+    [[nodiscard]] SourcePosition position(std::size_t symbol_offset) const {
+        const auto index = std::min(symbol_offset, symbol_offsets_.size() - 1);
+        return positions_[symbol_offsets_[index]];
+    }
+
+    [[nodiscard]] SourceSpan span(const antlr4::Token* token) const {
+        if (token->getType() == antlr4::Token::EOF) {
+            const auto end = positions_.back();
+            return {end, end};
+        }
+        const auto begin = position(token->getStartIndex());
+        const auto end = position(token->getStopIndex() + 1);
+        return {begin, end};
+    }
+
+    [[nodiscard]] SourceSpan span(const antlr4::ParserRuleContext* context) const {
+        return {span(context->getStart()).begin, span(context->getStop()).end};
+    }
+
+private:
+    std::vector<SourcePosition> positions_;
+    std::vector<std::size_t> symbol_offsets_;
+};
+
+TokenKind token_kind(std::size_t type) {
+    switch (type) {
+    case antlr4::Token::EOF: return TokenKind::EndOfFile;
+    case HorusRfLexer::IDENTIFIER: return TokenKind::Identifier;
+    case HorusRfLexer::NUMBER: return TokenKind::Number;
+    case HorusRfLexer::CHARACTERIZE: return TokenKind::Characterize;
+    case HorusRfLexer::REFERENCE: return TokenKind::Reference;
+    case HorusRfLexer::POWER: return TokenKind::Power;
+    case HorusRfLexer::SWEEP: return TokenKind::Sweep;
+    case HorusRfLexer::FREQUENCY: return TokenKind::Frequency;
+    case HorusRfLexer::TEMPERATURE: return TokenKind::Temperature;
+    case HorusRfLexer::STEP: return TokenKind::Step;
+    case HorusRfLexer::MEASURE: return TokenKind::Measure;
+    case HorusRfLexer::DERIVE: return TokenKind::Derive;
+    case HorusRfLexer::CALIBRATION: return TokenKind::Calibration;
+    case HorusRfLexer::CORRECTION: return TokenKind::Correction;
+    case HorusRfLexer::OVER: return TokenKind::Over;
+    case HorusRfLexer::ASSERT: return TokenKind::Assert;
+    case HorusRfLexer::LEFT_BRACE: return TokenKind::LeftBrace;
+    case HorusRfLexer::RIGHT_BRACE: return TokenKind::RightBrace;
+    case HorusRfLexer::EQUAL: return TokenKind::Equal;
+    case HorusRfLexer::EQUAL_EQUAL: return TokenKind::EqualEqual;
+    case HorusRfLexer::NOT_EQUAL: return TokenKind::NotEqual;
+    case HorusRfLexer::LESS: return TokenKind::Less;
+    case HorusRfLexer::LESS_EQUAL: return TokenKind::LessEqual;
+    case HorusRfLexer::GREATER: return TokenKind::Greater;
+    case HorusRfLexer::GREATER_EQUAL: return TokenKind::GreaterEqual;
+    case HorusRfLexer::RANGE: return TokenKind::Range;
+    case HorusRfLexer::DOT: return TokenKind::Dot;
+    case HorusRfLexer::PLUS: return TokenKind::Plus;
+    case HorusRfLexer::MINUS: return TokenKind::Minus;
+    case HorusRfLexer::LEFT_PAREN: return TokenKind::LeftParen;
+    case HorusRfLexer::RIGHT_PAREN: return TokenKind::RightParen;
+    case HorusRfLexer::COMMA: return TokenKind::Comma;
+    case HorusRfLexer::UNIT_HZ: return TokenKind::UnitHz;
+    case HorusRfLexer::UNIT_KHZ: return TokenKind::UnitKHz;
+    case HorusRfLexer::UNIT_MHZ: return TokenKind::UnitMHz;
+    case HorusRfLexer::UNIT_GHZ: return TokenKind::UnitGHz;
+    case HorusRfLexer::UNIT_DBM: return TokenKind::UnitDBm;
+    case HorusRfLexer::UNIT_DB: return TokenKind::UnitDB;
+    case HorusRfLexer::UNIT_K: return TokenKind::UnitK;
+    case HorusRfLexer::UNIT_DEGC: return TokenKind::UnitDegC;
+    case HorusRfLexer::UNIT_DELTA_K: return TokenKind::UnitDeltaK;
+    case HorusRfLexer::UNIT_DELTA_C: return TokenKind::UnitDeltaC;
+    case HorusRfLexer::UNIT_PERCENT: return TokenKind::UnitPercent;
+    case HorusRfLexer::MALFORMED_NUMBER:
+    case HorusRfLexer::INVALID: return TokenKind::Invalid;
+    default: throw std::logic_error("unmapped ANTLR token type");
+    }
 }
 
+bool contains(const antlr4::misc::IntervalSet& tokens, std::size_t type) {
+    return tokens.contains(type);
+}
+
+bool expects_only_names(const antlr4::misc::IntervalSet& expected) {
+    bool found = false;
+    for (const auto type : {HorusRfParser::IDENTIFIER, HorusRfParser::POWER,
+                            HorusRfParser::FREQUENCY, HorusRfParser::TEMPERATURE}) {
+        found = found || contains(expected, type);
+    }
+    if (!found) return false;
+    for (const auto type : expected.toList()) {
+        if (type != HorusRfParser::IDENTIFIER && type != HorusRfParser::POWER &&
+            type != HorusRfParser::FREQUENCY && type != HorusRfParser::TEMPERATURE) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool expects_derive_name(const antlr4::misc::IntervalSet& expected) {
+    if (!contains(expected, HorusRfParser::IDENTIFIER)) return false;
+    for (const auto type : expected.toList()) {
+        if (type != HorusRfParser::IDENTIFIER && type != HorusRfParser::CALIBRATION) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool expects_unit(const antlr4::misc::IntervalSet& expected) {
+    for (std::size_t type = HorusRfParser::UNIT_HZ; type <= HorusRfParser::UNIT_PERCENT; ++type) {
+        if (contains(expected, type)) return true;
+    }
+    return false;
+}
+
+bool expects_expression(const antlr4::misc::IntervalSet& expected) {
+    for (const auto type : {HorusRfParser::MINUS, HorusRfParser::NUMBER,
+                            HorusRfParser::REFERENCE, HorusRfParser::IDENTIFIER,
+                            HorusRfParser::POWER, HorusRfParser::FREQUENCY,
+                            HorusRfParser::TEMPERATURE, HorusRfParser::LEFT_PAREN}) {
+        if (contains(expected, type)) return true;
+    }
+    return false;
+}
+
+class ErrorListener final : public antlr4::BaseErrorListener {
+public:
+    ErrorListener(const SourceMap& source_map, HorusRfParser& parser)
+        : source_map_(source_map), parser_(parser) {}
+
+    void syntaxError(antlr4::Recognizer*, antlr4::Token* offending_symbol,
+                     std::size_t, std::size_t, const std::string&,
+                     std::exception_ptr) override {
+        const auto type = offending_symbol->getType();
+        if (type == HorusRfParser::INVALID || type == HorusRfParser::MALFORMED_NUMBER) {
+            throw ParseError({DiagnosticCode::InvalidToken,
+                              "invalid token '" + offending_symbol->getText() + "'",
+                              source_map_.span(offending_symbol)});
+        }
+
+        const auto expected = parser_.getExpectedTokens();
+        const auto token_index = offending_symbol->getTokenIndex();
+        const bool follows_derive =
+            token_index > 0 &&
+            parser_.getTokenStream()->get(token_index - 1)->getType() == HorusRfParser::DERIVE;
+        const auto rule = parser_.getContext() == nullptr
+                              ? HorusRfParser::RuleProgram
+                              : parser_.getContext()->getRuleIndex();
+        DiagnosticCode code = DiagnosticCode::UnexpectedToken;
+        std::string message = "unexpected token '" + offending_symbol->getText() + "'";
+        if (expects_only_names(expected) || expects_derive_name(expected) || follows_derive) {
+            code = DiagnosticCode::ExpectedIdentifier;
+            message = "expected identifier";
+        } else if (rule == HorusRfParser::RuleUnit && expects_unit(expected)) {
+            code = DiagnosticCode::ExpectedUnit;
+            message = "expected unit after quantity number";
+        } else if ((rule == HorusRfParser::RuleQuantity ||
+                    rule == HorusRfParser::RuleSignedQuantity) &&
+                   contains(expected, HorusRfParser::NUMBER)) {
+            code = DiagnosticCode::ExpectedQuantity;
+            message = "expected quantity number";
+        } else if ((rule == HorusRfParser::RuleExpression ||
+                    rule == HorusRfParser::RuleComparisonExpression ||
+                    rule == HorusRfParser::RuleAdditiveExpression ||
+                    rule == HorusRfParser::RuleUnaryExpression ||
+                    rule == HorusRfParser::RulePrimaryExpression ||
+                    rule == HorusRfParser::RuleCall) &&
+                   expects_expression(expected)) {
+            code = DiagnosticCode::ExpectedExpression;
+            message = "expected expression";
+        } else if (type == antlr4::Token::EOF) {
+            code = DiagnosticCode::UnexpectedEndOfFile;
+            message = "unexpected end of file";
+        }
+        throw ParseError({code, std::move(message), source_map_.span(offending_symbol)});
+    }
+
+private:
+    const SourceMap& source_map_;
+    HorusRfParser& parser_;
+};
+
+class FailFastErrorStrategy final : public antlr4::DefaultErrorStrategy {
+public:
+    void recover(antlr4::Parser* recognizer, std::exception_ptr error) override {
+        recognizer->notifyErrorListeners(recognizer->getCurrentToken(), "syntax error", error);
+        throw std::runtime_error("unreachable ANTLR recovery");
+    }
+
+    antlr4::Token* recoverInline(antlr4::Parser* recognizer) override {
+        recognizer->notifyErrorListeners(recognizer->getCurrentToken(), "syntax error", nullptr);
+        throw std::runtime_error("unreachable ANTLR inline recovery");
+    }
+};
+
+class AstBuilder {
+public:
+    AstBuilder(const SourceMap& source_map, antlr4::CommonTokenStream& tokens)
+        : source_map_(source_map), tokens_(tokens) {}
+
+    ast::Program build(HorusRfParser::ProgramContext* context) {
+        auto characterization = build_characterization(context->characterization());
+        return {characterization, characterization.span};
+    }
+
+private:
+    ast::Characterization build_characterization(HorusRfParser::CharacterizationContext* context) {
+        std::vector<ast::Statement> statements;
+        statements.reserve(context->statement().size());
+        for (auto* statement : context->statement()) statements.push_back(build_statement(statement));
+        return {context->IDENTIFIER()->getText(), std::move(statements), source_map_.span(context)};
+    }
+
+    ast::Statement build_statement(HorusRfParser::StatementContext* context) {
+        if (auto* value = context->referenceStatement()) return build_reference_statement(value);
+        if (auto* value = context->sweepStatement()) return build_sweep_statement(value);
+        if (auto* value = context->measurementStatement()) return build_measurement_statement(value);
+        if (auto* value = context->deriveStatement()) return build_derive_statement(value);
+        if (auto* value = context->assertionStatement()) return build_assertion_statement(value);
+        return build_calibration_statement(context->calibrationStatement());
+    }
+
+    ast::ReferenceStatement build_reference_statement(HorusRfParser::ReferenceStatementContext* context) {
+        return {build_signed_quantity(context->signedQuantity()), source_map_.span(context)};
+    }
+
+    ast::SweepStatement build_sweep_statement(HorusRfParser::SweepStatementContext* context) {
+        const auto quantities = context->signedQuantity();
+        return {context->sweepDimension()->getText(), build_signed_quantity(quantities[0]),
+                build_signed_quantity(quantities[1]), build_signed_quantity(quantities[2]),
+                source_map_.span(context)};
+    }
+
+    ast::MeasurementStatement build_measurement_statement(
+        HorusRfParser::MeasurementStatementContext* context) {
+        if (context->POWER() != nullptr) {
+            return {"power", "power", true, source_map_.span(context)};
+        }
+        const auto names = context->expressionName();
+        return {names[0]->getText(), names[1]->getText(), false, source_map_.span(context)};
+    }
+
+    ast::DeriveStatement build_derive_statement(HorusRfParser::DeriveStatementContext* context) {
+        return {context->IDENTIFIER()->getText(), build_expression(context->expression()),
+                source_map_.span(context)};
+    }
+
+    ast::AssertionStatement build_assertion_statement(
+        HorusRfParser::AssertionStatementContext* context) {
+        return {build_expression(context->expression()), source_map_.span(context)};
+    }
+
+    ast::CalibrationStatement build_calibration_statement(
+        HorusRfParser::CalibrationStatementContext* context) {
+        std::vector<std::string> dimensions;
+        dimensions.reserve(context->expressionName().size());
+        for (auto* name : context->expressionName()) dimensions.push_back(name->getText());
+        return {context->IDENTIFIER()->getText(), build_expression(context->expression()),
+                std::move(dimensions), source_map_.span(context)};
+    }
+
+    ast::QuantityLiteral build_signed_quantity(HorusRfParser::SignedQuantityContext* context) {
+        auto quantity = build_quantity(context->quantity());
+        if (context->MINUS() != nullptr) {
+            quantity.number.insert(quantity.number.begin(), '-');
+            quantity.span = source_map_.span(context);
+        }
+        return quantity;
+    }
+
+    ast::QuantityLiteral build_quantity(HorusRfParser::QuantityContext* context) {
+        return {context->NUMBER()->getText(), context->unit()->getText(), source_map_.span(context)};
+    }
+
+    ast::Expression build_expression(HorusRfParser::ExpressionContext* context) {
+        return build_comparison(context->comparisonExpression());
+    }
+
+    ast::Expression build_comparison(HorusRfParser::ComparisonExpressionContext* context) {
+        const auto operands = context->additiveExpression();
+        auto left = build_additive(operands[0]);
+        if (operands.size() == 1) return left;
+        auto right = build_additive(operands[1]);
+        ast::ComparisonOperator op = ast::ComparisonOperator::Equal;
+        switch (context->comparisonOperator()->getStart()->getType()) {
+        case HorusRfParser::LESS: op = ast::ComparisonOperator::Less; break;
+        case HorusRfParser::LESS_EQUAL: op = ast::ComparisonOperator::LessEqual; break;
+        case HorusRfParser::GREATER: op = ast::ComparisonOperator::Greater; break;
+        case HorusRfParser::GREATER_EQUAL: op = ast::ComparisonOperator::GreaterEqual; break;
+        case HorusRfParser::NOT_EQUAL: op = ast::ComparisonOperator::NotEqual; break;
+        default: break;
+        }
+        const SourceSpan span{left.span.begin, right.span.end};
+        return {ast::ComparisonExpression{op,
+                    std::make_shared<ast::Expression>(std::move(left)),
+                    std::make_shared<ast::Expression>(std::move(right)), span}, span};
+    }
+
+    ast::Expression build_additive(HorusRfParser::AdditiveExpressionContext* context) {
+        const auto operands = context->unaryExpression();
+        auto expression = build_unary(operands[0]);
+        for (std::size_t index = 1; index < operands.size(); ++index) {
+            auto right = build_unary(operands[index]);
+            const auto operator_index = operands[index]->getStart()->getTokenIndex() - 1;
+            const auto type = tokens_.get(operator_index)->getType();
+            const SourceSpan span{expression.span.begin, right.span.end};
+            ast::BinaryExpression binary{
+                type == HorusRfParser::PLUS ? ast::BinaryOperator::Add
+                                            : ast::BinaryOperator::Subtract,
+                std::make_shared<ast::Expression>(std::move(expression)),
+                std::make_shared<ast::Expression>(std::move(right)), span};
+            expression = {std::move(binary), span};
+        }
+        return expression;
+    }
+
+    ast::Expression build_unary(HorusRfParser::UnaryExpressionContext* context) {
+        auto operand = build_primary(context->primaryExpression());
+        if (context->MINUS() == nullptr) return operand;
+        const SourceSpan span{source_map_.span(context->MINUS()->getSymbol()).begin,
+                              operand.span.end};
+        return {ast::UnaryExpression{ast::UnaryOperator::Negate,
+                    std::make_shared<ast::Expression>(std::move(operand)), span}, span};
+    }
+
+    ast::Expression build_primary(HorusRfParser::PrimaryExpressionContext* context) {
+        if (auto* quantity = context->quantity()) {
+            auto result = build_quantity(quantity);
+            return {result, result.span};
+        }
+        if (auto* reference = context->reference()) {
+            const auto span = source_map_.span(reference);
+            return {ast::ReferenceExpression{"reference", reference->expressionName()->getText(), span}, span};
+        }
+        if (auto* call = context->call()) {
+            auto argument = build_expression(call->expression());
+            const auto span = source_map_.span(call);
+            return {ast::CallExpression{call->expressionName()->getText(),
+                        std::make_shared<ast::Expression>(std::move(argument)), span}, span};
+        }
+        if (auto* name = context->expressionName()) {
+            const auto span = source_map_.span(name);
+            return {ast::IdentifierExpression{name->getText(), span}, span};
+        }
+        auto expression = build_expression(context->expression());
+        expression.span = source_map_.span(context);
+        return expression;
+    }
+
+    const SourceMap& source_map_;
+    antlr4::CommonTokenStream& tokens_;
+};
+
 } // namespace
+
+std::vector<Token> lex(std::string_view source) {
+    const std::string owned_source{source};
+    SourceMap source_map{owned_source};
+    antlr4::ANTLRInputStream input{owned_source};
+    HorusRfLexer lexer{&input};
+    lexer.removeErrorListeners();
+    antlr4::CommonTokenStream tokens{&lexer};
+    tokens.fill();
+
+    std::vector<Token> result;
+    result.reserve(tokens.getTokens().size());
+    for (const auto* token : tokens.getTokens()) {
+        const auto type = token->getType();
+        result.push_back(Token{token_kind(type),
+                               type == antlr4::Token::EOF ? std::string{} : token->getText(),
+                               source_map.span(token)});
+    }
+    return result;
+}
+
+std::string_view token_kind_name(TokenKind kind) noexcept {
+    switch (kind) {
+    case TokenKind::EndOfFile: return "end of file";
+    case TokenKind::Identifier: return "identifier";
+    case TokenKind::Number: return "number";
+    case TokenKind::Characterize: return "characterize";
+    case TokenKind::Reference: return "reference";
+    case TokenKind::Power: return "power";
+    case TokenKind::Sweep: return "sweep";
+    case TokenKind::Frequency: return "frequency";
+    case TokenKind::Temperature: return "temperature";
+    case TokenKind::Step: return "step";
+    case TokenKind::Measure: return "measure";
+    case TokenKind::Derive: return "derive";
+    case TokenKind::Calibration: return "calibration";
+    case TokenKind::Correction: return "correction";
+    case TokenKind::Over: return "over";
+    case TokenKind::Assert: return "assert";
+    case TokenKind::LeftBrace: return "{";
+    case TokenKind::RightBrace: return "}";
+    case TokenKind::Equal: return "=";
+    case TokenKind::EqualEqual: return "==";
+    case TokenKind::NotEqual: return "!=";
+    case TokenKind::Less: return "<";
+    case TokenKind::LessEqual: return "<=";
+    case TokenKind::Greater: return ">";
+    case TokenKind::GreaterEqual: return ">=";
+    case TokenKind::Range: return "..";
+    case TokenKind::Dot: return ".";
+    case TokenKind::Plus: return "+";
+    case TokenKind::Minus: return "-";
+    case TokenKind::LeftParen: return "(";
+    case TokenKind::RightParen: return ")";
+    case TokenKind::Comma: return ",";
+    case TokenKind::UnitHz: return "Hz";
+    case TokenKind::UnitKHz: return "kHz";
+    case TokenKind::UnitMHz: return "MHz";
+    case TokenKind::UnitGHz: return "GHz";
+    case TokenKind::UnitDBm: return "dBm";
+    case TokenKind::UnitDB: return "dB";
+    case TokenKind::UnitK: return "K";
+    case TokenKind::UnitDegC: return "degC";
+    case TokenKind::UnitDeltaK: return "deltaK";
+    case TokenKind::UnitDeltaC: return "deltaC";
+    case TokenKind::UnitPercent: return "%";
+    case TokenKind::Invalid: return "invalid token";
+    }
+    return "unknown token";
+}
+
+bool is_unit(TokenKind kind) noexcept {
+    switch (kind) {
+    case TokenKind::UnitHz:
+    case TokenKind::UnitKHz:
+    case TokenKind::UnitMHz:
+    case TokenKind::UnitGHz:
+    case TokenKind::UnitDBm:
+    case TokenKind::UnitDB:
+    case TokenKind::UnitK:
+    case TokenKind::UnitDegC:
+    case TokenKind::UnitDeltaK:
+    case TokenKind::UnitDeltaC:
+    case TokenKind::UnitPercent: return true;
+    default: return false;
+    }
+}
 
 std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
     switch (code) {
@@ -33,308 +509,20 @@ std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
 ParseError::ParseError(Diagnostic diagnostic)
     : std::runtime_error(diagnostic.message), diagnostic_(std::move(diagnostic)) {}
 
-Parser::Parser(std::vector<Token> tokens) : tokens_(std::move(tokens)) {
-    if (tokens_.empty() || tokens_.back().kind != TokenKind::EndOfFile) {
-        const SourcePosition end = tokens_.empty() ? SourcePosition{} : tokens_.back().span.end;
-        tokens_.push_back(Token{TokenKind::EndOfFile, {}, SourceSpan{end, end}});
-    }
+ast::Program parse(std::string_view source) {
+    const std::string owned_source{source};
+    SourceMap source_map{owned_source};
+    antlr4::ANTLRInputStream input{owned_source};
+    HorusRfLexer lexer{&input};
+    lexer.removeErrorListeners();
+    antlr4::CommonTokenStream tokens{&lexer};
+    HorusRfParser parser{&tokens};
+    parser.removeErrorListeners();
+    ErrorListener listener{source_map, parser};
+    parser.addErrorListener(&listener);
+    parser.setErrorHandler(std::make_shared<FailFastErrorStrategy>());
+    auto* tree = parser.program();
+    return AstBuilder{source_map, tokens}.build(tree);
 }
-
-const Token& Parser::current() const noexcept { return tokens_[index_]; }
-const Token& Parser::previous() const noexcept { return tokens_[index_ - 1]; }
-bool Parser::check(TokenKind kind) const noexcept { return current().kind == kind; }
-bool Parser::match(TokenKind kind) noexcept {
-    if (!check(kind)) return false;
-    ++index_;
-    return true;
-}
-
-void Parser::reject_invalid() const {
-    if (check(TokenKind::Invalid)) {
-        fail(DiagnosticCode::InvalidToken, "invalid token '" + current().lexeme + "'");
-    }
-}
-
-const Token& Parser::consume(TokenKind kind, DiagnosticCode code, std::string message) {
-    reject_invalid();
-    if (check(kind)) {
-        ++index_;
-        return previous();
-    }
-    if (check(TokenKind::EndOfFile) && code == DiagnosticCode::UnexpectedToken) {
-        fail(DiagnosticCode::UnexpectedEndOfFile, "unexpected end of file; " + message);
-    }
-    fail(code, std::move(message));
-}
-
-const Token& Parser::consume_expression_name(std::string message) {
-    reject_invalid();
-    // These words introduce statement syntax, but the grammar also uses them
-    // as names in expressions, references, and calibration indexes.
-    if (is_expression_name(current().kind)) {
-        ++index_;
-        return previous();
-    }
-    fail(DiagnosticCode::ExpectedIdentifier, std::move(message));
-}
-
-void Parser::fail(DiagnosticCode code, std::string message) const {
-    throw ParseError(Diagnostic{code, std::move(message), current().span});
-}
-
-ast::Program Parser::parse_program() {
-    reject_invalid();
-    auto characterization = parse_characterization();
-    consume(TokenKind::EndOfFile, DiagnosticCode::UnexpectedToken,
-            "expected end of file after characterization");
-    return ast::Program{characterization, characterization.span};
-}
-
-ast::Characterization Parser::parse_characterization() {
-    const auto& start = consume(TokenKind::Characterize, DiagnosticCode::UnexpectedToken,
-                                "expected 'characterize'");
-    const auto& name = consume(TokenKind::Identifier, DiagnosticCode::ExpectedIdentifier,
-                               "expected characterization name");
-    consume(TokenKind::LeftBrace, DiagnosticCode::UnexpectedToken,
-            "expected '{' after characterization name");
-    std::vector<ast::Statement> statements;
-    while (!check(TokenKind::RightBrace) && !check(TokenKind::EndOfFile)) {
-        statements.push_back(parse_statement());
-    }
-    const auto& end = consume(TokenKind::RightBrace, DiagnosticCode::UnexpectedToken,
-                              "expected '}' to close characterization");
-    return ast::Characterization{name.lexeme, std::move(statements),
-                                 joined(start.span.begin, end.span.end)};
-}
-
-ast::Statement Parser::parse_statement() {
-    reject_invalid();
-    switch (current().kind) {
-    case TokenKind::Reference: return parse_reference_statement();
-    case TokenKind::Sweep: return parse_sweep_statement();
-    case TokenKind::Measure: return parse_measurement_statement();
-    case TokenKind::Derive:
-        if (index_ + 1 < tokens_.size() && tokens_[index_ + 1].kind == TokenKind::Calibration)
-            return parse_calibration_statement();
-        return parse_derive_statement();
-    case TokenKind::Assert: return parse_assertion_statement();
-    default:
-        fail(DiagnosticCode::UnexpectedToken,
-             "expected reference, sweep, measure, derive, or assert statement");
-    }
-}
-
-ast::ReferenceStatement Parser::parse_reference_statement() {
-    const auto& start = consume(TokenKind::Reference, DiagnosticCode::UnexpectedToken,
-                                "expected 'reference'");
-    consume(TokenKind::Power, DiagnosticCode::UnexpectedToken,
-            "expected 'power' after 'reference'");
-    consume(TokenKind::Equal, DiagnosticCode::UnexpectedToken,
-            "expected '=' after 'reference power'");
-    auto quantity = parse_quantity(true);
-    return ast::ReferenceStatement{quantity, joined(start.span.begin, quantity.span.end)};
-}
-
-ast::SweepStatement Parser::parse_sweep_statement() {
-    const auto& start = consume(TokenKind::Sweep, DiagnosticCode::UnexpectedToken,
-                                "expected 'sweep'");
-    reject_invalid();
-    if (!check(TokenKind::Frequency) && !check(TokenKind::Temperature)) {
-        fail(DiagnosticCode::ExpectedIdentifier,
-             "expected sweep dimension after 'sweep'");
-    }
-    const auto dimension = current();
-    ++index_;
-    auto range_start = parse_quantity(true);
-    consume(TokenKind::Range, DiagnosticCode::UnexpectedToken,
-            "expected '..' between sweep endpoints");
-    auto range_end = parse_quantity(true);
-    consume(TokenKind::Step, DiagnosticCode::UnexpectedToken,
-            "expected 'step' after sweep range");
-    auto step = parse_quantity(true);
-    return ast::SweepStatement{dimension.lexeme, range_start, range_end, step,
-                               joined(start.span.begin, step.span.end)};
-}
-
-ast::MeasurementStatement Parser::parse_measurement_statement() {
-    const auto& start = consume(TokenKind::Measure, DiagnosticCode::UnexpectedToken,
-                                "expected 'measure'");
-    const auto& first = consume_expression_name("expected measurement name or 'power'");
-    if (!match(TokenKind::Equal)) {
-        if (first.kind != TokenKind::Power) {
-            fail(DiagnosticCode::UnexpectedToken,
-                 "expected '=' after measurement name");
-        }
-        return ast::MeasurementStatement{"power", "power", true,
-                                         joined(start.span.begin, first.span.end)};
-    }
-    const auto& operation = consume_expression_name("expected measurement operation after '='");
-    return ast::MeasurementStatement{first.lexeme, operation.lexeme, false,
-                                     joined(start.span.begin, operation.span.end)};
-}
-
-ast::DeriveStatement Parser::parse_derive_statement() {
-    const auto& start = consume(TokenKind::Derive, DiagnosticCode::UnexpectedToken,
-                                "expected 'derive'");
-    const auto& name = consume(TokenKind::Identifier, DiagnosticCode::ExpectedIdentifier,
-                               "expected derived value name");
-    consume(TokenKind::Equal, DiagnosticCode::UnexpectedToken,
-            "expected '=' after derived value name");
-    auto expression = parse_expression();
-    return ast::DeriveStatement{name.lexeme, expression,
-                                joined(start.span.begin, expression.span.end)};
-}
-
-ast::AssertionStatement Parser::parse_assertion_statement() {
-    const auto& start = consume(TokenKind::Assert, DiagnosticCode::UnexpectedToken,
-                                "expected 'assert'");
-    auto expression = parse_expression();
-    return ast::AssertionStatement{expression,
-                                   joined(start.span.begin, expression.span.end)};
-}
-
-ast::CalibrationStatement Parser::parse_calibration_statement() {
-    const auto& start = consume(TokenKind::Derive, DiagnosticCode::UnexpectedToken,
-                                "expected 'derive'");
-    consume(TokenKind::Calibration, DiagnosticCode::UnexpectedToken,
-            "expected 'calibration'");
-    const auto& name = consume(TokenKind::Identifier, DiagnosticCode::ExpectedIdentifier,
-                               "expected calibration name");
-    consume(TokenKind::LeftBrace, DiagnosticCode::UnexpectedToken,
-            "expected '{' after calibration name");
-    consume(TokenKind::Correction, DiagnosticCode::UnexpectedToken,
-            "expected 'correction' in calibration");
-    consume(TokenKind::Equal, DiagnosticCode::UnexpectedToken,
-            "expected '=' after 'correction'");
-    auto correction = parse_expression();
-    consume(TokenKind::Over, DiagnosticCode::UnexpectedToken,
-            "expected 'over' after calibration correction");
-    std::vector<std::string> dimensions;
-    dimensions.push_back(consume_expression_name("expected dimension after 'over'").lexeme);
-    while (match(TokenKind::Comma)) {
-        dimensions.push_back(consume_expression_name("expected dimension after ','").lexeme);
-    }
-    const auto& end = consume(TokenKind::RightBrace, DiagnosticCode::UnexpectedToken,
-                              "expected '}' to close calibration");
-    return ast::CalibrationStatement{name.lexeme, correction, std::move(dimensions),
-                                     joined(start.span.begin, end.span.end)};
-}
-
-ast::QuantityLiteral Parser::parse_quantity(bool allow_sign) {
-    reject_invalid();
-    SourcePosition begin = current().span.begin;
-    std::string sign;
-    if (allow_sign && match(TokenKind::Minus)) {
-        sign = "-";
-    }
-    if (!check(TokenKind::Number)) {
-        fail(DiagnosticCode::ExpectedQuantity, "expected quantity number");
-    }
-    const auto number = current();
-    ++index_;
-    reject_invalid();
-    if (!is_unit(current().kind)) {
-        fail(DiagnosticCode::ExpectedUnit, "expected unit after quantity number");
-    }
-    const auto unit = current();
-    ++index_;
-    return ast::QuantityLiteral{sign + number.lexeme, unit.lexeme,
-                                joined(begin, unit.span.end)};
-}
-
-ast::Expression Parser::parse_expression() { return parse_comparison(); }
-
-ast::Expression Parser::parse_comparison() {
-    auto expression = parse_additive();
-    if (!check(TokenKind::Less) && !check(TokenKind::LessEqual) &&
-        !check(TokenKind::Greater) && !check(TokenKind::GreaterEqual) &&
-        !check(TokenKind::EqualEqual) && !check(TokenKind::NotEqual)) return expression;
-    const auto token = current().kind;
-    ++index_;
-    auto right = parse_additive();
-    const auto span = joined(expression.span.begin, right.span.end);
-    ast::ComparisonOperator op = ast::ComparisonOperator::Equal;
-    switch (token) {
-    case TokenKind::Less: op = ast::ComparisonOperator::Less; break;
-    case TokenKind::LessEqual: op = ast::ComparisonOperator::LessEqual; break;
-    case TokenKind::Greater: op = ast::ComparisonOperator::Greater; break;
-    case TokenKind::GreaterEqual: op = ast::ComparisonOperator::GreaterEqual; break;
-    case TokenKind::NotEqual: op = ast::ComparisonOperator::NotEqual; break;
-    default: break;
-    }
-    return ast::Expression{ast::ComparisonExpression{
-        op, std::make_shared<ast::Expression>(std::move(expression)),
-        std::make_shared<ast::Expression>(std::move(right)), span}, span};
-}
-
-ast::Expression Parser::parse_additive() {
-    auto expression = parse_unary();
-    while (check(TokenKind::Plus) || check(TokenKind::Minus)) {
-        const auto op = current().kind;
-        ++index_;
-        auto right = parse_unary();
-        const auto span = joined(expression.span.begin, right.span.end);
-        ast::BinaryExpression binary{
-            op == TokenKind::Plus ? ast::BinaryOperator::Add : ast::BinaryOperator::Subtract,
-            std::make_shared<ast::Expression>(std::move(expression)),
-            std::make_shared<ast::Expression>(std::move(right)), span};
-        expression = ast::Expression{std::move(binary), span};
-    }
-    return expression;
-}
-
-ast::Expression Parser::parse_unary() {
-    reject_invalid();
-    if (match(TokenKind::Minus)) {
-        const auto begin = previous().span.begin;
-        auto operand = parse_primary();
-        const auto span = joined(begin, operand.span.end);
-        return ast::Expression{ast::UnaryExpression{ast::UnaryOperator::Negate,
-            std::make_shared<ast::Expression>(std::move(operand)), span}, span};
-    }
-    return parse_primary();
-}
-
-ast::Expression Parser::parse_primary() {
-    reject_invalid();
-    if (check(TokenKind::Number)) {
-        auto quantity = parse_quantity();
-        return ast::Expression{quantity, quantity.span};
-    }
-    if (match(TokenKind::Reference)) {
-        const auto start = previous().span.begin;
-        consume(TokenKind::Dot, DiagnosticCode::UnexpectedToken,
-                "expected '.' after 'reference'");
-        const auto& member = consume_expression_name("expected reference member after '.'");
-        const auto span = joined(start, member.span.end);
-        return ast::Expression{ast::ReferenceExpression{"reference", member.lexeme, span}, span};
-    }
-    if (is_expression_name(current().kind)) {
-        const auto& identifier = current();
-        ++index_;
-        if (match(TokenKind::LeftParen)) {
-            auto argument = parse_expression();
-            const auto& end = consume(TokenKind::RightParen, DiagnosticCode::UnexpectedToken,
-                                      "expected ')' after function argument");
-            const auto span = joined(identifier.span.begin, end.span.end);
-            return ast::Expression{ast::CallExpression{
-                identifier.lexeme, std::make_shared<ast::Expression>(std::move(argument)), span},
-                span};
-        }
-        return ast::Expression{ast::IdentifierExpression{identifier.lexeme, identifier.span},
-                               identifier.span};
-    }
-    if (match(TokenKind::LeftParen)) {
-        const auto begin = previous().span.begin;
-        auto expression = parse_expression();
-        const auto& end = consume(TokenKind::RightParen, DiagnosticCode::UnexpectedToken,
-                                  "expected ')' after expression");
-        expression.span = joined(begin, end.span.end);
-        return expression;
-    }
-    fail(DiagnosticCode::ExpectedExpression, "expected expression");
-}
-
-ast::Program parse(std::string_view source) { return Parser(lex(source)).parse_program(); }
 
 } // namespace horusrf::parser

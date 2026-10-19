@@ -179,13 +179,13 @@ void diagnostic_regression_test() {
     }
 }
 
-void shared_adapter_test() {
-    const auto frontend = handwritten_frontend();
+void shared_corpus_test() {
     for (const auto source : valid_sources) {
-        require_equivalent(frontend, frontend, "valid corpus", source);
+        (void)parser::lex(source);
+        (void)parser::parse(source);
     }
     for (const auto source : invalid_sources) {
-        require_equivalent(frontend, frontend, "invalid corpus", source);
+        (void)parse_failure(source);
     }
 }
 
@@ -196,8 +196,8 @@ int main() {
         token_regression_test();
         ast_regression_test();
         diagnostic_regression_test();
-        shared_adapter_test();
-        std::cout << "All parser migration regression tests passed\n";
+        shared_corpus_test();
+        std::cout << "All parser regression tests passed\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

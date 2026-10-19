@@ -1,8 +1,7 @@
 grammar HorusRf;
 
 // This file is the single manually maintained concrete grammar for HorusRF.
-// The handwritten production frontend remains active until the migration's
-// adapter, parity, and cutover milestones are complete.
+// Generated lexer/parser code from this grammar drives the production frontend.
 
 program: characterization EOF;
 
@@ -120,7 +119,7 @@ RIGHT_PAREN: ')';
 COMMA: ',';
 
 // These alternatives deliberately form one invalid token, matching the
-// handwritten lexer's treatment of malformed numeric runs. The predicate keeps
+// the established treatment of malformed numeric runs. The predicate keeps
 // the first dot in a range out of the trailing-decimal alternative.
 MALFORMED_NUMBER
     : DIGIT+ '.' {(static_cast<void>(_localctx), _input->LA(1) != '.')}?

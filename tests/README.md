@@ -13,46 +13,36 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 | CLI acceptance | process exits, streams, check mode, diagnostics, CSV/JSON side effects | `cli` |
 | Studio | headless editor/results behavior, strict CSV parsing, process orchestration, diagnostic navigation | `unit` |
 
-The parser suite includes a shared migration corpus for every checked-in `.hrf`
+The parser suite includes a shared regression corpus for every checked-in `.hrf`
 file plus focused accepted and rejected syntax. A filesystem inventory test fails
 when a new example has not been classified as either valid or intentionally
 semantic-invalid, and the semantic suite verifies that classification.
 
-`horusrf_parser_migration_regression_tests` locks complete normalized token, AST,
-source-span, and parse-diagnostic observations for the handwritten frontend. The
-token baseline covers every token kind, comments, ASCII whitespace, CRLF input,
+`horusrf_parser_regression_tests` locks complete normalized token, AST,
+source-span, and parse-diagnostic observations for the generated production
+frontend. The token baseline covers every token kind, comments, ASCII whitespace, CRLF input,
 malformed numbers, invalid characters, EOF, and the number/unit boundary. The AST
 baseline covers every statement and expression variant, declaration order,
 written names, grouping, precedence, associativity, and byte-offset spans. It also
 covers every stable parse diagnostic code and span without treating message wording
 as a compatibility contract.
 
-`tests/parser/regression_support.hpp` defines a frontend adapter and normalized
-comparison helper for the dual-parser parity milestone. The source-private ANTLR
-adapter exposes only the existing AST and diagnostics; generated parser types stay
-inside `horusrf_parser`. These tests are the behavioral guard used when
-synchronizing the grammar and frontend implementations.
+`tests/parser/regression_support.hpp` defines normalized token, AST, and diagnostic
+snapshots. Generated parser types stay inside `horusrf_parser`; the snapshots are
+the permanent behavioral guard for grammar and frontend changes.
 
 `horusrf_antlr_toolchain_smoke_tests` generates a small test-only C++ lexer and
 parser with the vendored ANTLR 4.13.2 JAR, compiles them against the matching
 vendored runtime, and parses a fixed input. This keeps tool/runtime versioning,
-offline generation, and C++ linkage under CTest without changing the production
-parser before the migration parity gate.
+offline generation, and C++ linkage under CTest.
 
 `horusrf_antlr_grammar_recognition_tests` exercises the generated recognizer from the
 authoritative `grammar/HorusRf.g4` and checks every example plus the shared syntax
 corpus. Focused token checks cover malformed numeric runs, the number/unit and
 number/range boundaries, comments, ASCII whitespace, contextual names, and invalid
-characters. `horusrf_antlr_adapter_tests` constructs every checked-in and shared
-valid program through the private adapter, covers every AST variant, checks
-one-based positions and byte-offset spans, and verifies every stable parse
-diagnostic code while the public parser remains handwritten.
-
-`horusrf_antlr_parity_tests` runs the handwritten and generated frontends over the
-entire shared corpus. It compares normalized complete token streams, AST structure
-and spans, parse diagnostics, and downstream semantic results. This is the
-migration parity gate; the public parser remains handwritten until the separate
-cutover milestone.
+characters. Production AST, source-span, and diagnostic adaptation is covered by
+the parser regression suite, while the semantic, end-to-end, equivalence, and CLI
+suites retain their separate cross-layer coverage.
 
 The equivalence suite is intentionally separate from the declarative end-to-end
 suite. The CLI suite crosses a process boundary; unit tests should not do so.

@@ -1,14 +1,13 @@
 # ADR 0001: Retain the recursive-descent parser
 
-- Status: Superseded as implementation direction; retained as an evaluation record
+- Status: Superseded by [ADR 0002](0002-adopt-antlr-generated-parser.md); retained as an evaluation record
 - Date: 2026-10-19
 - Plan: DSL frontend refactoring, Milestone 2
 
-The active production frontend remains recursive descent until the sequential
+The sequential
 [ANTLR migration plan](../dsl-frontend-refactoring-plan.md#antlr-migration-plan)
-passes its regression, parity, and cutover gates. The migration plan supersedes
-this record's long-term direction; it does not claim that cutover is already
-complete.
+subsequently passed its regression and parity gates. ADR 0002 records the completed
+production cutover and supersedes this decision.
 
 ## Context
 

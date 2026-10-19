@@ -16,9 +16,7 @@ horusrf_antlr4_generate(horusrf_antlr_grammar_generated
 )
 
 add_library(horusrf_parser STATIC
-    src/parser/lexer.cpp
     src/parser/parser.cpp
-    src/parser/antlr_parser.cpp
     ${horusrf_antlr_grammar_generated_SOURCES}
     ${horusrf_antlr_grammar_generated_HEADERS}
 )
@@ -186,18 +184,18 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_parser_tests)
     add_test(NAME horusrf_parser_tests COMMAND horusrf_parser_tests)
 
-    add_executable(horusrf_parser_migration_regression_tests
-        tests/parser/migration_regression_tests.cpp
+    add_executable(horusrf_parser_regression_tests
+        tests/parser/regression_tests.cpp
         tests/parser/regression_support.cpp
     )
-    target_compile_features(horusrf_parser_migration_regression_tests PRIVATE cxx_std_20)
-    target_include_directories(horusrf_parser_migration_regression_tests PRIVATE
+    target_compile_features(horusrf_parser_regression_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_parser_regression_tests PRIVATE
         tests tests/parser
     )
-    target_link_libraries(horusrf_parser_migration_regression_tests PRIVATE horusrf_parser)
-    horusrf_enable_warnings(horusrf_parser_migration_regression_tests)
-    add_test(NAME horusrf_parser_migration_regression_tests
-        COMMAND horusrf_parser_migration_regression_tests
+    target_link_libraries(horusrf_parser_regression_tests PRIVATE horusrf_parser)
+    horusrf_enable_warnings(horusrf_parser_regression_tests)
+    add_test(NAME horusrf_parser_regression_tests
+        COMMAND horusrf_parser_regression_tests
     )
 
     set(antlr_smoke_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/antlr-smoke")
@@ -248,38 +246,6 @@ if(BUILD_TESTING)
     add_test(NAME horusrf_antlr_grammar_recognition_tests
         COMMAND horusrf_antlr_grammar_recognition_tests
     )
-
-    add_executable(horusrf_antlr_adapter_tests
-        tests/antlr/adapter_tests.cpp
-        tests/parser/regression_support.cpp
-    )
-    target_compile_features(horusrf_antlr_adapter_tests PRIVATE cxx_std_20)
-    target_include_directories(horusrf_antlr_adapter_tests PRIVATE
-        tests tests/parser src/parser
-    )
-    target_compile_definitions(horusrf_antlr_adapter_tests PRIVATE
-        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
-    )
-    target_link_libraries(horusrf_antlr_adapter_tests PRIVATE horusrf_parser)
-    horusrf_enable_warnings(horusrf_antlr_adapter_tests)
-    add_test(NAME horusrf_antlr_adapter_tests COMMAND horusrf_antlr_adapter_tests)
-
-    add_executable(horusrf_antlr_parity_tests
-        tests/antlr/parity_tests.cpp
-        tests/parser/regression_support.cpp
-    )
-    target_compile_features(horusrf_antlr_parity_tests PRIVATE cxx_std_20)
-    target_include_directories(horusrf_antlr_parity_tests PRIVATE
-        tests tests/parser src/parser
-    )
-    target_compile_definitions(horusrf_antlr_parity_tests PRIVATE
-        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
-    )
-    target_link_libraries(horusrf_antlr_parity_tests PRIVATE
-        horusrf_parser horusrf_semantic
-    )
-    horusrf_enable_warnings(horusrf_antlr_parity_tests)
-    add_test(NAME horusrf_antlr_parity_tests COMMAND horusrf_antlr_parity_tests)
 
     add_executable(horusrf_domain_tests
         tests/domain/quantity_tests.cpp
@@ -484,11 +450,9 @@ if(BUILD_TESTING)
 
     set_tests_properties(
         horusrf_parser_tests
-        horusrf_parser_migration_regression_tests
+        horusrf_parser_regression_tests
         horusrf_antlr_toolchain_smoke_tests
         horusrf_antlr_grammar_recognition_tests
-        horusrf_antlr_adapter_tests
-        horusrf_antlr_parity_tests
         horusrf_domain_tests
         horusrf_semantic_tests
         horusrf_ir_tests

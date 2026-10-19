@@ -4,11 +4,9 @@ This document describes the currently implemented demonstration language. The
 authoritative concrete syntax is the ANTLR grammar
 [`grammar/HorusRf.g4`](../grammar/HorusRf.g4). Syntax changes must keep the grammar,
 production frontend behavior, this reference, and tests synchronized.
-The public parser remains routed through the deliberately small recursive-descent
-implementation until the migration's parity and cutover gates pass. A private
-generated frontend now constructs the same AST and structured diagnostics; its
-[architecture decision](adr/0001-retain-recursive-descent-parser.md) documents
-the grammar synchronization and conformance strategy.
+The generated production frontend constructs the public AST and structured
+diagnostics without exposing ANTLR types. The
+[cutover decision](adr/0002-adopt-antlr-generated-parser.md) records this boundary.
 
 ## Lexical rules and source positions
 

@@ -274,6 +274,13 @@ resolved difference to the permanent regression corpus.
 
 #### Migration milestone 6 — Cut over and remove duplication
 
+Status: Implemented on 2026-10-19. The public parser and tokenizer now use the
+generated ANTLR frontend; the handwritten lexer/parser and dual-parser-only test
+machinery have been removed. The shared snapshots and corpus remain as permanent
+production-parser regression coverage, and ADR 0002 records the cutover. The full
+Windows Release CTest suite passes. Linux verification remains an acceptance gate
+on a Linux environment with CMake available.
+
 1. Route the existing public parser API through the generated implementation.
 2. Run the full unfiltered CTest suite on supported Windows and Linux toolchains.
 3. Remove the handwritten lexer/parser and dual-parser-only comparison machinery.

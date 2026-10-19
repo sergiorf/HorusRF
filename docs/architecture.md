@@ -231,12 +231,11 @@ classDiagram
 - The AST preserves written statement/expression structure and source spans. It has
   no semantic, device, or runtime dependency.
 - The language frontend's authoritative concrete syntax is `grammar/HorusRf.g4`.
-  `horusrf_parser` contains a source-private generated frontend that constructs the
-  existing AST and maps failures into existing structured diagnostics without
-  exposing ANTLR types. The handwritten lexer and recursive-descent parser remain
-  behind the public API until the parity and cutover gates pass. The
-  [parser architecture decision](adr/0001-retain-recursive-descent-parser.md)
-  records the earlier decision and the migration context.
+  `horusrf_parser` generates its production lexer and parser from that grammar,
+  constructs the existing AST, and maps failures into existing structured
+  diagnostics without exposing ANTLR types. The
+  [ANTLR cutover decision](adr/0002-adopt-antlr-generated-parser.md) records the
+  boundary; the earlier recursive-descent decision is retained as history.
 - Semantic analysis resolves declarations, references, dimensions, expression
   types, calibration indexes, and canonical units.
 - IR is a typed, device-independent plan of values and operations. Runtime consumes
