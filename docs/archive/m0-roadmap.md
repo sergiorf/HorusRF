@@ -41,7 +41,7 @@ Slice 8 is complete. Its archived implementation and acceptance record is in
 │   └── warnings.cmake
 ├── docs/                 # architecture, language, roadmap, and slice archive
 ├── grammar/
-│   └── horusrf.ebnf
+│   └── HorusRf.g4
 ├── include/horusrf/
 │   ├── ast/
 │   │   └── ast.hpp
@@ -244,7 +244,7 @@ dimensions.
 
 ## Initial formal grammar
 
-`grammar/horusrf.ebnf` is the authoritative syntax contract.
+The then-current EBNF specification is the authoritative syntax contract.
 
 ```ebnf
 program             = characterization ;

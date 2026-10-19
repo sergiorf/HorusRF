@@ -2,10 +2,9 @@
 
 Status: Milestone 1 completed on 2026-10-19.
 
-At the time of this audit, the authoritative concrete syntax was
-`grammar/horusrf.ebnf`. Migration milestone 3 replaced that manually maintained
-definition with [`grammar/HorusRf.g4`](../grammar/HorusRf.g4); the EBNF path now
-contains only a compatibility pointer. This audit compared the syntax with the
+At the time of this audit, a manually maintained EBNF specification was the
+authoritative concrete syntax. Migration milestone 3 replaced it with
+[`grammar/HorusRf.g4`](../grammar/HorusRf.g4). This audit compared the syntax with the
 handwritten lexer and parser, AST, semantic analyzer, Studio highlighter, shipped
 DSL examples, and compiler tests. Milestone 1 changes only the language
 specification, documentation, and conformance coverage; the compiler pipeline and

@@ -8,7 +8,7 @@ Refactor the HorusRF language frontend to establish a single, authoritative gram
 and a maintainable compiler architecture suitable for future DSL extensions, Studio
 integration, and AI-agent-assisted RF experiment generation.
 
-The current project already has a formal EBNF grammar (`grammar/horusrf.ebnf`), a
+The project began with a formal EBNF grammar, a
 handwritten C++ lexer and recursive-descent parser, an AST, semantic analysis, IR
 lowering, and runtime execution.
 
@@ -41,7 +41,7 @@ must be preserved.
 
 Inspect:
 
-- `grammar/horusrf.ebnf`
+- The former EBNF grammar
 - `src/parser/lexer.cpp`
 - `src/parser/parser.cpp`
 - `include/horusrf/parser/`
@@ -222,16 +222,15 @@ Status: Completed on 2026-10-19. `grammar/HorusRf.g4` now defines the complete
 implemented syntax and lexical behavior. The generated C++ recognizer is exercised
 against every checked-in example, the shared accepted/rejected corpus, malformed
 numbers, token boundaries, ignored input, contextual names, and invalid characters.
-The historical `grammar/horusrf.ebnf` path is retained as a compatibility pointer,
-not a second maintained grammar.
+The predecessor EBNF file has been removed, leaving no second maintained grammar.
 
 1. Translate the complete implemented syntax into a checked-in `.g4` grammar.
 2. Preserve lexical behavior for malformed numbers, joined number/unit text,
    comments, whitespace, contextual expression names, and invalid characters.
 3. Preserve expression precedence, associativity, and non-associative comparisons.
 4. Make the `.g4` file the sole manually maintained syntax definition.
-5. Generate `grammar/horusrf.ebnf` from the authoritative grammar or replace it
-   with generated/reference documentation; never maintain both grammars manually.
+5. Remove the predecessor EBNF or generate reference documentation from the
+   authoritative grammar; never maintain both grammars manually.
 
 The grammar-recognition tests must pass before AST integration starts.
 

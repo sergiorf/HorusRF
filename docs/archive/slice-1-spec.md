@@ -20,7 +20,7 @@ Implement:
 - a C++20 CMake project with CTest integration;
 - a dependency-free token model and handwritten lexer;
 - source positions and spans on tokens and AST nodes;
-- `grammar/horusrf.ebnf` as the syntax contract;
+- an authoritative grammar as the syntax contract;
 - AST types for the complete M0 syntax surface;
 - a recursive-descent parser for one `characterize` block;
 - `examples/tx_path_characterization.hrf`;
@@ -48,7 +48,7 @@ Minimum structure:
 ```text
 CMakeLists.txt
 cmake/warnings.cmake
-grammar/horusrf.ebnf
+grammar/HorusRf.g4
 include/horusrf/ast/ast.hpp
 include/horusrf/parser/lexer.hpp
 include/horusrf/parser/parser.hpp

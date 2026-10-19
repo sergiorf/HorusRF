@@ -25,7 +25,7 @@ implementation first.
 
 - expand `README.md` into the concise M0 entry point;
 - add `docs/architecture.md` for implemented boundaries and dependency direction;
-- add `docs/language.md`, synchronized with `grammar/horusrf.ebnf`;
+- add `docs/language.md`, synchronized with the authoritative grammar;
 - expand `AGENTS.md` with durable repository and architecture constraints;
 - add architecture and execution diagrams;
 - give every emitted diagnostic a stable textual code;
@@ -91,7 +91,7 @@ transfer-function implementation.
 |---|---|
 | `README.md` | First-run guide and high-level status; link instead of duplicating details. |
 | `docs/language.md` | User-facing implemented M0 language and diagnostic behavior. |
-| `grammar/horusrf.ebnf` | Authoritative concrete syntax. |
+| Authoritative grammar file | Authoritative concrete syntax. |
 | `docs/architecture.md` | Components, dependencies, ownership, and execution model. |
 | `docs/m0-roadmap.md` | M0 rationale, slice sequence, and milestone record. |
 | `docs/archive/slice-*.md` | Accepted records for completed slices. |
@@ -191,7 +191,7 @@ It must cover:
 11. diagnostic examples with stable codes and one-based locations; and
 12. current limitations versus future features.
 
-Link or embed the EBNF while naming `grammar/horusrf.ebnf` authoritative. Compare
+Link or embed the EBNF while naming the grammar file authoritative. Compare
 every production with lexer tokens, parser entry points, and prose. Resolve any
 disagreement deliberately; do not document a parser accident as intended behavior.
 
@@ -309,7 +309,7 @@ Retain the single-`build/` rules and add durable constraints to:
 - `tests/integration/cli_acceptance.cmake`; and
 - `CMakeLists.txt` for any sources and CTest labels.
 
-Audit `grammar/horusrf.ebnf`; change it only for a demonstrated mismatch with
+Audit the authoritative grammar; change it only for a demonstrated mismatch with
 accepted behavior. Production RF computation, simulator constants, CSV serialization,
 and the canonical fixture should not need changes.
 

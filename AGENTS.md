@@ -9,7 +9,7 @@
 
 ## Language and architecture
 
-- Keep `grammar/horusrf.ebnf`, lexer/parser behavior, `docs/language.md`, and tests synchronized for every syntax change.
+- Keep `grammar/HorusRf.g4`, lexer/parser behavior, `docs/language.md`, and tests synchronized for every syntax change.
 - Preserve the AST, semantic, IR, runtime, device, simulator, and output boundaries documented in `docs/architecture.md`.
 - Use `Frequency`, `Power`, and `PowerDelta` at public and cross-layer boundaries; keep dimensional conversion in domain or semantic code.
 - Runtime must depend on `RfDevice`, never simulator internals.

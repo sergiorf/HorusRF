@@ -1,8 +1,0 @@
-(*
- * Compatibility reference
- *
- * The authoritative HorusRF syntax is grammar/HorusRf.g4. This file no longer
- * duplicates the grammar in a second manually maintained notation. It remains
- * at the historical path so existing documentation links have a stable target.
- * See HorusRf.g4 for parser rules, lexer rules, precedence, and token priority.
- *)

@@ -12,7 +12,7 @@ complete.
 
 ## Context
 
-HorusRF has a compact concrete syntax, an authoritative EBNF specification, a
+HorusRF had a compact concrete syntax, an authoritative EBNF specification, a
 handwritten lexer and recursive-descent parser, and an AST whose source spans and
 structured diagnostics are public compiler behavior. Milestone 2 evaluated
 whether a grammar-generated implementation would reduce long-term maintenance.
@@ -55,8 +55,8 @@ adaptation work, so they offer no clear advantage over either evaluated approach
 
 Retain the handwritten lexer and recursive-descent parser.
 
-`grammar/horusrf.ebnf` remains the single authoritative syntax specification.
-There is no checked-in ANTLR grammar or generated parser. The implementation uses
+At the time of this decision, the EBNF remained the single authoritative syntax
+specification, with no checked-in ANTLR grammar or generated parser. The implementation uses
 one internal word-token table for keyword/unit classification, display spelling,
 and unit recognition, and one parser predicate for contextual expression names.
 This removes the practical metadata duplication identified during the evaluation
@@ -64,7 +64,7 @@ without introducing a new public language-definition layer.
 
 The synchronization strategy is:
 
-1. Every syntax change updates `grammar/horusrf.ebnf`, lexer/parser behavior,
+1. Every syntax change updates the authoritative grammar, lexer/parser behavior,
    `docs/language.md`, and parser tests in the same change.
 2. `grammar_conformance_tests.cpp` parses every checked-in `.hrf` file, including
    examples that are intentionally invalid only at the semantic layer.

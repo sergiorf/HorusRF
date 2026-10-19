@@ -334,7 +334,7 @@ Only if implementation proves necessary:
 Explicitly unchanged:
 
 - `examples/tx_path_characterization.hrf` and all existing example contents;
-- `grammar/horusrf.ebnf`, lexer/parser, semantic analysis, IR, runtime, device,
+- the authoritative grammar, lexer/parser, semantic analysis, IR, runtime, device,
   simulator, and output serialization;
 - JSON schema version and fields;
 - Studio-to-CLI process boundary.
