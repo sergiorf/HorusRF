@@ -7,11 +7,13 @@
 #include <QWidget>
 
 #include <memory>
+#include <optional>
 
 class QComboBox;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
+class QProgressBar;
 class QPushButton;
 class QSpinBox;
 class QTabWidget;
@@ -37,9 +39,10 @@ private:
     void requestFinished();
     void discoveryFinished();
     void updateStaleness();
-    void startRequestTimer();
+    void startRequestTimer(std::chrono::milliseconds timeout);
     void updateRequestLatency();
-    void finishRequestTimer();
+    void finishRequestTimer(std::optional<std::size_t> attemptCount,
+                            bool completed);
     void setBusy(bool busy, const QString& status);
     void clearProposal();
     [[nodiscard]] AssistantRequest currentRequest() const;
@@ -59,6 +62,7 @@ private:
     QPushButton* refresh_models_;
     QLabel* status_;
     QLabel* latency_;
+    QProgressBar* request_progress_;
     QLabel* stale_warning_;
     QTimer* latency_timer_;
     QPlainTextEdit* proposal_;
@@ -70,6 +74,7 @@ private:
     int request_revision_{};
     bool proposal_valid_{};
     QElapsedTimer request_timer_;
+    std::chrono::milliseconds request_timeout_{};
 };
 
 } // namespace horusrf::studio

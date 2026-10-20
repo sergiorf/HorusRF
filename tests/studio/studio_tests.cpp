@@ -21,6 +21,7 @@
 #include <QListWidget>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QPen>
 #include <QTableWidget>
@@ -209,15 +210,22 @@ private slots:
             QStringLiteral("assistantStatus"));
         auto* latency = cancellationWindow.findChild<QLabel*>(
             QStringLiteral("assistantLatency"));
+        auto* progress = cancellationWindow.findChild<QProgressBar*>(
+            QStringLiteral("assistantProgress"));
         QVERIFY(latency != nullptr);
+        QVERIFY(progress != nullptr);
         instruction->setPlainText(QStringLiteral("Generate something."));
         generate->click();
         QVERIFY(cancel->isEnabled());
-        QCOMPARE(latency->text(), QStringLiteral("Waiting for Ollama: 0.0 s elapsed"));
+        QCOMPARE(latency->text(),
+                 QStringLiteral("Ollama is working: 0.0 s elapsed / 120 s timeout"));
+        QVERIFY(!progress->isHidden());
+        QCOMPARE(progress->minimum(), 0);
+        QCOMPARE(progress->maximum(), 0);
         cancel->click();
         QTRY_COMPARE(status->text(), QStringLiteral("cancelled by test"));
-        QVERIFY(latency->text().startsWith(QStringLiteral("Response time: ")));
-        QVERIFY(latency->text().endsWith(QStringLiteral(" s")));
+        QVERIFY(latency->text().startsWith(QStringLiteral("Stopped after ")));
+        QVERIFY(progress->isHidden());
         QVERIFY(generate->isEnabled());
 
         auto discovery = std::make_shared<FakeAssistantBackend>();

@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QTabWidget>
@@ -18,6 +19,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <chrono>
 #include <string>
 #include <variant>
@@ -125,6 +127,13 @@ AssistantPanel::AssistantPanel(DslEditor* editor, AssistantService* service,
     latency_ = new QLabel(tr("Response time: --"), this);
     latency_->setObjectName(QStringLiteral("assistantLatency"));
     layout->addWidget(latency_);
+    request_progress_ = new QProgressBar(this);
+    request_progress_->setObjectName(QStringLiteral("assistantProgress"));
+    request_progress_->setRange(0, 0);
+    request_progress_->setTextVisible(false);
+    request_progress_->setAccessibleName(tr("Ollama request in progress"));
+    request_progress_->setVisible(false);
+    layout->addWidget(request_progress_);
     latency_timer_ = new QTimer(this);
     latency_timer_->setInterval(250);
     connect(latency_timer_, &QTimer::timeout,
@@ -207,8 +216,9 @@ void AssistantPanel::submit() {
     last_instruction_ = instruction_->toPlainText();
     last_mode_ = mode_->currentIndex() == 0 ? AssistantMode::Generate
                                             : AssistantMode::Modify;
-    if (service_->startRequest(currentRequest())) {
-        startRequestTimer();
+    const AssistantRequest request = currentRequest();
+    if (service_->startRequest(request)) {
+        startRequestTimer(request.timeout);
         setBusy(true, tr("Generating, validating, and repairing if needed..."));
     }
 }
@@ -220,17 +230,21 @@ void AssistantPanel::retry() {
 }
 
 void AssistantPanel::requestFinished() {
-    finishRequestTimer();
     setBusy(false, tr("Request finished."));
     const auto result = service_->lastResult();
     if (!result) {
+        finishRequestTimer(std::nullopt, false);
         status_->setText(tr("The assistant returned no result."));
         return;
     }
     const ai::ScriptProposal* proposal{};
+    std::optional<std::size_t> attempt_count;
+    bool completed{};
     QStringList detail_lines;
     if (const auto* success = std::get_if<ai::ScriptProposal>(result.get())) {
         proposal = success;
+        attempt_count = success->attempt_count();
+        completed = true;
         proposal_valid_ = success->eligible_to_apply();
         status_->setText(tr("Validated proposal from %1 / %2 after %3 attempt(s).")
                              .arg(fromUtf8(success->provider().provider),
@@ -239,9 +253,13 @@ void AssistantPanel::requestFinished() {
     } else {
         const auto& failure = std::get<ai::AgentFailure>(*result);
         status_->setText(fromUtf8(failure.error.message));
-        if (failure.proposal) proposal = &*failure.proposal;
+        if (failure.proposal) {
+            proposal = &*failure.proposal;
+            attempt_count = failure.proposal->attempt_count();
+        }
         proposal_valid_ = false;
     }
+    finishRequestTimer(attempt_count, completed);
     if (proposal != nullptr) {
         const QString source = fromUtf8(proposal->candidate_source().text());
         proposal_->setPlainText(source);
@@ -335,23 +353,45 @@ void AssistantPanel::updateStaleness() {
     apply_->setEnabled(has_proposal && proposal_valid_ && !stale && !service_->isRunning());
 }
 
-void AssistantPanel::startRequestTimer() {
+void AssistantPanel::startRequestTimer(std::chrono::milliseconds timeout) {
+    request_timeout_ = timeout;
     request_timer_.start();
-    latency_->setText(tr("Waiting for Ollama: 0.0 s elapsed"));
+    latency_->setText(tr("Ollama is working: 0.0 s elapsed / %1 s timeout")
+                          .arg(static_cast<double>(request_timeout_.count()) / 1000.0,
+                               0, 'f', 0));
+    request_progress_->setVisible(true);
     latency_timer_->start();
 }
 
 void AssistantPanel::updateRequestLatency() {
     if (!request_timer_.isValid()) return;
-    const double seconds = static_cast<double>(request_timer_.elapsed()) / 1000.0;
-    latency_->setText(tr("Waiting for Ollama: %1 s elapsed").arg(seconds, 0, 'f', 1));
+    const qint64 elapsed = request_timer_.elapsed();
+    const qint64 remaining = std::max<qint64>(0, request_timeout_.count() - elapsed);
+    const bool near_timeout = remaining <= request_timeout_.count() / 10;
+    latency_->setText(
+        near_timeout
+            ? tr("Ollama is still working: %1 s elapsed / %2 s until timeout")
+                  .arg(static_cast<double>(elapsed) / 1000.0, 0, 'f', 1)
+                  .arg(static_cast<double>(remaining) / 1000.0, 0, 'f', 1)
+            : tr("Ollama is working: %1 s elapsed / %2 s timeout")
+                  .arg(static_cast<double>(elapsed) / 1000.0, 0, 'f', 1)
+                  .arg(static_cast<double>(request_timeout_.count()) / 1000.0,
+                       0, 'f', 0));
 }
 
-void AssistantPanel::finishRequestTimer() {
+void AssistantPanel::finishRequestTimer(std::optional<std::size_t> attemptCount,
+                                        bool completed) {
     latency_timer_->stop();
+    request_progress_->setVisible(false);
     if (!request_timer_.isValid()) return;
     const double seconds = static_cast<double>(request_timer_.elapsed()) / 1000.0;
-    latency_->setText(tr("Response time: %1 s").arg(seconds, 0, 'f', 1));
+    const QString outcome = completed ? tr("Completed") : tr("Stopped");
+    latency_->setText(attemptCount
+                          ? tr("%1 in %2 s | %3 model attempt(s)")
+                                .arg(outcome)
+                                .arg(seconds, 0, 'f', 1)
+                                .arg(*attemptCount)
+                          : tr("%1 after %2 s").arg(outcome).arg(seconds, 0, 'f', 1));
     request_timer_.invalidate();
 }
 
