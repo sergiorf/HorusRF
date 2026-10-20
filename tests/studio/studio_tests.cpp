@@ -6,6 +6,8 @@
 #include "results_view.hpp"
 #include "syntax_highlighter.hpp"
 
+#include "horusrf/parser/lexer.hpp"
+
 #include <QAction>
 #include <QChart>
 #include <QChartView>
@@ -139,6 +141,36 @@ private slots:
                  formatAt(block, source.lastIndexOf(QStringLiteral("GHz"))).foreground().color());
         QVERIFY(formatAt(block, comment + 3).foreground().color() !=
                 keyword.foreground().color());
+    }
+
+    void highlighterCoversEveryCompilerFixedToken() {
+        QTextDocument document;
+        horusrf::studio::SyntaxHighlighter highlighter(&document);
+        QString source;
+        const auto& definitions = horusrf::parser::fixed_token_definitions();
+        for (const auto& definition : definitions) {
+            source += QString::fromStdString(definition.spelling);
+            source += QLatin1Char('\n');
+        }
+        document.setPlainText(source);
+        highlighter.rehighlight();
+
+        QTextBlock block = document.firstBlock();
+        for (const auto& definition : definitions) {
+            QVERIFY(block.isValid());
+            const auto format = formatAt(block, 0);
+            switch (definition.category) {
+            case horusrf::parser::FixedTokenCategory::Keyword:
+            case horusrf::parser::FixedTokenCategory::Unit:
+            case horusrf::parser::FixedTokenCategory::Operator:
+                QVERIFY(format.foreground().style() != Qt::NoBrush);
+                break;
+            case horusrf::parser::FixedTokenCategory::Punctuation:
+                QCOMPARE(format.foreground().style(), Qt::NoBrush);
+                break;
+            }
+            block = block.next();
+        }
     }
 
     void viewMenuControlsEditorZoom() {

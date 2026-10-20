@@ -129,6 +129,53 @@ TokenKind token_kind(std::size_t type) {
     }
 }
 
+FixedTokenCategory fixed_token_category(TokenKind kind) {
+    switch (kind) {
+    case TokenKind::Characterize:
+    case TokenKind::Reference:
+    case TokenKind::Power:
+    case TokenKind::Sweep:
+    case TokenKind::Frequency:
+    case TokenKind::Temperature:
+    case TokenKind::Step:
+    case TokenKind::Measure:
+    case TokenKind::Derive:
+    case TokenKind::Calibration:
+    case TokenKind::Correction:
+    case TokenKind::Over:
+    case TokenKind::Assert: return FixedTokenCategory::Keyword;
+    case TokenKind::UnitHz:
+    case TokenKind::UnitKHz:
+    case TokenKind::UnitMHz:
+    case TokenKind::UnitGHz:
+    case TokenKind::UnitDBm:
+    case TokenKind::UnitDB:
+    case TokenKind::UnitK:
+    case TokenKind::UnitDegC:
+    case TokenKind::UnitDeltaK:
+    case TokenKind::UnitDeltaC:
+    case TokenKind::UnitPercent: return FixedTokenCategory::Unit;
+    case TokenKind::EqualEqual:
+    case TokenKind::NotEqual:
+    case TokenKind::Less:
+    case TokenKind::LessEqual:
+    case TokenKind::Greater:
+    case TokenKind::GreaterEqual:
+    case TokenKind::Plus:
+    case TokenKind::Minus: return FixedTokenCategory::Operator;
+    default: return FixedTokenCategory::Punctuation;
+    }
+}
+
+std::string literal_spelling(const antlr4::dfa::Vocabulary& vocabulary,
+                             std::size_t type) {
+    auto literal = vocabulary.getLiteralName(type);
+    if (literal.size() >= 2 && literal.front() == '\'' && literal.back() == '\'') {
+        literal = literal.substr(1, literal.size() - 2);
+    }
+    return std::string{literal};
+}
+
 bool contains(const antlr4::misc::IntervalSet& tokens, std::size_t type) {
     return tokens.contains(type);
 }
@@ -424,6 +471,25 @@ std::vector<Token> lex(std::string_view source) {
                                source_map.span(token)});
     }
     return result;
+}
+
+const std::vector<FixedTokenDefinition>& fixed_token_definitions() {
+    static const auto definitions = [] {
+        antlr4::ANTLRInputStream input;
+        HorusRfLexer lexer{&input};
+        const auto& vocabulary = lexer.getVocabulary();
+
+        std::vector<FixedTokenDefinition> result;
+        result.reserve(HorusRfLexer::COMMA - HorusRfLexer::CHARACTERIZE + 1);
+        for (std::size_t type = HorusRfLexer::CHARACTERIZE;
+             type <= HorusRfLexer::COMMA; ++type) {
+            const auto kind = token_kind(type);
+            result.push_back(
+                {kind, fixed_token_category(kind), literal_spelling(vocabulary, type)});
+        }
+        return result;
+    }();
+    return definitions;
 }
 
 std::string_view token_kind_name(TokenKind kind) noexcept {

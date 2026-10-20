@@ -233,7 +233,11 @@ classDiagram
 - The language frontend's authoritative concrete syntax is `grammar/HorusRf.g4`.
   `horusrf_parser` generates its production lexer and parser from that grammar,
   constructs the existing AST, and maps failures into existing structured
-  diagnostics without exposing ANTLR types. The
+  diagnostics without exposing ANTLR types. Its public fixed-token metadata is
+  derived from the generated lexer vocabulary and classifies keywords, units,
+  operators, and punctuation using HorusRF types. Studio builds its lightweight
+  highlighter rules from that metadata, so it neither duplicates keyword/unit
+  spellings nor parses each edited block. The
   [ANTLR cutover decision](adr/0002-adopt-antlr-generated-parser.md) records the
   boundary; the earlier recursive-descent decision is retained as history.
 - `horusrf_frontend` is the Qt-free language-service boundary. Its public

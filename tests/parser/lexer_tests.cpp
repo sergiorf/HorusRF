@@ -1,17 +1,47 @@
 #include "test_support.hpp"
 
 #include <array>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "horusrf/parser/lexer.hpp"
 
 using horusrf::parser::SourcePosition;
 using horusrf::parser::TokenKind;
+using horusrf::parser::FixedTokenCategory;
+using horusrf::parser::fixed_token_definitions;
 using horusrf::parser::is_unit;
 using horusrf::parser::lex;
 using horusrf::parser::token_kind_name;
 
 void run_lexer_tests() {
+    {
+        const auto& definitions = fixed_token_definitions();
+        CHECK_EQ(definitions.size(), std::size_t{40});
+
+        std::vector<std::string> keywords;
+        std::vector<std::string> units;
+        for (const auto& definition : definitions) {
+            const auto tokens = lex(definition.spelling);
+            CHECK_EQ(tokens.size(), std::size_t{2});
+            CHECK_EQ(tokens.front().kind, definition.kind);
+            if (definition.category == FixedTokenCategory::Keyword)
+                keywords.push_back(definition.spelling);
+            if (definition.category == FixedTokenCategory::Unit)
+                units.push_back(definition.spelling);
+        }
+
+        const std::vector<std::string> expected_keywords{
+            "characterize", "reference", "power", "sweep", "frequency",
+            "temperature", "step", "measure", "derive", "calibration",
+            "correction", "over", "assert"};
+        const std::vector<std::string> expected_units{
+            "Hz", "kHz", "MHz", "GHz", "dBm", "dB", "K", "degC",
+            "deltaK", "deltaC", "%"};
+        CHECK_EQ(keywords, expected_keywords);
+        CHECK_EQ(units, expected_units);
+    }
     {
         constexpr std::string_view source =
             "characterize reference power sweep frequency temperature step measure derive "

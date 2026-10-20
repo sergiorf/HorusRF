@@ -101,6 +101,9 @@ instead. Studio provides a resizable editor workspace, HorusRF syntax highlighti
 line numbers with an emphasized current line, a live line-and-column status indicator,
 standard file and undo/redo actions, and editor zoom controls in the View menu.
 Use Ctrl++ and Ctrl+- to zoom, or Ctrl+0 to restore the default size.
+Keyword, unit, and operator highlighting rules are built once from compiler-owned
+fixed-token metadata derived from the generated grammar; Studio does not maintain
+parallel keyword or unit lists and does not run a parser while highlighting.
 
 A fresh window opens the commented
 [`studio_default.hrf`](examples/studio_default.hrf) showcase as an untitled,

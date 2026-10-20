@@ -35,3 +35,10 @@ one manually maintained syntax definition. Builds require the pinned Java ANTLR
 generator and compile the matching vendored C++ runtime, but ordinary builds and
 tests remain deterministic and offline. Callers and downstream semantic, IR,
 runtime, CLI, and Studio layers do not depend on ANTLR types.
+
+## Verification
+
+The pending cross-platform acceptance gate was completed on 2026-10-20. A clean
+Linux build with GCC 15.2, Java 17, and CMake 4.2 passed the full unfiltered suite:
+23 of 23 tests. The previously recorded Windows Release result and this Linux
+result complete the ANTLR migration acceptance.

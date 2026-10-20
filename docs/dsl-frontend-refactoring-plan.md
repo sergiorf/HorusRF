@@ -3,14 +3,13 @@
 Status: active implementation plan.
 
 This document contains only unfinished work. Completed grammar formalization,
-ANTLR adoption, parser parity, production cutover, reusable language services,
-and Windows verification are recorded in the architecture documentation and ADRs
-rather than repeated here.
+ANTLR adoption, parser parity, production cutover, cross-platform acceptance,
+reusable language services, and Studio language-definition sharing are recorded
+in the architecture documentation and ADRs rather than repeated here.
 
 ## Objective
 
-Remove the remaining duplication in Studio syntax definitions and expose
-deterministic compiler capabilities suitable for future automation.
+Expose deterministic compiler capabilities suitable for future automation.
 
 ## Constraints
 
@@ -21,30 +20,6 @@ deterministic compiler capabilities suitable for future automation.
 - Preserve existing DSL behavior, diagnostic codes, and source spans.
 - Keep tests deterministic and offline.
 - Do not expose ANTLR types through public HorusRF APIs.
-
-## Pending ANTLR acceptance gate
-
-Run the full unfiltered CTest suite on Linux using the existing `build/` directory.
-Fix only genuine portability issues and record the result. The ANTLR migration is
-complete when both the existing Windows Release result and this Linux result pass.
-
-## Milestone 2 - Share language definitions with Studio
-
-Remove the independently maintained keyword and unit lists from Studio's syntax
-highlighter. Reuse compiler-owned token metadata without coupling Studio to ANTLR
-or running a full parse for every highlighted block.
-
-Requirements:
-
-1. Preserve lightweight, responsive highlighting.
-2. Keep the existing validation and navigable-diagnostic workflow working.
-3. Add tests covering every grammar keyword and unit plus representative comments,
-   numbers, operators, and ordinary identifiers.
-
-Acceptance criteria:
-
-- A syntax change no longer requires a separate Studio keyword or unit edit.
-- Existing Studio editing, validation, and execution workflows still pass.
 
 ## Milestone 3 - Deterministic tooling for future automation
 
@@ -81,7 +56,7 @@ Acceptance criteria:
 
 ## Final verification and documentation
 
-After the milestones above:
+After the milestone above:
 
 1. Run the full unfiltered CTest suite on supported Windows and Linux toolchains.
 2. Run every checked-in DSL example through the compiler.

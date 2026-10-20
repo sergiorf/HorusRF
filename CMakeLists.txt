@@ -150,7 +150,9 @@ if(HORUSRF_BUILD_STUDIO)
     )
     target_compile_features(horusrf_studio_ui PUBLIC cxx_std_20)
     target_include_directories(horusrf_studio_ui PUBLIC src/studio)
-    target_link_libraries(horusrf_studio_ui PUBLIC Qt6::Widgets Qt6::Charts)
+    target_link_libraries(horusrf_studio_ui PUBLIC
+        horusrf_parser Qt6::Widgets Qt6::Charts
+    )
     set_target_properties(horusrf_studio_ui PROPERTIES AUTOMOC ON AUTORCC ON)
     qt_add_resources(horusrf_studio_ui "studio_resources"
         PREFIX "/examples"
