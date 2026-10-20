@@ -11,6 +11,7 @@
 #include <system_error>
 #include <vector>
 
+#include "horusrf/ai/validation.hpp"
 #include "horusrf/device/simulated_rf_device.hpp"
 #include "horusrf/frontend/language_services.hpp"
 #include "horusrf/ir/lowering.hpp"
@@ -28,13 +29,14 @@ constexpr int diagnostic_error = 4;
 constexpr int unexpected_error = 5;
 constexpr int qualification_failure = 6;
 constexpr std::string_view usage =
-    "usage: horusrf-run <source.hrf> [--check | --csv <output.csv> | --json <output.json>]";
+    "usage: horusrf-run <source.hrf> [--check [--diagnostics=json] | --csv <output.csv> | --json <output.json>]";
 
 struct Arguments {
     fs::path source;
     std::optional<fs::path> csv;
     std::optional<fs::path> json;
     bool check = false;
+    bool structured_diagnostics = false;
 };
 
 int report_usage(std::string_view message) {
@@ -63,11 +65,18 @@ std::optional<Arguments> parse_arguments(int argc, char** argv, int& exit_code) 
         arguments.check = true;
         return arguments;
     }
+    if (argc == 4 && std::string_view{argv[2]} == "--check" &&
+        std::string_view{argv[3]} == "--diagnostics=json") {
+        arguments.check = true;
+        arguments.structured_diagnostics = true;
+        return arguments;
+    }
     if (argc != 4 ||
         (std::string_view{argv[2]} != "--csv" &&
          std::string_view{argv[2]} != "--json") ||
         std::string_view{argv[3]}.empty()) {
-        exit_code = report_usage("expected --check, --csv, or --json with one output path");
+        exit_code = report_usage(
+            "expected --check [--diagnostics=json], --csv, or --json with one output path");
         return std::nullopt;
     }
     if (std::string_view{argv[2]} == "--csv") arguments.csv = fs::path{argv[3]};
@@ -218,6 +227,12 @@ int run(const Arguments& arguments) {
         std::cerr << "horusrf-run: cannot read source file '"
                   << arguments.source.string() << "'\n";
         return io_error;
+    }
+
+    if (arguments.structured_diagnostics) {
+        const auto result = ai::validate_script(*source);
+        ai::write_validation_json(std::cout, result);
+        return result.ok() ? 0 : diagnostic_error;
     }
 
     auto validated = frontend::validate(*source);

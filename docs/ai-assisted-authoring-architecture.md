@@ -110,18 +110,20 @@ those later APIs strongly typed without pre-empting their design.
 
 ## CLI compatibility
 
-M0 makes no CLI changes. Existing `--check` text diagnostics, streams, exit
-codes, and command syntax remain unchanged. M1 may add an explicitly selected
-machine-readable diagnostic form, but it must preserve the current default
-behavior. The default CLI and compiler build must not acquire a network, Ollama,
-or Qt dependency.
+M0 made no CLI changes. M1 added the explicitly selected
+`--check --diagnostics=json` form while preserving existing `--check` text
+diagnostics, streams, exit codes, and command syntax by default. Structured
+validation emits schema `horusrf.validation-result` version 1 on stdout and uses
+exit 0 for valid source or exit 4 for compiler-invalid source. The default CLI and
+compiler build have no network, Ollama, or Qt dependency.
 
 ## Validation and service boundaries
 
-The future validation adapter may depend on `horusrf_frontend` and `horusrf_ir`.
-It returns only the agent-facing validation values and must not expose an AST,
-semantic model, or IR program to the provider. It validates in memory for the
-agent repair loop and neither constructs devices nor calls runtime code.
+The `horusrf_ai_validation` adapter depends on `horusrf_ai`, `horusrf_frontend`,
+and `horusrf_ir`. It returns only the agent-facing validation values and does not
+expose an AST, semantic model, or IR program to the provider. It validates in
+memory for the agent repair loop and neither constructs devices nor calls runtime
+code.
 
 Studio's existing validation and run actions remain process based. The future
 agent service may use the adapter for its bounded repair loop, but accepting a
@@ -136,8 +138,8 @@ attempt numbering, proposal apply eligibility and immutability, typed errors,
 and standard cancellation behavior. It does not start a model, access a network,
 read the clock, or cross a process boundary.
 
-Later milestones add tests at their lowest owning layers: adapter/compiler tests
-in M1, fake-provider transport tests in M2, prompt tests in M3, deterministic
+M1 added adapter/compiler tests at their lowest owning layer. Later milestones
+add fake-provider transport tests in M2, prompt tests in M3, deterministic
 state-machine tests in M4, and headless Studio tests in M5. Real-model quality
 measurement remains a separately invoked benchmark, never a deterministic CTest
 dependency.
@@ -158,6 +160,7 @@ dependency.
 ## Milestone boundaries
 
 M0 contains contracts, architecture, dependency decisions, and deterministic
-contract tests. It does not contain Ollama access, structured diagnostic JSON,
-prompt assembly, generation or repair orchestration, UI controls, editor changes,
-or experiment execution. Those remain M1 through M7 work in the approved plan.
+contract tests. M1 contains the compiler validation adapter and structured
+diagnostic JSON. Neither milestone contains Ollama access, prompt assembly,
+generation or repair orchestration, UI controls, editor changes, or experiment
+execution. Those remain M2 through M7 work in the approved plan.

@@ -108,6 +108,19 @@ target_include_directories(horusrf_ir PUBLIC
 target_link_libraries(horusrf_ir PUBLIC horusrf_domain PRIVATE horusrf_semantic)
 horusrf_enable_warnings(horusrf_ir)
 
+add_library(horusrf_ai_validation STATIC
+    src/ai/validation.cpp
+)
+target_compile_features(horusrf_ai_validation PUBLIC cxx_std_20)
+target_include_directories(horusrf_ai_validation PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_ai_validation
+    PUBLIC horusrf_ai
+    PRIVATE horusrf_frontend horusrf_ir
+)
+horusrf_enable_warnings(horusrf_ai_validation)
+
 add_library(horusrf_runtime STATIC
     src/runtime/characterization.cpp
     src/runtime/executor.cpp
@@ -134,6 +147,7 @@ add_executable(horusrf-run src/cli/main.cpp)
 target_compile_features(horusrf-run PRIVATE cxx_std_20)
 target_link_libraries(horusrf-run PRIVATE
     horusrf_output horusrf_runtime horusrf_simulator horusrf_frontend horusrf_ir
+    horusrf_ai_validation
 )
 horusrf_enable_warnings(horusrf-run)
 
@@ -302,6 +316,13 @@ if(BUILD_TESTING)
     target_link_libraries(horusrf_ai_contract_tests PRIVATE horusrf_ai)
     horusrf_enable_warnings(horusrf_ai_contract_tests)
     add_test(NAME horusrf_ai_contract_tests COMMAND horusrf_ai_contract_tests)
+
+    add_executable(horusrf_ai_validation_tests tests/ai/validation_tests.cpp)
+    target_compile_features(horusrf_ai_validation_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_ai_validation_tests PRIVATE tests)
+    target_link_libraries(horusrf_ai_validation_tests PRIVATE horusrf_ai_validation)
+    horusrf_enable_warnings(horusrf_ai_validation_tests)
+    add_test(NAME horusrf_ai_validation_tests COMMAND horusrf_ai_validation_tests)
 
     add_executable(horusrf_ir_tests tests/ir/lowering_tests.cpp)
     target_compile_features(horusrf_ir_tests PRIVATE cxx_std_20)
@@ -493,6 +514,7 @@ if(BUILD_TESTING)
         horusrf_semantic_tests
         horusrf_frontend_tests
         horusrf_ai_contract_tests
+        horusrf_ai_validation_tests
         horusrf_ir_tests
         horusrf_simulator_tests
         horusrf_runtime_tests

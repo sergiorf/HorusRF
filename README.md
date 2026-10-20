@@ -45,6 +45,7 @@ For a multi-config Debug build:
 ```sh
 build/Debug/horusrf-run examples/tx_path_characterization.hrf
 build/Debug/horusrf-run examples/tx_path_characterization.hrf --check
+build/Debug/horusrf-run examples/tx_path_characterization.hrf --check --diagnostics=json
 build/Debug/horusrf-run examples/tx_path_characterization.hrf --csv output.csv
 build/Debug/horusrf-run examples/named_measurements.hrf --json result.json
 ```
@@ -53,6 +54,14 @@ Use the generator-appropriate executable path described above. `--check` parses,
 analyzes, and lowers a source without constructing devices or running the
 experiment. A successful check is silent. `--check`, `--csv`, and `--json` are
 mutually exclusive.
+
+Add `--diagnostics=json` to `--check` to write one deterministic
+`horusrf.validation-result` version 1 document to standard output. It contains a
+validity flag and ordered syntax, semantic, or lowering diagnostics with stable
+codes, messages, and complete source ranges. Valid source exits 0; invalid source
+exits 4. Expected compiler failures leave standard error empty in this mode, while
+usage, file I/O, and unexpected process failures retain their normal standard-error
+behavior and exit status.
 
 JSON schema version 1 (`horusrf.characterization-result`) is the complete result
 format. It represents typed multidimensional coordinates, measurements, derived

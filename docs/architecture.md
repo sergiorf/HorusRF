@@ -259,6 +259,11 @@ classDiagram
   The lower-level parser and semantic APIs remain available for compatibility
   and focused compiler-layer use. The CLI consumes this boundary; Studio reaches
   it through the CLI's existing asynchronous `--check` process workflow.
+- `horusrf_ai_validation` depends on the dependency-free AI contracts, frontend,
+  and IR. It performs complete in-memory compiler validation, returns only the AI
+  validation contract, and never exposes a compiler program or reaches runtime or
+  devices. The explicitly selected `--check --diagnostics=json` CLI form
+  serializes this same contract.
 - Semantic analysis resolves declarations, references, dimensions, expression
   types, calibration indexes, and canonical units.
 - IR is a typed, device-independent plan of values and operations. Runtime consumes
@@ -322,6 +327,7 @@ The target-level dependency rules are:
 | `horusrf_domain` | none |
 | `horusrf_semantic` | domain, parser/AST |
 | `horusrf_ai` | none; Qt-free AI-assisted authoring value contracts |
+| `horusrf_ai_validation` | AI contracts, frontend, IR; no runtime or device dependency |
 | `horusrf_ir` | domain; semantic only while lowering |
 | `horusrf_device` | domain |
 | `horusrf_runtime` | IR, device, domain |
@@ -364,9 +370,11 @@ call a device. No LLM client, agent orchestration, MCP transport, or unrestricte
 execution belongs in the compiler frontend.
 
 The dependency-free `horusrf_ai` target owns the shared AI-assisted authoring
-value contracts. Later provider, prompt, validation-adapter, and orchestration
-code may depend on those contracts, while compiler targets must not depend on the
-AI subsystem. The approved component boundaries, validation definition, CLI
+value contracts. `horusrf_ai_validation` adapts the existing frontend and IR
+lowerer into those contracts without a runtime or device dependency. Later
+provider, prompt, and orchestration code may depend on the contracts and adapter,
+while compiler targets must not depend on the AI subsystem. The approved component
+boundaries, validation definition, CLI
 compatibility decisions, and risks are recorded in the
 [AI-assisted authoring architecture](ai-assisted-authoring-architecture.md).
 

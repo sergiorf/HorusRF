@@ -7,6 +7,7 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 |---|---|---|
 | parser, frontend, domain, semantic, IR | syntax, structured language services, quantities, analysis, lowering | `unit` |
 | AI contracts | authoring requests, validation/proposal invariants, errors, cancellation | `unit` |
+| AI validation | complete compiler adaptation, source ranges, deterministic diagnostic JSON | `unit` |
 | device, executor, characterization | separated simulated equipment and runtime routing | `unit` |
 | procedural example, CSV, JSON | independent orchestration and serialization | `unit` |
 | declarative end-to-end | actual fixture through compiler and runtime | `integration` |
@@ -45,6 +46,12 @@ later AI-assisted authoring layers. It verifies request separation, validation
 invariants, repair attempt numbering, proposal apply eligibility and
 immutability, provider identity, errors, and cancellation without contacting a
 model or network service.
+
+`horusrf_ai_validation_tests` covers complete frontend-plus-IR validation through
+the AI-facing contract, representative syntax and semantic failures, multiple
+diagnostics, exact source spans, and JSON escaping. CLI acceptance separately
+parses valid and invalid `horusrf.validation-result` documents and locks their
+stdout, stderr, and exit-status behavior.
 
 `horusrf_antlr_toolchain_smoke_tests` generates a small test-only C++ lexer and
 parser with the vendored ANTLR 4.13.2 JAR, compiles them against the matching

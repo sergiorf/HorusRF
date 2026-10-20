@@ -25,6 +25,71 @@ if(NOT studio_default_check_result EQUAL 0 OR
         "Studio default check failed: ${studio_default_check_result}: ${studio_default_check_error}")
 endif()
 
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${STUDIO_DEFAULT_SOURCE_FILE}"
+        --check --diagnostics=json
+    RESULT_VARIABLE structured_valid_result
+    OUTPUT_VARIABLE structured_valid_output
+    ERROR_VARIABLE structured_valid_error
+)
+if(NOT structured_valid_result EQUAL 0 OR NOT structured_valid_error STREQUAL "")
+    message(FATAL_ERROR
+        "structured valid check failed: ${structured_valid_result}: ${structured_valid_error}")
+endif()
+string(JSON structured_valid_schema ERROR_VARIABLE structured_valid_parse_error
+    GET "${structured_valid_output}" schema)
+if(structured_valid_parse_error)
+    message(FATAL_ERROR
+        "structured valid check did not emit JSON: ${structured_valid_parse_error}")
+endif()
+string(JSON structured_valid_version GET "${structured_valid_output}" version)
+string(JSON structured_valid_flag GET "${structured_valid_output}" valid)
+string(JSON structured_valid_diagnostic_count
+    LENGTH "${structured_valid_output}" diagnostics)
+if(NOT structured_valid_schema STREQUAL "horusrf.validation-result" OR
+   NOT structured_valid_version EQUAL 1 OR NOT structured_valid_flag OR
+   NOT structured_valid_diagnostic_count EQUAL 0)
+    message(FATAL_ERROR "structured valid check has the wrong contract")
+endif()
+
+set(structured_invalid_source "${OUTPUT_FILE}.validation-invalid.hrf")
+file(WRITE "${structured_invalid_source}" "characterize broken { measure @ }")
+execute_process(
+    COMMAND "${HORUSRF_RUN}" "${structured_invalid_source}"
+        --check --diagnostics=json
+    RESULT_VARIABLE structured_invalid_result
+    OUTPUT_VARIABLE structured_invalid_output
+    ERROR_VARIABLE structured_invalid_error
+)
+file(REMOVE "${structured_invalid_source}")
+if(NOT structured_invalid_result EQUAL 4 OR NOT structured_invalid_error STREQUAL "")
+    message(FATAL_ERROR
+        "structured invalid check failed: ${structured_invalid_result}: ${structured_invalid_error}")
+endif()
+string(JSON structured_invalid_schema ERROR_VARIABLE structured_invalid_parse_error
+    GET "${structured_invalid_output}" schema)
+if(structured_invalid_parse_error)
+    message(FATAL_ERROR
+        "structured invalid check did not emit JSON: ${structured_invalid_parse_error}")
+endif()
+string(JSON structured_invalid_flag GET "${structured_invalid_output}" valid)
+string(JSON structured_invalid_count LENGTH "${structured_invalid_output}" diagnostics)
+string(JSON structured_invalid_category
+    GET "${structured_invalid_output}" diagnostics 0 category)
+string(JSON structured_invalid_code
+    GET "${structured_invalid_output}" diagnostics 0 code)
+string(JSON structured_invalid_start_line
+    GET "${structured_invalid_output}" diagnostics 0 range start line)
+string(JSON structured_invalid_end_column
+    GET "${structured_invalid_output}" diagnostics 0 range end column)
+if(structured_invalid_flag OR NOT structured_invalid_count EQUAL 1 OR
+   NOT structured_invalid_category STREQUAL "syntax" OR
+   NOT structured_invalid_code STREQUAL "parse.invalid_token" OR
+   NOT structured_invalid_start_line EQUAL 1 OR
+   NOT structured_invalid_end_column EQUAL 32)
+    message(FATAL_ERROR "structured invalid check has the wrong diagnostic")
+endif()
+
 set(studio_default_json "${OUTPUT_FILE}.studio-default.json")
 file(REMOVE "${studio_default_json}")
 execute_process(

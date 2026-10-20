@@ -243,6 +243,26 @@ without constructing devices or executing the characterization. A successful che
 is silent and exits with status 0. `--check`, `--csv`, and `--json` are mutually
 exclusive.
 
+`horusrf-run <source.hrf> --check --diagnostics=json` selects the machine-readable
+form of the same complete validation. It writes exactly one compact JSON document
+to standard output and writes no compiler diagnostic text to standard error. A
+valid result exits 0; an invalid result exits 4. Usage, file I/O, and unexpected
+process failures occur before a validation document is available, use their
+existing exit statuses, and are reported on standard error.
+
+The document uses schema name `horusrf.validation-result`, major version `1`, and
+this shape:
+
+```json
+{"schema":"horusrf.validation-result","version":1,"valid":false,"diagnostics":[{"category":"syntax","code":"parse.invalid_token","message":"invalid token '@'","range":{"start":{"line":1,"column":31,"offset":30},"end":{"line":1,"column":32,"offset":31}}}]}
+```
+
+Diagnostics remain in compiler order. `category` is `syntax`, `semantic`, or
+`lowering`; `code` is the existing stable compiler code. Lines and columns are
+one-based and offsets are zero-based byte offsets into the UTF-8 source. Readers
+must ignore unknown object members but reject an unknown schema name or unsupported
+major version.
+
 Examples of rejected programs include a missing unit (`reference power = 10`), an
 unknown name (`derive x = missing`), a non-positive step, and a calibration indexed
 over `power` rather than `frequency`.
@@ -263,6 +283,12 @@ not expose ANTLR types.
 valid. `get_diagnostics(source)` is its diagnostics-only convenience and preserves
 the same categories, codes, messages, spans, and order. Neither operation lowers or
 executes a program, constructs a device, or accesses hardware.
+
+AI authoring code links `horusrf_ai_validation` and includes
+`horusrf/ai/validation.hpp`. `ai::validate_script(source)` returns the M0
+`ai::ValidationResult` contract after the same frontend validation and IR lowering
+as CLI check mode. `ai::write_validation_json(stream, result)` serializes that
+contract without exposing AST, semantic, or IR objects.
 
 Automation must treat generated DSL as untrusted input, validate every program,
 and keep execution behind a separate explicit user approval. Capability discovery

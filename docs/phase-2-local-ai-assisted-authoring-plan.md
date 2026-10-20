@@ -1,7 +1,7 @@
 # HorusRF — Phase 2: Local AI-Assisted DSL Authoring
 
-Status: Approved implementation plan. M0 was completed and verified on
-2026-10-20; M1 through M7 have not started. Milestones must be implemented
+Status: Approved implementation plan. M0 and M1 were completed and verified on
+2026-10-20; M2 through M7 have not started. Milestones must be implemented
 sequentially and marked complete only after verification.
 
 ## Mission
@@ -289,19 +289,21 @@ Expose existing compiler diagnostics in a format suitable for an AI repair loop.
 The repository already provides diagnostic categories, codes, messages, and
 source spans. Do not redesign the diagnostic system unnecessarily.
 
+Status: Completed and verified on 2026-10-20.
+
 ### Tasks
 
 #### M1.1 — Introduce structured diagnostic serialization
 
-Add a backward-compatible CLI validation option. Suggested interface:
+Add a backward-compatible CLI validation option. Implemented interface:
 
 ```bash
 horusrf-run experiment.hrf --check --diagnostics=json
 ```
 
-The final command syntax should be consistent with existing CLI conventions.
+This syntax extends the existing check form without changing its default behavior.
 
-Proposed response:
+Response contract:
 
 ```json
 {
@@ -316,11 +318,13 @@ Proposed response:
       "range": {
         "start": {
           "line": 8,
-          "column": 12
+          "column": 12,
+          "offset": 143
         },
         "end": {
           "line": 8,
-          "column": 20
+          "column": 20,
+          "offset": 151
         }
       }
     }
@@ -328,7 +332,7 @@ Proposed response:
 }
 ```
 
-This is a proposed contract, not an existing output format.
+Lines and columns are one-based; byte offsets are zero-based.
 
 Requirements:
 
@@ -342,8 +346,8 @@ Requirements:
 - Specify output and exit-code behavior clearly.
 - Ensure no diagnostic can corrupt the JSON stream.
 
-Consider using stdout for structured JSON and stderr for unexpected process-level
-failures. Do not duplicate compiler diagnostic generation.
+Structured JSON uses stdout; unexpected process-level failures use stderr. Compiler
+diagnostic generation is reused rather than duplicated.
 
 #### M1.2 — Implement a validation adapter
 
@@ -378,10 +382,20 @@ Cover:
 
 ### Acceptance criteria
 
-- The agent can obtain machine-readable diagnostics.
-- Existing CLI consumers remain unaffected.
-- Validation cannot trigger simulator or hardware execution.
-- All existing compiler and CLI tests pass.
+- [x] The agent can obtain machine-readable diagnostics.
+- [x] Existing CLI consumers remain unaffected.
+- [x] Validation cannot trigger simulator or hardware execution.
+- [x] All existing compiler and CLI tests pass.
+
+Implementation: the Qt-free `horusrf_ai_validation` target exposes complete
+frontend-plus-lowering validation through `ai::validate_script()` and deterministic
+schema-versioned serialization through `ai::write_validation_json()`. The CLI form
+uses stdout for validation JSON, exits 0 for valid source and 4 for compiler-invalid
+source, and reserves stderr for usage, I/O, and unexpected process failures.
+
+Verification: `horusrf_ai_validation_tests`, structured and legacy CLI acceptance
+coverage, and the full unfiltered 26-test CTest suite passed in the existing
+`build/` directory with the Release configuration on 2026-10-20.
 
 ## 6. Milestone M2 — Provider-neutral LLM interface
 
