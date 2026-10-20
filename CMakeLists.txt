@@ -261,6 +261,17 @@ if(HORUSRF_BUILD_STUDIO)
     horusrf_enable_warnings(horusrf_studio_ui)
 
     add_executable(horusrf-studio src/studio/main.cpp)
+    qt_add_resources(horusrf-studio "studio_app_resources"
+        PREFIX "/icons"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons"
+        FILES
+            resources/icons/horusrf-app.png
+    )
+    if(WIN32)
+        target_sources(horusrf-studio PRIVATE
+            resources/windows/horusrf-studio.rc
+        )
+    endif()
     target_compile_features(horusrf-studio PRIVATE cxx_std_20)
     target_link_libraries(horusrf-studio PRIVATE horusrf_studio_ui)
     set_target_properties(horusrf-studio PROPERTIES AUTOMOC ON AUTORCC ON)
