@@ -1,6 +1,7 @@
 # HorusRF AI-assisted authoring architecture
 
-Status: Milestone M0 architecture and contracts, implemented on 2026-10-20.
+Status: Milestone M0 through M2 architecture and provider contracts, implemented
+on 2026-10-20.
 
 ## Purpose and authority
 
@@ -108,6 +109,34 @@ variant. Those interfaces require the error and transport behavior developed in
 M2 and the state machine developed in M4. The M0 values are sufficient to make
 those later APIs strongly typed without pre-empting their design.
 
+## Provider contract and Ollama boundary
+
+M2 adds `include/horusrf/ai/provider.hpp`. `LlmProvider` accepts a sequence of
+typed system, user, and assistant messages plus a user-selected model,
+temperature, output-token bound, timeout, and optional structured-output JSON
+schema. It returns either the existing `ProviderResponse` or a structured
+`ProviderError`. The operation is Qt-free and may block only up to its request
+timeout; UI callers must schedule it on a worker thread. Cancellation uses the
+M0 `std::stop_token` contract.
+
+`horusrf_ai_ollama` implements that interface with Ollama's non-streaming local
+`/api/chat` endpoint. Its HTTP request/response seam exists to permit protocol
+tests without sockets. Native transport supports local `http://` endpoints,
+bounded responses, connection/request/response timeouts, cancellation, content
+length, and chunked responses. HTTPS and cloud fallback are deliberately absent.
+Ollama JSON, HTTP types, and transport errors do not enter the provider-neutral
+interface.
+
+The implemented target dependencies are:
+
+```text
+horusrf_ai_ollama --> horusrf_ai
+horusrf_ai_validation --> horusrf_ai + horusrf_frontend + horusrf_ir
+```
+
+Neither edge is reversed. Compiler, IR, runtime, device, simulator, CLI, and
+Studio UI targets do not depend on `horusrf_ai_ollama`.
+
 ## CLI compatibility
 
 M0 made no CLI changes. M1 added the explicitly selected
@@ -159,8 +188,9 @@ dependency.
 
 ## Milestone boundaries
 
-M0 contains contracts, architecture, dependency decisions, and deterministic
-contract tests. M1 contains the compiler validation adapter and structured
-diagnostic JSON. Neither milestone contains Ollama access, prompt assembly,
+M0 contains shared contracts, architecture, dependency decisions, and
+deterministic contract tests. M1 contains the compiler validation adapter and
+structured diagnostic JSON. M2 contains provider contracts, Ollama access, and
+deterministic provider tests. These milestones do not contain prompt assembly,
 generation or repair orchestration, UI controls, editor changes, or experiment
-execution. Those remain M2 through M7 work in the approved plan.
+execution. Those remain M3 through M7 work in the approved plan.

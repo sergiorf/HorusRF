@@ -1,7 +1,7 @@
 # HorusRF project roadmap
 
 Status: Phase 1 completed on 2026-10-18. Phase 2 local AI-assisted DSL
-authoring is approved and has not started.
+authoring is in progress; M0 through M2 are complete.
 
 HorusRF is a focused C++20 DSL demonstration. Current behavior belongs in the
 [language reference](language.md), and dependency/ownership rules belong in the
@@ -55,7 +55,8 @@ using Qwen through Ollama. The compiler remains authoritative, generated or
 modified source is presented as a proposal, and applying or executing it always
 requires an explicit user action. The implementation is divided into milestones
 M0 through M7. M0, architecture and contracts, and M1, machine-readable compiler
-validation, were completed on 2026-10-20; M2 through M7 have not started.
+validation, and M2, the provider-neutral Ollama interface, were completed on
+2026-10-20; M3 through M7 have not started.
 
 M0 introduced the dependency-free `horusrf_ai` contract target, deterministic
 contract tests, and the documented component, validation, CLI compatibility, and
@@ -67,6 +68,12 @@ M1 introduced the Qt-free `horusrf_ai_validation` adapter, deterministic
 `horusrf.validation-result` version 1 serialization, and the backward-compatible
 `horusrf-run <source> --check --diagnostics=json` process interface. Validation
 reuses the frontend and IR lowerer and has no runtime or device dependency.
+
+M2 introduced the Qt-free `LlmProvider` interface, cancellable and bounded
+requests, structured provider errors, a configurable local HTTP Ollama adapter,
+and deterministic fake-provider and fake-transport coverage. Provider-specific
+HTTP and JSON behavior remains isolated from compiler, runtime, and Studio
+targets.
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

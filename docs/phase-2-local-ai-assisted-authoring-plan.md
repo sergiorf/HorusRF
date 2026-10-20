@@ -1,7 +1,7 @@
 # HorusRF — Phase 2: Local AI-Assisted DSL Authoring
 
-Status: Approved implementation plan. M0 and M1 were completed and verified on
-2026-10-20; M2 through M7 have not started. Milestones must be implemented
+Status: Approved implementation plan. M0 through M2 were completed and verified
+on 2026-10-20; M3 through M7 have not started. Milestones must be implemented
 sequentially and marked complete only after verification.
 
 ## Mission
@@ -403,6 +403,11 @@ coverage, and the full unfiltered 26-test CTest suite passed in the existing
 
 Introduce a small LLM abstraction, initially implemented through Ollama.
 
+Status: Completed on 2026-10-20. The implementation uses a Qt-free blocking
+provider call designed for invocation on a worker thread. Every request carries
+an explicit timeout and the shared `std::stop_token`; Studio scheduling remains
+M5 work.
+
 ### Tasks
 
 #### M2.1 — Define the provider interface
@@ -484,12 +489,33 @@ Tests must not require Ollama, Qwen, internet access, or a GPU.
 
 ### Acceptance criteria
 
-- Ollama can be used locally.
-- Model selection is configurable.
-- Provider failures do not crash Studio.
-- Requests can be cancelled.
-- Tests are fully offline.
-- No LLM dependency enters compiler/runtime targets.
+- [x] Ollama can be used locally through its non-streaming `/api/chat` endpoint.
+- [x] Model selection is configurable per request.
+- [x] Provider failures are returned as values and cannot unwind into Studio.
+- [x] Requests can be cancelled.
+- [x] Tests are fully offline.
+- [x] No LLM dependency enters compiler/runtime targets.
+
+Implementation notes:
+
+- `horusrf_ai` owns provider-neutral messages, requests, results, errors, and the
+  `LlmProvider` interface.
+- `horusrf_ai_ollama` owns the Ollama JSON protocol and a narrow native HTTP/1.x
+  transport for local `http://` endpoints. It adds no third-party or Qt
+  dependency and does not support cloud/TLS fallback.
+- Ollama requests set `stream` to false, map maximum output to `num_predict`,
+  and optionally carry a JSON-schema `format` value.
+- `tests/ai/fake_provider.hpp` provides ordered responses, request capture, and
+  failure injection for later prompt and state-machine tests.
+- `horusrf_ai_provider_tests` verifies serialization, Unicode decoding, strict
+  response handling, configuration validation, cancellation, provider error
+  mapping, and fake-provider behavior without sockets or a model.
+
+Verification: the focused AI contract, validation, and provider suites and the
+full unfiltered 27-test CTest suite passed in the existing `build/` directory
+with the Release configuration on 2026-10-20. A live-model smoke test was not
+run because Ollama is not installed in the verification environment; it is not
+part of deterministic CTest.
 
 ## 7. Milestone M3 — Language-aware prompt construction
 
