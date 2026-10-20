@@ -52,13 +52,13 @@ void canonical_program_test() {
     const auto& characterization = program.characterization;
     CHECK_EQ(characterization.name, "tx_path");
     CHECK_EQ(characterization.statements.size(), std::size_t{4});
-    CHECK_EQ(program.span.begin.line, std::size_t{1});
+    CHECK_EQ(program.span.begin.line, std::size_t{2});
     CHECK_EQ(program.span.begin.column, std::size_t{1});
 
     const auto& reference = alternative<ast::ReferenceStatement>(characterization.statements[0]);
     CHECK_EQ(reference.power.number, "-10");
     CHECK_EQ(reference.power.unit, "dBm");
-    CHECK_EQ(reference.span.begin.line, std::size_t{3});
+    CHECK_EQ(reference.span.begin.line, std::size_t{4});
 
     const auto& sweep = alternative<ast::SweepStatement>(characterization.statements[1]);
     CHECK_EQ(sweep.dimension, "frequency");

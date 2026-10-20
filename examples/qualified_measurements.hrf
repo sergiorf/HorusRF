@@ -1,3 +1,4 @@
+// Qualifies power, EVM, and frequency error and derives a frequency correction table.
 characterize qualified_measurements {
   reference power = -10 dBm
   sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz

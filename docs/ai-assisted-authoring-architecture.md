@@ -146,10 +146,13 @@ Qt-free `PromptBuilder` constructs provider-neutral `LlmRequest` values for
 generation, modification, and compiler-directed repair. Model selection and
 request bounds remain caller-configurable.
 
-The system context is rebuilt deterministically from
-`frontend::get_language_spec()` and `frontend::get_language_capabilities()` and
-adds the semantic rules that cannot be reconstructed from metadata alone. A
-small mode-selected set of few-shot examples covers frequency and temperature
+The system context is rebuilt deterministically from the authoritative
+`grammar/HorusRf.g4`, `frontend::get_language_spec()`, and
+`frontend::get_language_capabilities()`, and adds the semantic rules that cannot
+be reconstructed from grammar and metadata alone. The grammar is embedded at
+configure time, so prompt construction has no source-tree runtime dependency. A
+small mode-selected set of few-shot examples is embedded from the checked-in
+`examples/` sources and covers frequency and temperature
 sweeps, all current measurement operations, assertions, calibration surfaces,
 and preservation during edits. Every positive proposal is compiled in the M3
 test suite.

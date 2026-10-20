@@ -1,3 +1,4 @@
+// Characterizes TX output power across frequency and derives a correction table.
 characterize tx_path {
 
     reference power = -10 dBm

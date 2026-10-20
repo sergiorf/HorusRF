@@ -99,6 +99,28 @@ target_include_directories(horusrf_ai PUBLIC
 )
 horusrf_enable_warnings(horusrf_ai)
 
+set(horusrf_authoring_context_inputs
+    grammar/HorusRf.g4
+    examples/tx_path_characterization.hrf
+    examples/named_measurements.hrf
+    examples/qualified_measurements.hrf
+)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    ${horusrf_authoring_context_inputs}
+)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/grammar/HorusRf.g4" HORUSRF_GRAMMAR_SOURCE)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/examples/tx_path_characterization.hrf"
+    HORUSRF_TX_PATH_EXAMPLE)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/examples/named_measurements.hrf"
+    HORUSRF_NAMED_MEASUREMENTS_EXAMPLE)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/examples/qualified_measurements.hrf"
+    HORUSRF_QUALIFIED_MEASUREMENTS_EXAMPLE)
+configure_file(
+    cmake/authoring_context.hpp.in
+    generated/horusrf/ai/authoring_context.hpp
+    @ONLY
+)
+
 add_library(horusrf_ai_prompt STATIC
     src/ai/prompt.cpp
     src/ai/proposal_response.cpp
@@ -106,6 +128,9 @@ add_library(horusrf_ai_prompt STATIC
 target_compile_features(horusrf_ai_prompt PUBLIC cxx_std_20)
 target_include_directories(horusrf_ai_prompt PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_include_directories(horusrf_ai_prompt PRIVATE
+    "${CMAKE_CURRENT_BINARY_DIR}/generated"
 )
 target_link_libraries(horusrf_ai_prompt
     PUBLIC horusrf_ai

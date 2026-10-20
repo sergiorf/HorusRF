@@ -1,3 +1,4 @@
+// Provides a compact two-dimensional qualification and calibration example for Studio.
 characterize studio_qualification {
   reference power = -10 dBm
   sweep frequency 2.40 GHz .. 2.50 GHz step 25 MHz

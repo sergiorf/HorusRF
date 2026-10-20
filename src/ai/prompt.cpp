@@ -8,55 +8,13 @@
 #include <string_view>
 #include <utility>
 
+#include "horusrf/ai/authoring_context.hpp"
 #include "horusrf/frontend/language_services.hpp"
 
 namespace horusrf::ai {
 namespace {
 
 constexpr std::string_view response_schema = R"({"type":"object","additionalProperties":false,"required":["status","script","explanation","warnings"],"properties":{"status":{"type":"string","enum":["proposal"]},"script":{"type":"string"},"explanation":{"type":"string"},"warnings":{"type":"array","items":{"type":"string"}}}})";
-
-constexpr std::string_view basic_source = R"(characterize basic_frequency {
-  reference power = -10 dBm
-  sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
-  measure power
-  derive calibration tx_power {
-    correction = reference.power - power
-    over frequency
-  }
-}
-)";
-
-constexpr std::string_view multidimensional_source = R"(characterize temperature_characterization {
-  reference power = -10 dBm
-  sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
-  sweep temperature -20 degC .. 80 degC step 20 deltaC
-  measure output_power = power
-  measure evm_result = evm
-  measure carrier_error = frequency_error
-  derive power_error = output_power - reference.power
-  derive calibration tx_power {
-    correction = -power_error
-    over frequency, temperature
-  }
-}
-)";
-
-constexpr std::string_view qualification_source = R"(characterize qualified_measurements {
-  reference power = -10 dBm
-  sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
-  measure output_power = power
-  measure evm_result = evm
-  measure carrier_error = frequency_error
-  derive power_error = output_power - reference.power
-  assert abs(power_error) <= 1.5 dB
-  assert evm_result <= 1 %
-  assert abs(carrier_error) <= 20 kHz
-  derive calibration tx_power {
-    correction = -power_error
-    over frequency
-  }
-}
-)";
 
 std::string join(const std::vector<std::string>& values,
                  std::string_view separator = ", ") {
@@ -104,6 +62,9 @@ std::string language_context() {
     const auto& capabilities = frontend::get_language_capabilities();
     std::ostringstream output;
     output << "Authoritative compiler capabilities for " << spec.name << ":\n";
+
+    output << "Authoritative ANTLR grammar:\n<horusrf_grammar>\n"
+           << embedded::grammar << "</horusrf_grammar>\n";
 
     std::vector<std::string> rule_names = spec.grammar_rules;
     output << "Grammar rules: " << join(rule_names) << ".\n";
@@ -205,38 +166,41 @@ void require_text(std::string_view value, std::string_view name) {
     }
 }
 
+std::string with_frequency_step(std::string_view source, std::string_view step) {
+    std::string result{source};
+    constexpr std::string_view original = "step 1 MHz";
+    const auto position = result.find(original);
+    if (position == std::string::npos) {
+        throw std::logic_error("the canonical frequency-step example changed unexpectedly");
+    }
+    result.replace(position, original.size(), step);
+    return result;
+}
+
 } // namespace
 
 const std::vector<PromptExample>& curated_prompt_examples() {
     static const std::vector<PromptExample> examples{
         {"basic-frequency",
-         NaturalLanguageInstruction{"Characterize output power from 2.40 GHz to 2.50 GHz in 5 MHz steps at -10 dBm."},
+         NaturalLanguageInstruction{"Characterize output power from 2.40 GHz to 2.50 GHz in 1 MHz steps at -10 dBm."},
          std::nullopt,
-         ScriptSource{std::string{basic_source}},
+         ScriptSource{std::string{embedded::tx_path_characterization}},
          "Creates the requested frequency sweep, power measurement, and required calibration."},
         {"multidimensional-measurements",
          NaturalLanguageInstruction{"Sweep frequency and temperature and record named power, EVM, and frequency error measurements."},
          std::nullopt,
-         ScriptSource{std::string{multidimensional_source}},
+         ScriptSource{std::string{embedded::named_measurements}},
          "Adds both supported sweep dimensions and all supported named measurement operations."},
         {"assertions",
          NaturalLanguageInstruction{"Check power error within 1.5 dB, EVM at most 1 percent, and frequency error within 20 kHz."},
          std::nullopt,
-         ScriptSource{std::string{qualification_source}},
+         ScriptSource{std::string{embedded::qualified_measurements}},
          "Adds typed assertions and retains the required PowerDelta calibration correction."},
         {"modify-frequency-step",
          NaturalLanguageInstruction{"Change only the frequency step to 10 MHz."},
-         ScriptSource{std::string{basic_source}},
-         ScriptSource{R"(characterize basic_frequency {
-  reference power = -10 dBm
-  sweep frequency 2.40 GHz .. 2.50 GHz step 10 MHz
-  measure power
-  derive calibration tx_power {
-    correction = reference.power - power
-    over frequency
-  }
-}
-)"},
+         ScriptSource{std::string{embedded::tx_path_characterization}},
+         ScriptSource{with_frequency_step(embedded::tx_path_characterization,
+                                          "step 10 MHz")},
          "Changes only the requested frequency step and preserves the remaining experiment."},
     };
     return examples;

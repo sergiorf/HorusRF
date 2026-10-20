@@ -1,3 +1,4 @@
+// Records named power, EVM, and frequency-error measurements over two sweep axes.
 characterize named_measurements {
   reference power = -10 dBm
   sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz

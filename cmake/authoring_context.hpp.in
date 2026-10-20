@@ -1,0 +1,15 @@
+#pragma once
+
+#include <string_view>
+
+namespace horusrf::ai::embedded {
+
+inline constexpr std::string_view grammar = R"HORUSRF_GRAMMAR(@HORUSRF_GRAMMAR_SOURCE@)HORUSRF_GRAMMAR";
+
+inline constexpr std::string_view tx_path_characterization = R"HORUSRF_EXAMPLE(@HORUSRF_TX_PATH_EXAMPLE@)HORUSRF_EXAMPLE";
+
+inline constexpr std::string_view named_measurements = R"HORUSRF_EXAMPLE(@HORUSRF_NAMED_MEASUREMENTS_EXAMPLE@)HORUSRF_EXAMPLE";
+
+inline constexpr std::string_view qualified_measurements = R"HORUSRF_EXAMPLE(@HORUSRF_QUALIFIED_MEASUREMENTS_EXAMPLE@)HORUSRF_EXAMPLE";
+
+} // namespace horusrf::ai::embedded

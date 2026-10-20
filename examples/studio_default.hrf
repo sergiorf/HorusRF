@@ -1,3 +1,4 @@
+// Demonstrates the full Studio workflow with two sweeps, qualification, and calibration.
 characterize tx_qualification {
   reference power = -10 dBm
 

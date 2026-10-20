@@ -53,6 +53,9 @@ void compiler_derived_generation_prompt_test() {
     CHECK_EQ(*first.json_schema, ai::proposal_response_schema());
     CHECK_EQ(first.messages.front().role, ai::LlmRole::System);
     CHECK(contains(first, "Measurements: power -> Power, evm -> Ratio, frequency_error -> FrequencyDelta"));
+    CHECK(contains(first, "Authoritative ANTLR grammar:"));
+    CHECK(contains(first, "program: characterization EOF;"));
+    CHECK(contains(first, "measurementStatement"));
     CHECK(contains(first, "Fixed syntax tokens: characterize, reference, power"));
     CHECK(contains(first, "temperature (endpoints Temperature, step TemperatureDelta, optional)"));
     CHECK(contains(first, "calibration.all_sweeps_in_order"));
@@ -105,6 +108,7 @@ void curated_examples_compile_test() {
     bool saw_frequency_error = false;
     bool saw_assertion = false;
     bool saw_modification = false;
+    bool saw_repository_comment = false;
     for (const auto& example : examples) {
         CHECK(ai::validate_script(example.proposal.text()).ok());
         if (example.current_source) {
@@ -118,12 +122,15 @@ void curated_examples_compile_test() {
         saw_assertion = saw_assertion ||
                         example.proposal.text().find("assert ") != std::string::npos;
         saw_modification = saw_modification || example.current_source.has_value();
+        saw_repository_comment = saw_repository_comment ||
+                                 example.proposal.text().starts_with("// Characterizes");
     }
     CHECK(saw_temperature);
     CHECK(saw_evm);
     CHECK(saw_frequency_error);
     CHECK(saw_assertion);
     CHECK(saw_modification);
+    CHECK(saw_repository_comment);
 }
 
 void modification_context_test() {
