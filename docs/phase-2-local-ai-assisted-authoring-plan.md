@@ -1,7 +1,7 @@
 # HorusRF — Phase 2: Local AI-Assisted DSL Authoring
 
-Status: Approved implementation plan. M0 through M2 were completed and verified
-on 2026-10-20; M3 through M7 have not started. Milestones must be implemented
+Status: Approved implementation plan. M0 through M3 were completed and verified
+on 2026-10-20; M4 through M7 have not started. Milestones must be implemented
 sequentially and marked complete only after verification.
 
 ## Mission
@@ -518,6 +518,8 @@ run because Ollama is not installed in the verification environment; it is not
 part of deterministic CTest.
 
 ## 7. Milestone M3 — Language-aware prompt construction
+
+Status: Completed and verified on 2026-10-20.
 
 ### Objective
 

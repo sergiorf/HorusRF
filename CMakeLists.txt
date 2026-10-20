@@ -99,6 +99,20 @@ target_include_directories(horusrf_ai PUBLIC
 )
 horusrf_enable_warnings(horusrf_ai)
 
+add_library(horusrf_ai_prompt STATIC
+    src/ai/prompt.cpp
+    src/ai/proposal_response.cpp
+)
+target_compile_features(horusrf_ai_prompt PUBLIC cxx_std_20)
+target_include_directories(horusrf_ai_prompt PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_ai_prompt
+    PUBLIC horusrf_ai
+    PRIVATE horusrf_frontend
+)
+horusrf_enable_warnings(horusrf_ai_prompt)
+
 add_library(horusrf_ai_ollama STATIC
     src/ai/http_transport.cpp
     src/ai/ollama_provider.cpp
@@ -346,6 +360,15 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_ai_provider_tests)
     add_test(NAME horusrf_ai_provider_tests COMMAND horusrf_ai_provider_tests)
 
+    add_executable(horusrf_ai_prompt_tests tests/ai/prompt_tests.cpp)
+    target_compile_features(horusrf_ai_prompt_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_ai_prompt_tests PRIVATE tests)
+    target_link_libraries(horusrf_ai_prompt_tests PRIVATE
+        horusrf_ai_prompt horusrf_ai_validation
+    )
+    horusrf_enable_warnings(horusrf_ai_prompt_tests)
+    add_test(NAME horusrf_ai_prompt_tests COMMAND horusrf_ai_prompt_tests)
+
     add_executable(horusrf_ir_tests tests/ir/lowering_tests.cpp)
     target_compile_features(horusrf_ir_tests PRIVATE cxx_std_20)
     target_include_directories(horusrf_ir_tests PRIVATE tests)
@@ -536,6 +559,7 @@ if(BUILD_TESTING)
         horusrf_semantic_tests
         horusrf_frontend_tests
         horusrf_ai_contract_tests
+        horusrf_ai_prompt_tests
         horusrf_ai_provider_tests
         horusrf_ai_validation_tests
         horusrf_ir_tests

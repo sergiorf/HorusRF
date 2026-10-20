@@ -1,6 +1,6 @@
 # HorusRF AI-assisted authoring architecture
 
-Status: Milestone M0 through M2 architecture and provider contracts, implemented
+Status: Milestone M0 through M3 architecture, provider, and prompt contracts, implemented
 on 2026-10-20.
 
 ## Purpose and authority
@@ -61,6 +61,7 @@ flowchart TB
     Session --> Adapter
     Session --> Contracts
     Provider --> Ollama
+    Prompt --> Frontend
     Adapter --> Frontend
     Adapter --> IR
     Runner --> Frontend
@@ -131,11 +132,34 @@ The implemented target dependencies are:
 
 ```text
 horusrf_ai_ollama --> horusrf_ai
+horusrf_ai_prompt --> horusrf_ai + horusrf_frontend
 horusrf_ai_validation --> horusrf_ai + horusrf_frontend + horusrf_ir
 ```
 
-Neither edge is reversed. Compiler, IR, runtime, device, simulator, CLI, and
+None of these edges is reversed. Compiler, IR, runtime, device, simulator, CLI, and
 Studio UI targets do not depend on `horusrf_ai_ollama`.
+
+## Prompt construction and proposal response
+
+M3 adds `include/horusrf/ai/prompt.hpp` and the `horusrf_ai_prompt` target. The
+Qt-free `PromptBuilder` constructs provider-neutral `LlmRequest` values for
+generation, modification, and compiler-directed repair. Model selection and
+request bounds remain caller-configurable.
+
+The system context is rebuilt deterministically from
+`frontend::get_language_spec()` and `frontend::get_language_capabilities()` and
+adds the semantic rules that cannot be reconstructed from metadata alone. A
+small mode-selected set of few-shot examples covers frequency and temperature
+sweeps, all current measurement operations, assertions, calibration surfaces,
+and preservation during edits. Every positive proposal is compiled in the M3
+test suite.
+
+The provider is asked for exactly one object containing `status`, `script`,
+`explanation`, and `warnings`. `proposal_response_schema()` supplies the strict
+provider schema, and `parse_proposal_response()` independently rejects malformed
+JSON, missing or incorrectly typed fields, duplicate fields, and extra fields.
+Successful parsing establishes only the response shape: the candidate remains
+untrusted until `validate_script()` succeeds.
 
 ## CLI compatibility
 
@@ -167,9 +191,10 @@ attempt numbering, proposal apply eligibility and immutability, typed errors,
 and standard cancellation behavior. It does not start a model, access a network,
 read the clock, or cross a process boundary.
 
-M1 added adapter/compiler tests at their lowest owning layer. Later milestones
-add fake-provider transport tests in M2, prompt tests in M3, deterministic
-state-machine tests in M4, and headless Studio tests in M5. Real-model quality
+M1 added adapter/compiler tests at their lowest owning layer, M2 added fake-provider
+transport tests, and M3 added deterministic prompt, curated-example, and response
+schema tests. Later milestones add deterministic state-machine tests in M4 and
+headless Studio tests in M5. Real-model quality
 measurement remains a separately invoked benchmark, never a deterministic CTest
 dependency.
 
@@ -191,6 +216,7 @@ dependency.
 M0 contains shared contracts, architecture, dependency decisions, and
 deterministic contract tests. M1 contains the compiler validation adapter and
 structured diagnostic JSON. M2 contains provider contracts, Ollama access, and
-deterministic provider tests. These milestones do not contain prompt assembly,
-generation or repair orchestration, UI controls, editor changes, or experiment
-execution. Those remain M3 through M7 work in the approved plan.
+deterministic provider tests. M3 contains prompt assembly, curated examples, the
+proposal response schema, and deterministic parsing. These milestones do not
+contain generation or repair orchestration, UI controls, editor changes, or
+experiment execution. Those remain M4 through M7 work in the approved plan.

@@ -9,6 +9,7 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 | AI contracts | authoring requests, validation/proposal invariants, errors, cancellation | `unit` |
 | AI validation | complete compiler adaptation, source ranges, deterministic diagnostic JSON | `unit` |
 | AI provider | provider contracts, Ollama protocol/error adaptation, fake provider | `unit` |
+| AI prompt | compiler-derived contexts, compiling examples, response schema and parsing | `unit` |
 | device, executor, characterization | separated simulated equipment and runtime routing | `unit` |
 | procedural example, CSV, JSON | independent orchestration and serialization | `unit` |
 | declarative end-to-end | actual fixture through compiler and runtime | `integration` |
@@ -58,6 +59,11 @@ stdout, stderr, and exit-status behavior.
 serialization and response decoding, structured error mapping, cancellation,
 and the scripted fake provider. A fake transport keeps the suite independent of
 Ollama, Qwen, sockets, internet access, GPUs, and wall-clock timing.
+
+`horusrf_ai_prompt_tests` covers deterministic generation, modification, and
+repair messages, compiler-owned capability context, request bounds, curated
+examples through complete compiler validation, strict proposal-schema parsing,
+and malformed response rejection. It does not invoke a provider or network.
 
 `horusrf_antlr_toolchain_smoke_tests` generates a small test-only C++ lexer and
 parser with the vendored ANTLR 4.13.2 JAR, compiles them against the matching
