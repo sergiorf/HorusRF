@@ -133,7 +133,10 @@ client, agent orchestrator, MCP server, or unrestricted execution facility.
 - [Architecture](docs/architecture.md) — layers, dependencies, and ownership
 - [DSL evolution contract](docs/dsl-evolution.md) — compatibility decisions behind
   the generalized language
-- [Project roadmap](docs/project-roadmap.md) — completed work and deferred ideas
+- [Project roadmap](docs/project-roadmap.md) — completed work, approved Phase 2,
+  and deferred ideas
+- [Phase 2 AI-assisted authoring plan](docs/phase-2-local-ai-assisted-authoring-plan.md)
+  — approved milestones and safety boundaries
 - [Grammar audit](docs/dsl-grammar-audit.md) — syntax/semantic boundary and
   conformance coverage
 - [Test organization](tests/README.md) — suites, labels, and commands

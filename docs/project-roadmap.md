@@ -1,7 +1,7 @@
 # HorusRF project roadmap
 
-Status: Phase 1 completed on 2026-10-18. Later phases are deferred ideas, not
-approved implementation commitments.
+Status: Phase 1 completed on 2026-10-18. Phase 2 local AI-assisted DSL
+authoring is approved and has not started.
 
 HorusRF is a focused C++20 DSL demonstration. Current behavior belongs in the
 [language reference](language.md), and dependency/ownership rules belong in the
@@ -46,19 +46,24 @@ Future work must:
 - keep tests deterministic, offline, and independent of real hardware; and
 - avoid speculative frameworks, dependencies, and extension scaffolding.
 
+## Approved Phase 2
+
+### Local AI-assisted DSL authoring
+
+Phase 2 adds local, provider-neutral AI-assisted authoring to Studio, initially
+using Qwen through Ollama. The compiler remains authoritative, generated or
+modified source is presented as a proposal, and applying or executing it always
+requires an explicit user action. The implementation is divided into milestones
+M0 through M7; none are complete yet.
+
+The complete approved scope, sequencing, acceptance criteria, and safety
+boundaries are defined in the
+[Phase 2 local AI-assisted authoring plan](phase-2-local-ai-assisted-authoring-plan.md).
+
 ## Deferred directions
 
 The following are possible directions only. Each requires a separate design and
 explicit approval before implementation.
-
-### Assisted authoring and analysis
-
-Potential work includes a provider-neutral Studio integration, natural-language
-source proposals, bounded diagnostic-driven repair, and explanations grounded in
-versioned result JSON. Compiler validation remains authoritative, generated source
-must be reviewed, and execution requires a separate explicit user action. Core
-compiler and runtime targets remain AI-free; tests use deterministic fakes and no
-network.
 
 ### Advanced RF measurements
 
