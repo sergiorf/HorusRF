@@ -18,5 +18,6 @@ struct FixedTokenDefinition {
 
 [[nodiscard]] std::vector<Token> lex(std::string_view source);
 [[nodiscard]] const std::vector<FixedTokenDefinition>& fixed_token_definitions();
+[[nodiscard]] const std::vector<std::string>& grammar_rule_names();
 
 } // namespace horusrf::parser

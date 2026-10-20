@@ -1,11 +1,12 @@
-# HorusRF DSL Frontend: Remaining Plan
+# HorusRF DSL Frontend Refactoring Plan
 
-Status: active implementation plan.
+Status: completed on 2026-10-20.
 
-This document contains only unfinished work. Completed grammar formalization,
-ANTLR adoption, parser parity, production cutover, cross-platform acceptance,
-reusable language services, and Studio language-definition sharing are recorded
-in the architecture documentation and ADRs rather than repeated here.
+This record described the final unfinished work after grammar formalization,
+ANTLR adoption, parser parity, production cutover, reusable language services,
+and Studio language-definition sharing. Milestone 3 and its final verification are
+now complete; the resulting boundaries are recorded in the architecture and public
+language documentation.
 
 ## Objective
 
@@ -75,3 +76,16 @@ verification passes.
 Implement one milestone at a time. Add tests at the lowest layer that proves each
 behavior, run the relevant focused suites, then run the full unfiltered suite after
 cross-layer changes. Stop and report results before beginning the next milestone.
+
+## Completion record
+
+Milestone 3 added deterministic grammar/specification discovery, compiler-owned
+capability metadata, and a diagnostics-only validation view. Metadata is derived
+from generated ANTLR rule/token data, domain unit definitions, and semantic tables
+shared with analysis. The automation safety and language-change workflows are
+documented without adding execution or orchestration facilities.
+
+The final Release verification passed the complete configured suites on Windows
+(24 tests, including Studio) and Linux with GCC (23 tests, Qt-free), including all
+parser, semantic, IR, CLI, runtime, integration, equivalence, and checked-in DSL
+example boundaries.

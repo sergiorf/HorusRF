@@ -34,8 +34,10 @@ the permanent behavioral guard for grammar and frontend changes.
 `horusrf_frontend_tests` covers the Qt-free structured `parse` and `validate`
 services: successful results, syntax and semantic classification, stable codes,
 messages and spans, conservative fail-fast syntax handling, and multiple semantic
-diagnostics. CLI and Studio suites separately retain their application-boundary
-coverage.
+diagnostics. It also locks the diagnostics-only view and deterministic language
+specification/capability metadata, including grammar-derived tokens, units,
+measurements, sweeps, functions, and constraints. CLI and Studio suites separately
+retain their application-boundary coverage.
 
 `horusrf_antlr_toolchain_smoke_tests` generates a small test-only C++ lexer and
 parser with the vendored ANTLR 4.13.2 JAR, compiles them against the matching

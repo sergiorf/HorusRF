@@ -492,6 +492,15 @@ const std::vector<FixedTokenDefinition>& fixed_token_definitions() {
     return definitions;
 }
 
+const std::vector<std::string>& grammar_rule_names() {
+    static const auto names = [] {
+        antlr4::ANTLRInputStream input;
+        HorusRfParser parser{nullptr};
+        return parser.getRuleNames();
+    }();
+    return names;
+}
+
 std::string_view token_kind_name(TokenKind kind) noexcept {
     switch (kind) {
     case TokenKind::EndOfFile: return "end of file";

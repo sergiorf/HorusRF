@@ -42,7 +42,20 @@ Qt-free callers that need structured language services can include
 `frontend::validate(source)` returns either an analyzed program or diagnostics
 classified as syntax or semantic. Both preserve stable diagnostic codes,
 messages, and source spans, and neither lowers nor executes the experiment. The
-lower-level throwing `parser::parse()` API remains available for compatibility.
+diagnostics-only `frontend::get_diagnostics(source)` convenience returns the same
+ordered diagnostics. `frontend::get_language_spec()` exposes grammar-derived rule
+and fixed-token metadata, while `frontend::get_language_capabilities()` describes
+supported statements, measurements, sweep dimensions, units, functions, and
+important semantic constraints. Both metadata objects are immutable and have
+deterministic declaration order. The lower-level throwing `parser::parse()` API
+remains available for compatibility.
+
+Sources produced by automation are untrusted input. Discovering capabilities and
+validating a source never lowers, executes, constructs a device, or accesses
+hardware. Applications must validate every generated program and obtain explicit
+user approval in a separate execution step before operating equipment. HorusRF
+does not provide an LLM client, agent orchestrator, MCP server, or unrestricted
+execution facility.
 
 For a multi-config generator, choose one configuration consistently, for example:
 
@@ -261,6 +274,12 @@ coordination behind the unchanged `sweep frequency` and `measure power` intent.
 - [Apache 2.0 core and CLI license](LICENSE)
 - [GPLv3 Studio license](LICENSE-GPL-3.0)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+When changing the language, update the authoritative
+[`grammar/HorusRf.g4`](grammar/HorusRf.g4), any semantic definition or frontend
+metadata adapter affected by the change, the public language documentation, and
+the lowest-layer tests in the same change. Generated ANTLR sources remain build
+artifacts under `build/`; do not edit or commit them.
 
 ## Licensing
 

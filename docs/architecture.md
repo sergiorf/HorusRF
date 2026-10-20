@@ -245,6 +245,12 @@ classDiagram
   results rather than parse exceptions, classify diagnostics as syntax or
   semantic, and preserve stable codes, messages, and source spans. Validation
   stops before IR lowering, runtime, device construction, or hardware access.
+  `frontend::get_diagnostics()` is the diagnostics-only view of validation.
+  `frontend::get_language_spec()` exposes rule names and fixed tokens obtained
+  from generated ANTLR metadata. `frontend::get_language_capabilities()` combines
+  that compiler-owned lexical data with domain unit classification and semantic
+  definition tables for measurements, sweeps, functions, and limits. Returned
+  metadata is immutable, deterministically ordered, and contains no ANTLR types.
   The lower-level parser and semantic APIs remain available for compatibility
   and focused compiler-layer use. The CLI consumes this boundary; Studio reaches
   it through the CLI's existing asynchronous `--check` process workflow.
@@ -341,6 +347,13 @@ presentation paths; Studio never recomputes domain values or calibration results
 This path does not introduce a core or output-library link. The most recent valid
 results remain visible if a later run or result load fails. This keeps the GPL-3.0-only
 desktop application outside the Apache-2.0 core and CLI target graph.
+
+Language discovery and validation are safe automation boundaries, not execution
+authorization. Generated source is always treated as untrusted and must pass
+validation. Hardware execution remains a separate application action requiring
+explicit user approval; capability discovery and validation cannot construct or
+call a device. No LLM client, agent orchestration, MCP transport, or unrestricted
+execution belongs in the compiler frontend.
 
 ## Approved Phase 1 evolution boundaries
 

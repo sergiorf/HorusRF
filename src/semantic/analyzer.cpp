@@ -1,4 +1,5 @@
 #include "horusrf/semantic/analyzer.hpp"
+#include "horusrf/semantic/language.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,6 +12,57 @@
 #include <utility>
 
 namespace horusrf::semantic {
+
+const std::vector<MeasurementDefinition>& measurement_definitions() {
+    static const std::vector<MeasurementDefinition> definitions{
+        {"power", MeasurementOperation::Power, SemanticType::Power},
+        {"evm", MeasurementOperation::Evm, SemanticType::Ratio},
+        {"frequency_error", MeasurementOperation::FrequencyError,
+         SemanticType::FrequencyDelta},
+    };
+    return definitions;
+}
+
+std::optional<MeasurementDefinition> measurement_definition(std::string_view name) {
+    const auto& definitions = measurement_definitions();
+    const auto found = std::find_if(definitions.begin(), definitions.end(),
+                                    [name](const auto& value) { return value.name == name; });
+    if (found == definitions.end()) return std::nullopt;
+    return *found;
+}
+
+const std::vector<SweepDefinition>& sweep_definitions() {
+    static const std::vector<SweepDefinition> definitions{
+        {"frequency", SweepDimension::Frequency, SemanticType::Frequency,
+         SemanticType::Frequency, true},
+        {"temperature", SweepDimension::Temperature, SemanticType::Temperature,
+         SemanticType::TemperatureDelta, false},
+    };
+    return definitions;
+}
+
+std::optional<SweepDefinition> sweep_definition(std::string_view name) {
+    const auto& definitions = sweep_definitions();
+    const auto found = std::find_if(definitions.begin(), definitions.end(),
+                                    [name](const auto& value) { return value.name == name; });
+    if (found == definitions.end()) return std::nullopt;
+    return *found;
+}
+
+const std::vector<FunctionDefinition>& function_definitions() {
+    static const std::vector<FunctionDefinition> definitions{
+        {"abs", {SemanticType::PowerDelta, SemanticType::FrequencyDelta,
+                 SemanticType::TemperatureDelta, SemanticType::Ratio}},
+    };
+    return definitions;
+}
+
+const FunctionDefinition* function_definition(std::string_view name) {
+    const auto& definitions = function_definitions();
+    const auto found = std::find_if(definitions.begin(), definitions.end(),
+                                    [name](const auto& value) { return value.name == name; });
+    return found == definitions.end() ? nullptr : &*found;
+}
 
 std::string_view diagnostic_code_name(DiagnosticCode code) noexcept {
     switch (code) {
@@ -72,7 +124,6 @@ SemanticType canonical_type(const domain::CanonicalQuantity& value) {
     return SemanticType::PowerDelta;
 }
 
-constexpr std::size_t maximum_sweep_points = 1'000'000;
 constexpr long double sweep_tolerance_multiplier = 16.0L;
 
 std::optional<std::size_t> axis_point_count(double start, double end, double step) {
@@ -85,7 +136,8 @@ std::optional<std::size_t> axis_point_count(double start, double end, double ste
                            static_cast<long double>(std::numeric_limits<double>::epsilon()) *
                            magnitude;
     const auto quotient = (last - first) / increment;
-    if (!std::isfinite(quotient) || quotient > static_cast<long double>(maximum_sweep_points)) {
+    if (!std::isfinite(quotient) ||
+        quotient > static_cast<long double>(maximum_sweep_point_count)) {
         return std::nullopt;
     }
     auto last_index = std::floor(quotient);
@@ -96,7 +148,7 @@ std::optional<std::size_t> axis_point_count(double start, double end, double ste
     }
     const auto count = last_index + 1.0L;
     if (!std::isfinite(count) || count < 1.0L ||
-        count > static_cast<long double>(maximum_sweep_points) ||
+        count > static_cast<long double>(maximum_sweep_point_count) ||
         count > static_cast<long double>(std::numeric_limits<std::size_t>::max())) {
         return std::nullopt;
     }
@@ -203,7 +255,8 @@ private:
             return;
         }
         seen_sweep_dimensions_.insert(statement.dimension);
-        if (statement.dimension == "frequency") {
+        const auto definition = sweep_definition(statement.dimension);
+        if (definition && definition->dimension == SweepDimension::Frequency) {
             auto start = quantity_as<domain::Frequency>(statement.start, SemanticType::Frequency);
             auto end = quantity_as<domain::Frequency>(statement.end, SemanticType::Frequency);
             auto step = quantity_as<domain::Frequency>(statement.step, SemanticType::Frequency);
@@ -267,8 +320,8 @@ private:
     }
 
     bool add_sweep_points(std::size_t count, parser::SourceSpan span) {
-        if (count > maximum_sweep_points ||
-            total_point_count_ > maximum_sweep_points / count) {
+        if (count > maximum_sweep_point_count ||
+            total_point_count_ > maximum_sweep_point_count / count) {
             report(DiagnosticCode::SweepTooLarge,
                    "sweep point count exceeds the 1000000 point safety limit", span);
             return false;
@@ -294,35 +347,27 @@ private:
             }
             return;
         }
-        MeasurementOperation operation{};
-        SemanticType type{};
-        if (statement.operation == "power") {
-            operation = MeasurementOperation::Power;
-            type = SemanticType::Power;
-        } else if (statement.operation == "evm") {
-            operation = MeasurementOperation::Evm;
-            type = SemanticType::Ratio;
-        } else if (statement.operation == "frequency_error") {
-            operation = MeasurementOperation::FrequencyError;
-            type = SemanticType::FrequencyDelta;
-        } else {
+        const auto definition = measurement_definition(statement.operation);
+        if (!definition) {
             report(DiagnosticCode::UnknownMeasurementOperation,
                    "unknown measurement operation '" + statement.operation + "'",
                    statement.span);
             return;
         }
         const auto id = next_symbol();
-        measurements_.push_back(Measurement{id, statement.name, operation, type,
+        measurements_.push_back(Measurement{id, statement.name, definition->operation,
+                                            definition->result_type,
                                             statement.legacy, statement.span});
-        symbols_.emplace(statement.name, Symbol{id, type, false, true});
-        if (operation == MeasurementOperation::Power && !measurement_) {
+        symbols_.emplace(statement.name,
+                         Symbol{id, definition->result_type, false, true});
+        if (definition->operation == MeasurementOperation::Power && !measurement_) {
             measurement_.emplace(PowerMeasurement{id, statement.span});
         }
     }
 
     bool user_name_available(const std::string& name, parser::SourceSpan span) {
         if (name == "frequency" || name == "temperature" || name == "power" ||
-            name == "abs" ||
+            function_definition(name) != nullptr ||
             declared_user_names_.contains(name)) {
             report(DiagnosticCode::DuplicateDeclaration,
                    "duplicate declaration of '" + name + "'", span);
@@ -554,7 +599,8 @@ private:
 
     std::optional<Expression> analyze_expression_value(const ast::CallExpression& call,
                                                        parser::SourceSpan span) {
-        if (call.function != "abs") {
+        const auto* definition = function_definition(call.function);
+        if (!definition) {
             report(DiagnosticCode::UnknownFunction,
                    "unknown function '" + call.function + "'", call.span);
             return std::nullopt;
@@ -562,17 +608,16 @@ private:
         if (!call.argument) return std::nullopt;
         auto argument = analyze_expression(*call.argument);
         if (!argument) return std::nullopt;
-        if (argument->type != SemanticType::PowerDelta &&
-            argument->type != SemanticType::FrequencyDelta &&
-            argument->type != SemanticType::TemperatureDelta &&
-            argument->type != SemanticType::Ratio) {
+        if (std::find(definition->argument_types.begin(), definition->argument_types.end(),
+                      argument->type) == definition->argument_types.end()) {
             report(DiagnosticCode::InvalidFunctionArgument,
                    "abs() does not accept " + std::string(type_name(argument->type)),
                    call.span);
             return std::nullopt;
         }
         const auto type = argument->type;
-        return Expression{CallValue{"abs", std::make_shared<Expression>(std::move(*argument)),
+        return Expression{CallValue{std::string{definition->name},
+                                    std::make_shared<Expression>(std::move(*argument)),
                                     type, call.span}, type, span};
     }
 

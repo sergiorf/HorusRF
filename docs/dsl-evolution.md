@@ -463,3 +463,10 @@ Tests remain deterministic, offline, independent of the wall clock, randomness,
 and hardware. Syntax work updates `grammar/HorusRf.g4`, `docs/language.md`, syntax
 highlighting, and tests in the same milestone. Cross-layer milestones finish with
 the full unfiltered CTest suite.
+
+The single language-change workflow is: update `grammar/HorusRf.g4`; update any
+semantic definition or frontend metadata adapter affected by the syntax; update
+the public language and architecture documentation; and add the lowest-layer
+parser, frontend, semantic, and cross-layer tests needed to prove the behavior in
+the same change. Studio highlighting continues to consume compiler-owned token
+metadata rather than a parallel syntax list.

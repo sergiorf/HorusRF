@@ -247,6 +247,28 @@ Examples of rejected programs include a missing unit (`reference power = 10`), a
 unknown name (`derive x = missing`), a non-positive step, and a calibration indexed
 over `power` rather than `frequency`.
 
+## Compiler discovery and validation API
+
+Qt-free C++ tools link `horusrf_frontend` and include
+`horusrf/frontend/language_services.hpp`. `get_language_spec()` returns the
+generated grammar's ordered rule names and fixed keyword, unit, operator, and
+punctuation tokens. `get_language_capabilities()` returns deterministically ordered
+statement, measurement, sweep-dimension, unit, built-in-function, and semantic
+constraint descriptions. Unit classifications come from domain conversion
+definitions; measurements, sweep dimensions, functions, and the sweep safety limit
+come from the same semantic definitions used by analysis. The public structures do
+not expose ANTLR types.
+
+`validate(source)` returns an analyzed program only when syntax and semantics are
+valid. `get_diagnostics(source)` is its diagnostics-only convenience and preserves
+the same categories, codes, messages, spans, and order. Neither operation lowers or
+executes a program, constructs a device, or accesses hardware.
+
+Automation must treat generated DSL as untrusted input, validate every program,
+and keep execution behind a separate explicit user approval. Capability discovery
+does not grant execution authority. The frontend intentionally contains no LLM
+client, agent orchestration, MCP server, or unrestricted execution path.
+
 ## Current limitations
 
 The demonstration has no conditionals, general loops, user-defined functions, arrays, strings,
