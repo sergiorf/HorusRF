@@ -1,6 +1,7 @@
 # HorusRF DSL Frontend Refactoring Plan
 
-Status: completed on 2026-10-20.
+> **Archived as complete on 2026-10-20.** Milestone 3 and its final verification
+> were completed, and this document is retained as the historical refactoring plan.
 
 This record described the final unfinished work after grammar formalization,
 ANTLR adoption, parser parity, production cutover, reusable language services,

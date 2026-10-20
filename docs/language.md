@@ -67,8 +67,8 @@ index generation and the existing endpoint tolerance. Each axis and the checked
 Cartesian product are limited to 1,000,000 points. At runtime the last declared
 dimension varies fastest.
 
-M1 compiles and lowers multidimensional programs and M2 executes their deterministic
-Cartesian product. Sweep controls are applied in declaration order at every point,
+The compiler lowers multidimensional programs and the runtime executes their
+deterministic Cartesian product. Sweep controls are applied in declaration order at every point,
 followed by output power and measurements. A missing environmental controller is
 reported as `runtime.capability_unavailable` before any device call. The fixed CSV
 schema remains available only for a single frequency sweep; multidimensional

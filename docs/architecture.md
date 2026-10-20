@@ -89,6 +89,7 @@ flowchart TB
     CLI --> Output
 
     Studio -. process boundary .-> CLI
+    Studio --> Parser
 
     Semantic --> Parser
     Semantic --> Domain
@@ -108,15 +109,19 @@ flowchart TB
 The CLI is the composition root, so its broad dependencies do not relax the
 dependencies of the components it assembles. In particular, runtime reaches
 simulated or future hardware implementations only through `RfDevice`,
-`MeasurementDevice`, and `TemperatureController`. `RfDevice` is intentionally the
-tester TX-control boundary; it has no measurement operation.
+`MeasurementDevice`, `EvmMeasurementDevice`, `FrequencyErrorMeasurementDevice`,
+and `TemperatureController`. `RfDevice` is intentionally the tester TX-control
+boundary; it has no measurement operation. Studio's parser dependency supplies
+fixed-token metadata for highlighting; its dotted CLI edge represents validation
+and execution through a process boundary.
 
 ## Public contracts and ownership
 
 This high-level class view intentionally omits AST nodes, semantic expressions,
-individual IR operations, diagnostics, and private simulator state. It shows the
-stable contracts that cross architectural boundaries. Filled diamonds denote
-owned result data; dashed arrows denote use through parameters or return values.
+individual IR operations, diagnostics, the optional EVM/frequency-error observation
+interfaces, and private simulator state. It shows selected stable contracts that
+cross architectural boundaries. Filled diamonds denote owned result data; dashed
+arrows denote use through parameters or return values.
 
 ```mermaid
 classDiagram
@@ -299,12 +304,12 @@ only after all points succeed.
 IR and sweep validation happen before equipment calls. Equipment exceptions propagate:
 there is no retry and no partial `CharacterizationResult` is returned.
 
-M1 generalizes the compiler representation to declaration-ordered frequency and
-temperature sweeps with checked axis and product counts. M2 executes their
-Cartesian product with the last declared dimension varying fastest. Runtime
+The compiler represents declaration-ordered frequency and temperature sweeps with
+checked axis and product counts. Runtime executes their Cartesian product with the
+last declared dimension varying fastest and
 preflights the explicit `TemperatureController` capability before equipment access,
 then applies sweep controls in declaration order before output power and measurements.
-M3 adds declaration-ordered named power, EVM, and frequency-error measurements,
+It supports declaration-ordered named power, EVM, and frequency-error measurements,
 strong `Ratio` and `FrequencyDelta` values, and whole-program capability preflight.
 
 ## Dependencies, determinism, and extension points
@@ -313,7 +318,7 @@ The target-level dependency rules are:
 
 | Target | Allowed direct project dependencies |
 |---|---|
-| `horusrf_parser` | AST/parser headers only |
+| `horusrf_parser` | AST/parser headers and the private vendored ANTLR runtime |
 | `horusrf_domain` | none |
 | `horusrf_semantic` | domain, parser/AST |
 | `horusrf_ir` | domain; semantic only while lowering |
@@ -323,7 +328,7 @@ The target-level dependency rules are:
 | `horusrf_procedural_example` | device, domain |
 | `horusrf_output` | domain |
 | `horusrf-run` | composition of the implemented layers |
-| `horusrf-studio` | Qt Widgets and Charts only; communicates with `horusrf-run` through a process boundary |
+| `horusrf-studio` | parser metadata, Qt Widgets, and Qt Charts; validates and executes through `horusrf-run` |
 
 Domain code must not depend on compiler layers. AST must not depend on semantic,
 runtime, or device code. Runtime must not access simulator internals, and procedural
@@ -335,18 +340,20 @@ explicit.
 
 Studio is a separate application layer. It writes the current editor buffer to a
 temporary source file and invokes the sibling `horusrf-run` executable asynchronously
-for validation or execution. It never links compiler, runtime, device, simulator,
-or output targets. Structured source diagnostics are parsed from standard error for
-navigation while raw standard output and standard error remain distinct. A successful
-run's versioned JSON is validated and parsed into a typed, Studio-owned results model.
+for validation or execution. It links `horusrf_parser` for fixed-token highlighting
+metadata, but does not invoke parsing there or link semantic, IR, runtime, device,
+simulator, or output targets. Structured source diagnostics are parsed from standard
+error for navigation while raw standard output and standard error remain distinct. A
+successful run's versioned JSON is validated and parsed into a typed, Studio-owned
+results model.
 Studio presents multidimensional tables and filters, selectable one-dimensional
 plots, two-dimensional heatmaps, qualification summaries and grouped failures, and
 calibration entries. Assertion failures retain source spans for editor navigation.
 The strict legacy CSV parser and original frequency charts remain compatibility
 presentation paths; Studio never recomputes domain values or calibration results.
-This path does not introduce a core or output-library link. The most recent valid
-results remain visible if a later run or result load fails. This keeps the GPL-3.0-only
-desktop application outside the Apache-2.0 core and CLI target graph.
+The most recent valid results remain visible if a later run or result load fails.
+The GPL-3.0-only desktop application may consume the Apache-2.0 parser library while
+remaining separately licensed; it does not change the licenses of core targets.
 
 Language discovery and validation are safe automation boundaries, not execution
 authorization. Generated source is always treated as untrusted and must pass
@@ -355,53 +362,7 @@ explicit user approval; capability discovery and validation cannot construct or
 call a device. No LLM client, agent orchestration, MCP transport, or unrestricted
 execution belongs in the compiler frontend.
 
-## Approved Phase 1 evolution boundaries
-
-The accepted M0 design is specified in
-[`docs/dsl-evolution.md`](dsl-evolution.md). M1's typed sweep compiler
-representation, M2's typed Cartesian runtime, and M3's named measurement pipeline
-are implemented; assertions and qualification were added in M4, and calibration
-surfaces plus versioned JSON were added in M5. Studio JSON integration was completed
-in M6 without changing the dependency direction.
-
-- Parser, AST, semantic analysis, and IR generalize in their existing order. AST
-  remains syntactic; semantic analysis resolves typed names and operations; IR
-  remains a typed, device-independent plan.
-- Sweep and result coordinates retain their declaration-ordered name, stable type,
-  and strong `Frequency` or `Temperature` value. They are never flattened to
-  untyped numbers. The last declared sweep dimension varies fastest.
-- Environmental control is a separate `TemperatureController` interface. Optional
-  EVM and frequency-error observations use explicit public capability interfaces.
-  `RfDevice` remains TX control, `MeasurementDevice::measurePower()` remains the
-  legacy power contract, and existing execution overloads remain as adapters.
-- Runtime validates the whole plan, sweep product, and required capabilities before
-  any equipment call. At a point it applies sweep controls in declaration order,
-  sets output power, performs measurements in declaration order, and then evaluates
-  pure derived values, assertions, and calibration data.
-- Assertions produce owned qualification outcomes and do not control execution.
-  Non-finite observations or computations remain execution failures rather than
-  failed assertions.
-- Multidimensional and qualification results use versioned JSON. The original CSV
-  remains a terminal, exact schema for only the legacy experiment shape. Studio
-  ingests JSON through the existing CLI process boundary and owns all presentation
-  models, filters, plot selection, heatmap mapping, and qualification grouping.
-- Calibration-fit, qualification, and independent-validation metrics are distinct.
-  No in-sample calibration statistic is labeled as validation.
-
-The generalized dependency direction is therefore unchanged. New device contracts
-belong to `horusrf_device`, their strong values and owned result structures belong
-to `horusrf_domain`, execution belongs to `horusrf_runtime`, JSON serialization
-belongs to `horusrf_output`, and the CLI remains the composition root. Simulator
-implementations may satisfy the new device interfaces but are never runtime
-dependencies.
-
-Fresh simulator instances with the same calls produce identical observations. The
-simulator model remains private. Console, CSV, and JSON output use the classic
-locale and round-trip-capable numeric precision, so results do not vary with host
-locale. JSON serialization depends only on the owned domain result and does not
-reach into IR, runtime, devices, or simulator state.
-
-### Deliberately limited scope
+## Deliberately limited scope
 
 The architecture leaves boundaries at which a larger system could add real hardware
 implementations of `RfDevice` and `MeasurementDevice`, richer calibration artifacts,

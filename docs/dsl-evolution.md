@@ -1,14 +1,12 @@
 # HorusRF DSL evolution contract
 
-Status: accepted Phase 1 design, 2026-10-17. This document completes M0 of the
-[project roadmap](project-roadmap.md). It specifies work for M1-M6; unless a section
-explicitly says otherwise, the described additions are not implemented yet.
+Status: accepted Phase 1 design, 2026-10-17; implemented in M1-M6 by 2026-10-18.
 
-Implementation status: M1 (typed frequency/temperature sweep compiler support), M2
-(typed Cartesian runtime execution and environmental control), and M3 (multiple
-named measurements) were completed on 2026-10-17. M4 (assertions and qualification)
-and M5 (calibration surfaces and versioned structured results) were completed on
-2026-10-18. M6 (full Studio JSON integration) was completed on 2026-10-18.
+This document records the compatibility and design contract used to implement the
+generalized language. Milestone-oriented wording is historical, not a statement
+that the described behavior is still pending. See the
+[language reference](language.md) for the concise current user-facing contract and
+the [project roadmap](project-roadmap.md) for current status.
 
 ## Scope and audited baseline
 
@@ -33,8 +31,9 @@ The compatibility baseline is the checked-in `tx_path_characterization.hrf` prog
   source navigation, and last-good-result retention; and
 - independent procedural/declarative implementations and their equivalence test.
 
-Phase 1 changes are additive around that path. No Phase 1 feature moves Studio
-inside the core dependency graph or lets runtime depend on a simulator class.
+Phase 1 changes are additive around that path. Studio links the parser only for
+compiler-owned fixed-token metadata; validation and execution stay behind the CLI
+process boundary. Runtime never depends on a simulator class.
 
 ## Concrete syntax
 

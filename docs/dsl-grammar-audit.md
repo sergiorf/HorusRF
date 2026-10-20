@@ -1,6 +1,6 @@
 # DSL grammar audit
 
-Status: Milestone 1 completed on 2026-10-19.
+Status: completed on 2026-10-19; updated after the generated-parser cutover.
 
 At the time of this audit, a manually maintained EBNF specification was the
 authoritative concrete syntax. Migration milestone 3 replaced it with
@@ -37,10 +37,9 @@ accepted language are unchanged.
   operation and function spellings are ordinary identifiers resolved semantically.
   That document now links to the single authoritative grammar.
 
-Studio currently colors supported operation names as a presentation category even
-though they are identifier tokens. That is not a syntax difference. Centralizing
-the compiler and Studio token metadata is intentionally deferred to the shared
-language-definition work in later milestones.
+Studio does not treat supported operation names as lexer keywords: they remain
+ordinary identifiers. Its keyword, unit, operator, and punctuation rules now come
+from compiler-owned fixed-token metadata rather than a parallel syntax list.
 
 ## Syntax and semantic boundary
 
@@ -61,10 +60,11 @@ No semantic restriction is encoded as syntax merely to make the grammar narrower
 
 ## Conformance coverage
 
-`tests/parser/grammar_conformance_tests.cpp` parses every checked-in `.hrf` example
-(including examples that are deliberately invalid only at the semantic layer). It
-also contains focused accepted and rejected sources for lexical forms, contextual
-names, all units, comments, expression precedence, comparison chaining, calls,
-sweep dimensions, quantity boundaries, and the absence of statement terminators.
-Existing lexer, parser, semantic, end-to-end, equivalence, and CLI suites continue
-to cover their separate architectural layers.
+`tests/parser/grammar_conformance_tests.cpp` supplies the shared syntax corpus and
+example inventory. The generated-grammar recognition suite parses every checked-in
+`.hrf` example, including programs deliberately invalid only at the semantic layer,
+and exercises focused accepted and rejected sources for lexical forms, contextual
+names, units, comments, precedence, calls, sweep dimensions, quantity boundaries,
+and statement termination. Parser regression tests separately lock normalized
+tokens, ASTs, spans, and diagnostics. Semantic, end-to-end, equivalence, and CLI
+suites retain their own architectural coverage.
