@@ -137,6 +137,8 @@ client, agent orchestrator, MCP server, or unrestricted execution facility.
   and deferred ideas
 - [Phase 2 AI-assisted authoring plan](docs/phase-2-local-ai-assisted-authoring-plan.md)
   — approved milestones and safety boundaries
+- [AI-assisted authoring architecture and contracts](docs/ai-assisted-authoring-architecture.md)
+  — implemented M0 boundaries, interfaces, and decisions
 - [Grammar audit](docs/dsl-grammar-audit.md) — syntax/semantic boundary and
   conformance coverage
 - [Test organization](tests/README.md) — suites, labels, and commands

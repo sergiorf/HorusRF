@@ -89,6 +89,15 @@ target_include_directories(horusrf_frontend PUBLIC
 target_link_libraries(horusrf_frontend PUBLIC horusrf_parser horusrf_semantic)
 horusrf_enable_warnings(horusrf_frontend)
 
+add_library(horusrf_ai STATIC
+    src/ai/contracts.cpp
+)
+target_compile_features(horusrf_ai PUBLIC cxx_std_20)
+target_include_directories(horusrf_ai PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+horusrf_enable_warnings(horusrf_ai)
+
 add_library(horusrf_ir STATIC
     src/ir/lowering.cpp
 )
@@ -287,6 +296,13 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_frontend_tests)
     add_test(NAME horusrf_frontend_tests COMMAND horusrf_frontend_tests)
 
+    add_executable(horusrf_ai_contract_tests tests/ai/contracts_tests.cpp)
+    target_compile_features(horusrf_ai_contract_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_ai_contract_tests PRIVATE tests)
+    target_link_libraries(horusrf_ai_contract_tests PRIVATE horusrf_ai)
+    horusrf_enable_warnings(horusrf_ai_contract_tests)
+    add_test(NAME horusrf_ai_contract_tests COMMAND horusrf_ai_contract_tests)
+
     add_executable(horusrf_ir_tests tests/ir/lowering_tests.cpp)
     target_compile_features(horusrf_ir_tests PRIVATE cxx_std_20)
     target_include_directories(horusrf_ir_tests PRIVATE tests)
@@ -476,6 +492,7 @@ if(BUILD_TESTING)
         horusrf_domain_tests
         horusrf_semantic_tests
         horusrf_frontend_tests
+        horusrf_ai_contract_tests
         horusrf_ir_tests
         horusrf_simulator_tests
         horusrf_runtime_tests

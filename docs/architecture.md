@@ -321,6 +321,7 @@ The target-level dependency rules are:
 | `horusrf_parser` | AST/parser headers and the private vendored ANTLR runtime |
 | `horusrf_domain` | none |
 | `horusrf_semantic` | domain, parser/AST |
+| `horusrf_ai` | none; Qt-free AI-assisted authoring value contracts |
 | `horusrf_ir` | domain; semantic only while lowering |
 | `horusrf_device` | domain |
 | `horusrf_runtime` | IR, device, domain |
@@ -361,6 +362,13 @@ validation. Hardware execution remains a separate application action requiring
 explicit user approval; capability discovery and validation cannot construct or
 call a device. No LLM client, agent orchestration, MCP transport, or unrestricted
 execution belongs in the compiler frontend.
+
+The dependency-free `horusrf_ai` target owns the shared AI-assisted authoring
+value contracts. Later provider, prompt, validation-adapter, and orchestration
+code may depend on those contracts, while compiler targets must not depend on the
+AI subsystem. The approved component boundaries, validation definition, CLI
+compatibility decisions, and risks are recorded in the
+[AI-assisted authoring architecture](ai-assisted-authoring-architecture.md).
 
 ## Deliberately limited scope
 

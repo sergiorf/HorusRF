@@ -1,7 +1,8 @@
 # HorusRF — Phase 2: Local AI-Assisted DSL Authoring
 
-Status: Approved implementation plan. Work has not started. Milestones must be
-implemented sequentially and marked complete only after verification.
+Status: Approved implementation plan. M0 was completed and verified on
+2026-10-20; M1 through M7 have not started. Milestones must be implemented
+sequentially and marked complete only after verification.
 
 ## Mission
 
@@ -178,6 +179,9 @@ system.
 
 ## 4. Milestone M0 — Architecture and contracts
 
+Status: Completed on 2026-10-20. The implementation and decisions are recorded
+in the [AI-assisted authoring architecture](ai-assisted-authoring-architecture.md).
+
 ### Objective
 
 Establish a minimal architecture before implementing provider integrations or
@@ -260,18 +264,22 @@ for acceptance.
 
 ### Deliverables
 
-- Short architecture document
-- Component dependency diagram
-- Public interface proposal
-- Updated Phase 2 roadmap
-- Initial deterministic unit tests for contracts
+- [x] Short architecture document
+- [x] Component dependency diagram
+- [x] Public interface proposal and implemented contract values
+- [x] Updated Phase 2 roadmap
+- [x] Initial deterministic unit tests for contracts
 
 ### Acceptance criteria
 
-- Compiler remains AI-free.
-- Dependencies follow existing project conventions.
-- Studio retains its existing process boundary.
-- No network dependency is introduced into the default CLI or compiler build.
+- [x] Compiler remains AI-free.
+- [x] Dependencies follow existing project conventions.
+- [x] Studio retains its existing process boundary.
+- [x] No network dependency is introduced into the default CLI or compiler build.
+
+Verification: `horusrf_ai_contract_tests` and the full unfiltered 25-test CTest
+suite passed in the existing `build/` directory with the Release configuration
+on 2026-10-20.
 
 ## 5. Milestone M1 — Machine-readable compiler validation
 

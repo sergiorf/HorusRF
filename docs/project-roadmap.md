@@ -54,7 +54,14 @@ Phase 2 adds local, provider-neutral AI-assisted authoring to Studio, initially
 using Qwen through Ollama. The compiler remains authoritative, generated or
 modified source is presented as a proposal, and applying or executing it always
 requires an explicit user action. The implementation is divided into milestones
-M0 through M7; none are complete yet.
+M0 through M7. M0, architecture and contracts, was completed on 2026-10-20;
+M1 through M7 have not started.
+
+M0 introduced the dependency-free `horusrf_ai` contract target, deterministic
+contract tests, and the documented component, validation, CLI compatibility, and
+safety boundaries. See the
+[AI-assisted authoring architecture](ai-assisted-authoring-architecture.md) for
+the milestone decisions and public contract.
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

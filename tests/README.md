@@ -6,6 +6,7 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 | Suite | Responsibility | CTest label |
 |---|---|---|
 | parser, frontend, domain, semantic, IR | syntax, structured language services, quantities, analysis, lowering | `unit` |
+| AI contracts | authoring requests, validation/proposal invariants, errors, cancellation | `unit` |
 | device, executor, characterization | separated simulated equipment and runtime routing | `unit` |
 | procedural example, CSV, JSON | independent orchestration and serialization | `unit` |
 | declarative end-to-end | actual fixture through compiler and runtime | `integration` |
@@ -38,6 +39,12 @@ diagnostics. It also locks the diagnostics-only view and deterministic language
 specification/capability metadata, including grammar-derived tokens, units,
 measurements, sweeps, functions, and constraints. CLI and Studio suites separately
 retain their application-boundary coverage.
+
+`horusrf_ai_contract_tests` covers the Qt-free, dependency-free values shared by
+later AI-assisted authoring layers. It verifies request separation, validation
+invariants, repair attempt numbering, proposal apply eligibility and
+immutability, provider identity, errors, and cancellation without contacting a
+model or network service.
 
 `horusrf_antlr_toolchain_smoke_tests` generates a small test-only C++ lexer and
 parser with the vendored ANTLR 4.13.2 JAR, compiles them against the matching
