@@ -15,6 +15,7 @@
 #include <QTabWidget>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <chrono>
@@ -121,6 +122,13 @@ AssistantPanel::AssistantPanel(DslEditor* editor, AssistantService* service,
     status_->setObjectName(QStringLiteral("assistantStatus"));
     status_->setWordWrap(true);
     layout->addWidget(status_);
+    latency_ = new QLabel(tr("Response time: --"), this);
+    latency_->setObjectName(QStringLiteral("assistantLatency"));
+    layout->addWidget(latency_);
+    latency_timer_ = new QTimer(this);
+    latency_timer_->setInterval(250);
+    connect(latency_timer_, &QTimer::timeout,
+            this, &AssistantPanel::updateRequestLatency);
     stale_warning_ = new QLabel(this);
     stale_warning_->setObjectName(QStringLiteral("assistantStaleWarning"));
     stale_warning_->setWordWrap(true);
@@ -200,6 +208,7 @@ void AssistantPanel::submit() {
     last_mode_ = mode_->currentIndex() == 0 ? AssistantMode::Generate
                                             : AssistantMode::Modify;
     if (service_->startRequest(currentRequest())) {
+        startRequestTimer();
         setBusy(true, tr("Generating, validating, and repairing if needed..."));
     }
 }
@@ -211,6 +220,7 @@ void AssistantPanel::retry() {
 }
 
 void AssistantPanel::requestFinished() {
+    finishRequestTimer();
     setBusy(false, tr("Request finished."));
     const auto result = service_->lastResult();
     if (!result) {
@@ -323,6 +333,26 @@ void AssistantPanel::updateStaleness() {
                    "and retry to create a proposal from the current document.")
               : QString{});
     apply_->setEnabled(has_proposal && proposal_valid_ && !stale && !service_->isRunning());
+}
+
+void AssistantPanel::startRequestTimer() {
+    request_timer_.start();
+    latency_->setText(tr("Waiting for Ollama: 0.0 s elapsed"));
+    latency_timer_->start();
+}
+
+void AssistantPanel::updateRequestLatency() {
+    if (!request_timer_.isValid()) return;
+    const double seconds = static_cast<double>(request_timer_.elapsed()) / 1000.0;
+    latency_->setText(tr("Waiting for Ollama: %1 s elapsed").arg(seconds, 0, 'f', 1));
+}
+
+void AssistantPanel::finishRequestTimer() {
+    latency_timer_->stop();
+    if (!request_timer_.isValid()) return;
+    const double seconds = static_cast<double>(request_timer_.elapsed()) / 1000.0;
+    latency_->setText(tr("Response time: %1 s").arg(seconds, 0, 'f', 1));
+    request_timer_.invalidate();
 }
 
 void AssistantPanel::setBusy(bool busy, const QString& status) {

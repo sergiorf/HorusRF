@@ -3,6 +3,7 @@
 
 #include "assistant_service.hpp"
 
+#include <QElapsedTimer>
 #include <QWidget>
 
 #include <memory>
@@ -14,6 +15,7 @@ class QPlainTextEdit;
 class QPushButton;
 class QSpinBox;
 class QTabWidget;
+class QTimer;
 
 namespace horusrf::studio {
 
@@ -35,6 +37,9 @@ private:
     void requestFinished();
     void discoveryFinished();
     void updateStaleness();
+    void startRequestTimer();
+    void updateRequestLatency();
+    void finishRequestTimer();
     void setBusy(bool busy, const QString& status);
     void clearProposal();
     [[nodiscard]] AssistantRequest currentRequest() const;
@@ -53,7 +58,9 @@ private:
     QPushButton* discard_;
     QPushButton* refresh_models_;
     QLabel* status_;
+    QLabel* latency_;
     QLabel* stale_warning_;
+    QTimer* latency_timer_;
     QPlainTextEdit* proposal_;
     QPlainTextEdit* changes_;
     QPlainTextEdit* details_;
@@ -62,6 +69,7 @@ private:
     AssistantMode last_mode_{AssistantMode::Generate};
     int request_revision_{};
     bool proposal_valid_{};
+    QElapsedTimer request_timer_;
 };
 
 } // namespace horusrf::studio

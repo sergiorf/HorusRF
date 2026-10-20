@@ -223,6 +223,8 @@ widgets. Tests inject the provider-neutral `AssistantBackend`; production compos
 the same boundary with `OllamaProvider`, `PromptBuilder`, and `AgentSession`.
 
 The panel snapshots the editor source and document revision when a request starts.
+It shows the live elapsed request time while Ollama, validation, and any bounded
+repair attempts run, then retains the completed end-to-end response time.
 It displays the complete proposal, a line-oriented change view, explanation,
 warnings, and validation diagnostics without modifying the editor. Apply is
 enabled only for a compiler-valid proposal whose snapshot is still current. It

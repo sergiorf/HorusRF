@@ -207,11 +207,17 @@ private slots:
             QStringLiteral("assistantCancel"));
         auto* status = cancellationWindow.findChild<QLabel*>(
             QStringLiteral("assistantStatus"));
+        auto* latency = cancellationWindow.findChild<QLabel*>(
+            QStringLiteral("assistantLatency"));
+        QVERIFY(latency != nullptr);
         instruction->setPlainText(QStringLiteral("Generate something."));
         generate->click();
         QVERIFY(cancel->isEnabled());
+        QCOMPARE(latency->text(), QStringLiteral("Waiting for Ollama: 0.0 s elapsed"));
         cancel->click();
         QTRY_COMPARE(status->text(), QStringLiteral("cancelled by test"));
+        QVERIFY(latency->text().startsWith(QStringLiteral("Response time: ")));
+        QVERIFY(latency->text().endsWith(QStringLiteral(" s")));
         QVERIFY(generate->isEnabled());
 
         auto discovery = std::make_shared<FakeAssistantBackend>();
