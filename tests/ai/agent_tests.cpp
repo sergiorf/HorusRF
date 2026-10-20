@@ -1,0 +1,267 @@
+#include "test_support.hpp"
+
+#include <iostream>
+#include <stdexcept>
+#include <stop_token>
+#include <string>
+#include <string_view>
+#include <variant>
+#include <vector>
+
+#include "ai/fake_provider.hpp"
+#include "horusrf/ai/agent.hpp"
+
+namespace {
+
+using namespace horusrf;
+
+constexpr std::string_view valid_source = R"(characterize generated {
+  reference power = -10 dBm
+  sweep frequency 1 GHz .. 2 GHz step 1 GHz
+  measure power
+  derive calibration cal {
+    correction = reference.power - power
+    over frequency
+  }
+}
+)";
+
+constexpr std::string_view invalid_source = R"(characterize generated {
+  reference power = -10 dB
+  sweep frequency 1 GHz .. 2 GHz step 1 GHz
+  measure power
+  derive calibration cal {
+    correction = reference.power - power
+    over frequency
+  }
+}
+)";
+
+std::string json_escape(std::string_view value) {
+    std::string result;
+    for (const char ch : value) {
+        switch (ch) {
+        case '\\': result += "\\\\"; break;
+        case '"': result += "\\\""; break;
+        case '\n': result += "\\n"; break;
+        case '\r': result += "\\r"; break;
+        case '\t': result += "\\t"; break;
+        default: result.push_back(ch); break;
+        }
+    }
+    return result;
+}
+
+ai::ProviderResponse proposal(std::string_view source,
+                              std::string_view explanation = "generated",
+                              std::string_view warnings = "[]") {
+    return {"{\"status\":\"proposal\",\"script\":\"" + json_escape(source) +
+                "\",\"explanation\":\"" + json_escape(explanation) +
+                "\",\"warnings\":" + std::string{warnings} + "}",
+            {"fake", "fixed"}};
+}
+
+class CancelRepairProvider final : public ai::LlmProvider {
+public:
+    explicit CancelRepairProvider(std::stop_source& stop) : stop_(stop) {}
+
+    ai::LlmResult generate(const ai::LlmRequest&,
+                           ai::CancellationToken = {}) override {
+        ++calls_;
+        if (calls_ == 1) return proposal(invalid_source);
+        stop_.request_stop();
+        return ai::ProviderError{ai::ProviderErrorCode::Cancelled,
+                                 "repair was cancelled"};
+    }
+
+    std::size_t calls() const noexcept { return calls_; }
+
+private:
+    std::stop_source& stop_;
+    std::size_t calls_{};
+};
+
+const ai::ScriptProposal& completed(const ai::AgentResult& result) {
+    CHECK(std::holds_alternative<ai::ScriptProposal>(result));
+    return std::get<ai::ScriptProposal>(result);
+}
+
+const ai::AgentFailure& failed(const ai::AgentResult& result) {
+    CHECK(std::holds_alternative<ai::AgentFailure>(result));
+    return std::get<ai::AgentFailure>(result);
+}
+
+bool request_contains(const ai::LlmRequest& request, std::string_view text) {
+    for (const auto& message : request.messages) {
+        if (message.content.find(text) != std::string::npos) return true;
+    }
+    return false;
+}
+
+void valid_first_candidate_test() {
+    ai::testing::FakeLlmProvider provider{{proposal(valid_source, "valid", "[\"model note\"]")}};
+    ai::AgentSession session{provider};
+    const auto result = session.generate(
+        {ai::NaturalLanguageInstruction{"Create a basic characterization."}});
+
+    const auto& value = completed(result);
+    CHECK_EQ(session.state(), ai::AgentState::Completed);
+    CHECK(value.eligible_to_apply());
+    CHECK_EQ(value.attempt_count(), std::size_t{1});
+    CHECK_EQ(value.explanation(), "valid");
+    CHECK_EQ(value.warnings().size(), std::size_t{1});
+    CHECK_EQ(value.warnings().front(), "model note");
+    CHECK_EQ(provider.requests().size(), std::size_t{1});
+}
+
+void invalid_candidate_is_repaired_test() {
+    ai::testing::FakeLlmProvider provider{{proposal(invalid_source), proposal(valid_source)}};
+    ai::AgentSession session{provider};
+    const std::string instruction =
+        "Use -10 dBm and sweep 1 GHz to 2 GHz in 5 MHz steps.";
+    const auto result = session.generate(
+        {ai::NaturalLanguageInstruction{instruction}});
+
+    const auto& value = completed(result);
+    CHECK_EQ(session.state(), ai::AgentState::Completed);
+    CHECK_EQ(value.attempt_count(), std::size_t{2});
+    CHECK_EQ(provider.requests().size(), std::size_t{2});
+    CHECK(request_contains(provider.requests()[1], instruction));
+    CHECK(request_contains(provider.requests()[1], invalid_source));
+    CHECK(request_contains(provider.requests()[1], "semantic.unexpected_quantity_type"));
+    CHECK_EQ(value.warnings().size(), std::size_t{1});
+    CHECK(value.warnings().front().find("5 MHz") != std::string::npos);
+}
+
+void repair_limit_retains_last_candidate_test() {
+    const std::string second_invalid =
+        std::string{invalid_source}.replace(std::string{invalid_source}.find("-10 dB"), 6,
+                                            "-9 dB");
+    const std::string third_invalid =
+        std::string{invalid_source}.replace(std::string{invalid_source}.find("-10 dB"), 6,
+                                            "-8 dB");
+    ai::testing::FakeLlmProvider provider{{proposal(invalid_source),
+                                           proposal(second_invalid),
+                                           proposal(third_invalid)}};
+    ai::AgentSession session{provider, ai::PromptBuilder{}, {2}};
+    const auto result = session.generate(
+        {ai::NaturalLanguageInstruction{"Create a characterization."}});
+
+    const auto& failure = failed(result);
+    CHECK_EQ(session.state(), ai::AgentState::Failed);
+    CHECK_EQ(failure.error.code, ai::AgentErrorCode::RepairLimitReached);
+    CHECK(failure.proposal.has_value());
+    CHECK(!failure.proposal->eligible_to_apply());
+    CHECK_EQ(failure.proposal->attempt_count(), std::size_t{3});
+    CHECK_EQ(failure.proposal->candidate_source().text(), third_invalid);
+    CHECK_EQ(provider.requests().size(), std::size_t{3});
+}
+
+void unchanged_invalid_candidate_stops_test() {
+    ai::testing::FakeLlmProvider provider{{proposal(invalid_source), proposal(invalid_source)}};
+    ai::AgentSession session{provider};
+    const auto result = session.generate(
+        {ai::NaturalLanguageInstruction{"Create a characterization."}});
+
+    const auto& failure = failed(result);
+    CHECK_EQ(failure.error.code, ai::AgentErrorCode::RepairLimitReached);
+    CHECK(failure.error.message.find("unchanged") != std::string::npos);
+    CHECK(failure.proposal.has_value());
+    CHECK_EQ(failure.proposal->attempt_count(), std::size_t{2});
+    CHECK_EQ(provider.requests().size(), std::size_t{2});
+}
+
+void unusable_and_provider_failures_test() {
+    ai::testing::FakeLlmProvider malformed{{ai::ProviderResponse{"not json", {"fake", "fixed"}}}};
+    ai::AgentSession malformed_session{malformed};
+    const auto malformed_result = malformed_session.generate(
+        {ai::NaturalLanguageInstruction{"Create a characterization."}});
+    CHECK_EQ(failed(malformed_result).error.code, ai::AgentErrorCode::ProviderFailure);
+    CHECK(!failed(malformed_result).proposal.has_value());
+
+    ai::testing::FakeLlmProvider unavailable{{
+        ai::ProviderError{ai::ProviderErrorCode::Unavailable, "offline"}}};
+    ai::AgentSession unavailable_session{unavailable};
+    const auto unavailable_result = unavailable_session.generate(
+        {ai::NaturalLanguageInstruction{"Create a characterization."}});
+    CHECK_EQ(failed(unavailable_result).error.code, ai::AgentErrorCode::ProviderFailure);
+    CHECK_EQ(failed(unavailable_result).error.message, "offline");
+
+    ai::testing::FakeLlmProvider repair_failure{{
+        proposal(invalid_source),
+        ai::ProviderError{ai::ProviderErrorCode::Timeout, "repair timed out"}}};
+    ai::AgentSession repair_failure_session{repair_failure};
+    const auto repair_failure_result = repair_failure_session.generate(
+        {ai::NaturalLanguageInstruction{"Create a characterization."}});
+    const auto& repair_failure_value = failed(repair_failure_result);
+    CHECK_EQ(repair_failure_value.error.code, ai::AgentErrorCode::ProviderFailure);
+    CHECK(repair_failure_value.proposal.has_value());
+    CHECK(!repair_failure_value.proposal->eligible_to_apply());
+    CHECK_EQ(repair_failure_value.proposal->attempt_count(), std::size_t{1});
+}
+
+void cancellation_and_invalid_request_test() {
+    ai::testing::FakeLlmProvider provider{{proposal(valid_source)}};
+    std::stop_source stop;
+    stop.request_stop();
+    ai::AgentSession cancelled_session{provider};
+    const auto cancelled = cancelled_session.generate(
+        {ai::NaturalLanguageInstruction{"Create a characterization."}}, stop.get_token());
+    CHECK_EQ(failed(cancelled).error.code, ai::AgentErrorCode::Cancelled);
+    CHECK_EQ(cancelled_session.state(), ai::AgentState::Cancelled);
+    CHECK(provider.requests().empty());
+
+    ai::AgentSession invalid_session{provider};
+    const auto invalid = invalid_session.generate(
+        {ai::NaturalLanguageInstruction{" \n"}});
+    CHECK_EQ(failed(invalid).error.code, ai::AgentErrorCode::InvalidRequest);
+    CHECK_EQ(invalid_session.state(), ai::AgentState::Failed);
+    CHECK(provider.requests().empty());
+
+    std::stop_source repair_stop;
+    CancelRepairProvider repair_provider{repair_stop};
+    ai::AgentSession repair_session{repair_provider};
+    const auto repair_cancelled = repair_session.generate(
+        {ai::NaturalLanguageInstruction{"Create a characterization."}},
+        repair_stop.get_token());
+    const auto& repair_failure = failed(repair_cancelled);
+    CHECK_EQ(repair_failure.error.code, ai::AgentErrorCode::Cancelled);
+    CHECK_EQ(repair_session.state(), ai::AgentState::Cancelled);
+    CHECK(repair_failure.proposal.has_value());
+    CHECK_EQ(repair_failure.proposal->attempt_count(), std::size_t{1});
+    CHECK_EQ(repair_provider.calls(), std::size_t{2});
+}
+
+void modification_repair_preserves_context_test() {
+    ai::testing::FakeLlmProvider provider{{proposal(invalid_source), proposal(valid_source)}};
+    ai::AgentSession session{provider};
+    const std::string original{valid_source};
+    const std::string instruction{"Change only the reference power to -10 dBm."};
+    const auto result = session.modify(
+        {ai::ScriptSource{original}, ai::NaturalLanguageInstruction{instruction}});
+
+    CHECK(completed(result).eligible_to_apply());
+    CHECK_EQ(provider.requests().size(), std::size_t{2});
+    CHECK(request_contains(provider.requests()[1], "<original_horusrf>"));
+    CHECK(request_contains(provider.requests()[1], original));
+    CHECK(request_contains(provider.requests()[1], instruction));
+}
+
+} // namespace
+
+int main() {
+    try {
+        valid_first_candidate_test();
+        invalid_candidate_is_repaired_test();
+        repair_limit_retains_last_candidate_test();
+        unchanged_invalid_candidate_stops_test();
+        unusable_and_provider_failures_test();
+        cancellation_and_invalid_request_test();
+        modification_repair_preserves_context_test();
+        std::cout << "All HorusRF AI agent tests passed\n";
+        return 0;
+    } catch (const std::exception& error) {
+        std::cerr << error.what() << '\n';
+        return 1;
+    }
+}

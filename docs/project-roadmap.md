@@ -1,7 +1,7 @@
 # HorusRF project roadmap
 
 Status: Phase 1 completed on 2026-10-18. Phase 2 local AI-assisted DSL
-authoring is in progress; M0 through M3 are complete.
+authoring is in progress; M0 through M4 are complete.
 
 HorusRF is a focused C++20 DSL demonstration. Current behavior belongs in the
 [language reference](language.md), and dependency/ownership rules belong in the
@@ -55,8 +55,9 @@ using Qwen through Ollama. The compiler remains authoritative, generated or
 modified source is presented as a proposal, and applying or executing it always
 requires an explicit user action. The implementation is divided into milestones
 M0 through M7. M0, architecture and contracts, M1, machine-readable compiler
-validation, M2, the provider-neutral Ollama interface, and M3, language-aware
-prompt construction, were completed on 2026-10-20; M4 through M7 have not started.
+validation, M2, the provider-neutral Ollama interface, M3, language-aware prompt
+construction, and M4, the bounded generation and compiler-directed repair loop,
+were completed on 2026-10-20; M5 through M7 have not started.
 
 M0 introduced the dependency-free `horusrf_ai` contract target, deterministic
 contract tests, and the documented component, validation, CLI compatibility, and
@@ -80,6 +81,15 @@ modification, and repair prompt construction from compiler-owned language
 metadata, compiler-validated few-shot examples, a strict proposal JSON schema,
 and typed response parsing. Prompt tests remain offline and validate every
 curated proposal through the complete frontend-plus-IR validation path.
+
+M4 introduced the Qt-free `horusrf_ai_agent` target and explicit agent state
+machine. Generation and modification requests now produce immutable, validated
+proposals or typed failures; invalid candidates enter at most three repair
+attempts by default. Every revision is revalidated, cancellation and unchanged
+invalid output terminate the loop, and failures retain the last candidate and
+diagnostics when available. Explicit number-and-unit requirements receive
+conservative fidelity warnings for user review. The authoring path has no
+runtime, device, simulator, execution, or Qt dependency.
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

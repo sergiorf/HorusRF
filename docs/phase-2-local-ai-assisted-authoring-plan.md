@@ -1,7 +1,7 @@
 # HorusRF — Phase 2: Local AI-Assisted DSL Authoring
 
-Status: Approved implementation plan. M0 through M3 were completed and verified
-on 2026-10-20; M4 through M7 have not started. Milestones must be implemented
+Status: Approved implementation plan. M0 through M4 were completed and verified
+on 2026-10-20; M5 through M7 have not started. Milestones must be implemented
 sequentially and marked complete only after verification.
 
 ## Mission
@@ -639,6 +639,8 @@ Do not resend unnecessarily large histories or unrelated documentation.
 
 ## 8. Milestone M4 — Agent generation and repair loop
 
+Status: Completed and verified on 2026-10-20.
+
 ### Objective
 
 Implement a bounded agent loop that generates, validates, and repairs scripts.
@@ -760,6 +762,30 @@ Do not attempt to implement a universal natural-language semantic verifier.
 - No script executes automatically.
 - Original user requirements remain available during every repair attempt.
 - Tests cover success, failure, repeated errors, and cancellation.
+
+Implemented result:
+
+- `horusrf_ai_agent` owns the synchronous, Qt-free `AgentSession` and its
+  explicit states. UI callers are required to invoke it on a worker thread.
+- Generation and modification use the M3 prompt builder, the provider-neutral
+  M2 interface, and complete M1 frontend-plus-IR validation.
+- The default permits three repair attempts after initial generation. Provider
+  failure, malformed or empty output, cancellation, unchanged invalid output,
+  success, and exhaustion all terminate deterministically.
+- `AgentResult` returns either an immutable valid `ScriptProposal` or an
+  `AgentFailure`. Failures retain the last invalid proposal and compiler
+  diagnostics whenever a candidate was already validated.
+- Proposal warnings retain provider warnings and add conservative review notices
+  when an explicit number-and-unit requirement is absent from the candidate.
+- `horusrf_ai_agent_tests` uses only the scripted fake provider and real in-memory
+  compiler validation. It covers first-pass success, repair success, exhaustion,
+  unchanged output, provider and response failures, cancellation, invalid input,
+  modification context preservation, and numeric fidelity warnings.
+
+Verification: the focused AI suites and the full unfiltered 29-test CTest suite
+passed in the existing `build/` directory with the Release configuration on
+2026-10-20. No live model, network service, runtime, simulator, or hardware was
+used.
 
 ## 9. Milestone M5 — Qt Studio integration
 

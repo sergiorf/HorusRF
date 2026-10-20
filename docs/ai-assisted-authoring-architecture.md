@@ -1,6 +1,6 @@
 # HorusRF AI-assisted authoring architecture
 
-Status: Milestone M0 through M3 architecture, provider, and prompt contracts, implemented
+Status: Milestone M0 through M4 architecture, provider, prompt, and agent contracts, implemented
 on 2026-10-20.
 
 ## Purpose and authority
@@ -94,10 +94,12 @@ provider, validation, orchestration, and UI layers:
 - `RepairAttempt` records a positive attempt number, candidate source,
   validation result, and provider identity.
 - `ScriptProposal` records the final candidate, validation result, explanation,
-  positive attempt count, and provider identity. It exposes no mutators and is
+  warnings, positive attempt count, and provider identity. It exposes no mutators and is
   eligible to apply only when validation succeeded.
 - `AgentError` distinguishes invalid requests, provider and validation failures,
   repair exhaustion, cancellation, and internal failures.
+- `AgentResult` is either a successful `ScriptProposal` or an `AgentFailure`.
+  A failure retains the last invalid proposal and its diagnostics when available.
 - `CancellationToken` uses the standard C++20 `std::stop_token`, avoiding a
   framework-specific cancellation contract.
 
@@ -105,10 +107,9 @@ provider, validation, orchestration, and UI layers:
 text from being exchanged accidentally at interface boundaries. Provider and
 model names remain strings because they are external identifiers.
 
-M0 intentionally does not define the provider virtual interface or agent result
-variant. Those interfaces require the error and transport behavior developed in
-M2 and the state machine developed in M4. The M0 values are sufficient to make
-those later APIs strongly typed without pre-empting their design.
+M0 intentionally did not define the provider virtual interface or agent result
+variant. Those interfaces required the error and transport behavior developed in
+M2 and the state machine completed in M4.
 
 ## Provider contract and Ollama boundary
 
@@ -134,6 +135,7 @@ The implemented target dependencies are:
 horusrf_ai_ollama --> horusrf_ai
 horusrf_ai_prompt --> horusrf_ai + horusrf_frontend
 horusrf_ai_validation --> horusrf_ai + horusrf_frontend + horusrf_ir
+horusrf_ai_agent --> horusrf_ai + horusrf_ai_prompt + horusrf_ai_validation
 ```
 
 None of these edges is reversed. Compiler, IR, runtime, device, simulator, CLI, and
@@ -163,6 +165,27 @@ provider schema, and `parse_proposal_response()` independently rejects malformed
 JSON, missing or incorrectly typed fields, duplicate fields, and extra fields.
 Successful parsing establishes only the response shape: the candidate remains
 untrusted until `validate_script()` succeeds.
+
+## Agent orchestration
+
+M4 adds `include/horusrf/ai/agent.hpp` and the `horusrf_ai_agent` target.
+`AgentSession` synchronously coordinates prompt construction, a caller-owned
+`LlmProvider`, response parsing, complete compiler validation, and at most three
+repair attempts by default. Its explicit states are Idle, Generating, Validating,
+Repairing, Completed, Failed, and Cancelled. It is Qt-free; a UI must invoke it
+from a worker thread because provider calls may block up to their bounded timeout.
+
+Every repaired candidate is revalidated. The session stops on success,
+cancellation, provider or structured-response failure, an unchanged invalid
+candidate, or repair exhaustion. A valid result is immutable and eligible to
+apply. A failure carries the last validated-invalid proposal when one exists, so
+source and diagnostics remain reviewable without becoming applicable.
+
+The original instruction and, for modification, original source remain in every
+repair request. Provider warnings are preserved. A compiler-capability-derived,
+conservative check also warns when an explicit number-and-unit requirement does
+not appear in the final candidate; this is a review aid rather than a validity
+decision because equivalent unit conversions may still satisfy the request.
 
 ## CLI compatibility
 
@@ -196,8 +219,9 @@ read the clock, or cross a process boundary.
 
 M1 added adapter/compiler tests at their lowest owning layer, M2 added fake-provider
 transport tests, and M3 added deterministic prompt, curated-example, and response
-schema tests. Later milestones add deterministic state-machine tests in M4 and
-headless Studio tests in M5. Real-model quality
+schema tests. M4 adds deterministic generation, repair, state, failure-retention,
+cancellation, modification, and fidelity-warning tests. M5 will add headless
+Studio AI tests. Real-model quality
 measurement remains a separately invoked benchmark, never a deterministic CTest
 dependency.
 
@@ -220,6 +244,7 @@ M0 contains shared contracts, architecture, dependency decisions, and
 deterministic contract tests. M1 contains the compiler validation adapter and
 structured diagnostic JSON. M2 contains provider contracts, Ollama access, and
 deterministic provider tests. M3 contains prompt assembly, curated examples, the
-proposal response schema, and deterministic parsing. These milestones do not
-contain generation or repair orchestration, UI controls, editor changes, or
-experiment execution. Those remain M4 through M7 work in the approved plan.
+proposal response schema, and deterministic parsing. M4 contains bounded
+generation and repair orchestration. These milestones do not contain AI UI
+controls, editor changes, or experiment execution. Those remain M5 through M7
+work in the approved plan.

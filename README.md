@@ -134,8 +134,9 @@ Qt-free callers can include `horusrf/frontend/language_services.hpp` and link
 These operations do not lower or execute a program, construct a device, or access
 hardware. Applications must treat generated source as untrusted, validate it, and
 keep execution behind a separate explicit approval. HorusRF now contains a local
-Ollama client and deterministic language-aware prompt construction, but no agent
-orchestrator, MCP server, or unrestricted execution facility.
+Ollama client, deterministic language-aware prompt construction, and a bounded
+Qt-free generation/repair agent. It has no Studio AI interface, MCP server, or
+unrestricted execution facility.
 
 ## Documentation
 
@@ -148,7 +149,7 @@ orchestrator, MCP server, or unrestricted execution facility.
 - [Phase 2 AI-assisted authoring plan](docs/phase-2-local-ai-assisted-authoring-plan.md)
   — approved milestones and safety boundaries
 - [AI-assisted authoring architecture and contracts](docs/ai-assisted-authoring-architecture.md)
-  — implemented M0–M3 boundaries, interfaces, and decisions
+  — implemented M0–M4 boundaries, interfaces, and decisions
 - [Grammar audit](docs/dsl-grammar-audit.md) — syntax/semantic boundary and
   conformance coverage
 - [Test organization](tests/README.md) — suites, labels, and commands

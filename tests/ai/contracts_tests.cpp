@@ -97,6 +97,7 @@ void proposal_contract_test() {
     CHECK_EQ(valid_proposal.explanation(), "Generated a characterization.");
     CHECK_EQ(valid_proposal.attempt_count(), std::size_t{1});
     CHECK_EQ(valid_proposal.provider().model, "qwen2.5-coder:7b");
+    CHECK(valid_proposal.warnings().empty());
 
     const ai::ScriptProposal invalid_proposal{
         ai::ScriptSource{"characterize broken { @ }"},
@@ -104,9 +105,17 @@ void proposal_contract_test() {
         "The repair limit was reached.",
         3,
         {"ollama", "qwen2.5-coder:7b"},
+        {"review the requested frequency step"},
     };
     CHECK(!invalid_proposal.eligible_to_apply());
     CHECK_EQ(invalid_proposal.validation().diagnostics().size(), std::size_t{1});
+    CHECK_EQ(invalid_proposal.warnings().size(), std::size_t{1});
+
+    const ai::AgentResult failed = ai::AgentFailure{
+        {ai::AgentErrorCode::RepairLimitReached, "repair limit reached"},
+        invalid_proposal};
+    CHECK(std::holds_alternative<ai::AgentFailure>(failed));
+    CHECK(std::get<ai::AgentFailure>(failed).proposal.has_value());
 
     static_assert(!std::is_copy_assignable_v<ai::ScriptProposal>);
     static_assert(!std::is_move_assignable_v<ai::ScriptProposal>);

@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <stop_token>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace horusrf::ai {
@@ -124,7 +126,7 @@ class ScriptProposal final {
 public:
     ScriptProposal(ScriptSource candidate_source, ValidationResult validation,
                    std::string explanation, std::size_t attempt_count,
-                   ProviderIdentity provider);
+                   ProviderIdentity provider, std::vector<std::string> warnings = {});
 
     [[nodiscard]] const ScriptSource& candidate_source() const noexcept {
         return candidate_source_;
@@ -137,6 +139,9 @@ public:
     }
     [[nodiscard]] std::size_t attempt_count() const noexcept { return attempt_count_; }
     [[nodiscard]] const ProviderIdentity& provider() const noexcept { return provider_; }
+    [[nodiscard]] const std::vector<std::string>& warnings() const noexcept {
+        return warnings_;
+    }
     [[nodiscard]] bool eligible_to_apply() const noexcept { return validation_.ok(); }
 
 private:
@@ -145,6 +150,7 @@ private:
     const std::string explanation_;
     const std::size_t attempt_count_;
     const ProviderIdentity provider_;
+    const std::vector<std::string> warnings_;
 };
 
 enum class AgentErrorCode {
@@ -160,6 +166,13 @@ struct AgentError final {
     AgentErrorCode code{AgentErrorCode::Internal};
     std::string message;
 };
+
+struct AgentFailure final {
+    AgentError error;
+    std::optional<ScriptProposal> proposal;
+};
+
+using AgentResult = std::variant<ScriptProposal, AgentFailure>;
 
 using CancellationToken = std::stop_token;
 

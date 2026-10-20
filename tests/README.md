@@ -10,6 +10,7 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 | AI validation | complete compiler adaptation, source ranges, deterministic diagnostic JSON | `unit` |
 | AI provider | provider contracts, Ollama protocol/error adaptation, fake provider | `unit` |
 | AI prompt | compiler-derived contexts, compiling examples, response schema and parsing | `unit` |
+| AI agent | bounded generation/repair states, compiler feedback, cancellation and failures | `unit` |
 | device, executor, characterization | separated simulated equipment and runtime routing | `unit` |
 | procedural example, CSV, JSON | independent orchestration and serialization | `unit` |
 | declarative end-to-end | actual fixture through compiler and runtime | `integration` |
@@ -64,6 +65,14 @@ Ollama, Qwen, sockets, internet access, GPUs, and wall-clock timing.
 repair messages, compiler-owned capability context, request bounds, curated
 examples through complete compiler validation, strict proposal-schema parsing,
 and malformed response rejection. It does not invoke a provider or network.
+
+`horusrf_ai_agent_tests` combines the scripted fake provider with the real
+in-memory compiler validation adapter. It covers first-pass completion,
+diagnostic-directed repair, retry exhaustion, unchanged invalid output, provider
+and structured-response failures, cancellation, invalid requests, modification
+context preservation, retained invalid proposals, and conservative numeric
+fidelity warnings. It does not invoke Ollama, the network, runtime, simulator, or
+hardware.
 
 `horusrf_antlr_toolchain_smoke_tests` generates a small test-only C++ lexer and
 parser with the vendored ANTLR 4.13.2 JAR, compiles them against the matching
