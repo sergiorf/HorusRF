@@ -4,6 +4,8 @@
 #include <QMainWindow>
 #include <QString>
 
+#include <memory>
+
 class QCloseEvent;
 class QAction;
 class QListWidget;
@@ -16,11 +18,15 @@ namespace horusrf::studio {
 class DslEditor;
 class ExperimentRunner;
 class ResultsView;
+class AssistantBackend;
+class AssistantPanel;
+class AssistantService;
 
 class MainWindow final : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr,
-                        const QString& runnerExecutable = {});
+                        const QString& runnerExecutable = {},
+                        std::shared_ptr<AssistantBackend> assistantBackend = {});
 
     DslEditor* editor() const noexcept { return editor_; }
     ExperimentRunner* runner() const noexcept { return runner_; }
@@ -50,6 +56,8 @@ private:
     DslEditor* editor_ = nullptr;
     ExperimentRunner* runner_ = nullptr;
     ResultsView* results_ = nullptr;
+    AssistantService* assistant_service_ = nullptr;
+    AssistantPanel* assistant_panel_ = nullptr;
     QListWidget* diagnostics_ = nullptr;
     QPlainTextEdit* standard_output_ = nullptr;
     QPlainTextEdit* standard_error_ = nullptr;

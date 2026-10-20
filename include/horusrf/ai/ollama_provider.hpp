@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include "horusrf/ai/provider.hpp"
 
@@ -41,6 +42,8 @@ public:
     virtual ~Transport() = default;
     [[nodiscard]] virtual HttpResult post(const HttpRequest& request,
                                           CancellationToken cancellation) = 0;
+    [[nodiscard]] virtual HttpResult get(const HttpRequest& request,
+                                         CancellationToken cancellation);
 };
 
 [[nodiscard]] std::shared_ptr<Transport> make_native_transport();
@@ -53,6 +56,8 @@ struct OllamaConfig final {
     std::string endpoint{"http://127.0.0.1:11434"};
 };
 
+using ModelListResult = std::variant<std::vector<std::string>, ProviderError>;
+
 class OllamaProvider final : public LlmProvider {
 public:
     explicit OllamaProvider(
@@ -61,10 +66,15 @@ public:
 
     [[nodiscard]] LlmResult generate(
         const LlmRequest& request, CancellationToken cancellation = {}) override;
+    [[nodiscard]] ModelListResult list_models(
+        std::chrono::milliseconds timeout = std::chrono::seconds{5},
+        CancellationToken cancellation = {});
 
 private:
     [[nodiscard]] LlmResult generate_checked(
         const LlmRequest& request, CancellationToken cancellation);
+    [[nodiscard]] ModelListResult list_models_checked(
+        std::chrono::milliseconds timeout, CancellationToken cancellation);
 
     OllamaConfig config_;
     std::shared_ptr<ollama::Transport> transport_;

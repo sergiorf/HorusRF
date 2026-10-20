@@ -372,6 +372,73 @@ LlmResult OllamaProvider::generate(const LlmRequest& request,
     }
 }
 
+ModelListResult OllamaProvider::list_models(std::chrono::milliseconds timeout,
+                                            CancellationToken cancellation) {
+    try {
+        return list_models_checked(timeout, cancellation);
+    } catch (const std::exception& error) {
+        return ProviderError{ProviderErrorCode::UnexpectedResponse,
+                             std::string{"the Ollama provider failed: "} + error.what()};
+    } catch (...) {
+        return ProviderError{ProviderErrorCode::UnexpectedResponse,
+                             "the Ollama provider failed unexpectedly"};
+    }
+}
+
+ModelListResult OllamaProvider::list_models_checked(
+    std::chrono::milliseconds timeout, CancellationToken cancellation) {
+    if (cancellation.stop_requested()) {
+        return ProviderError{ProviderErrorCode::Cancelled,
+                             "the Ollama request was cancelled"};
+    }
+    if (!transport_) return invalid_request("the Ollama transport is not configured");
+    if (timeout <= std::chrono::milliseconds::zero()) {
+        return invalid_request("request timeout must be positive");
+    }
+    if (!config_.endpoint.starts_with("http://")) {
+        return ProviderError{ProviderErrorCode::InvalidEndpoint,
+                             "the Ollama endpoint must use local HTTP"};
+    }
+
+    std::string endpoint = config_.endpoint;
+    while (!endpoint.empty() && endpoint.back() == '/') endpoint.pop_back();
+    const ollama::HttpResult http_result = transport_->get(
+        {endpoint + "/api/tags", {}, timeout}, cancellation);
+    if (const auto* error = std::get_if<ollama::TransportError>(&http_result)) {
+        return transport_error(*error);
+    }
+    const auto& response = std::get<ollama::HttpResponse>(http_result);
+    JsonValue root;
+    try {
+        root = JsonParser{response.body}.parse();
+    } catch (const std::exception& error) {
+        return ProviderError{ProviderErrorCode::MalformedResponse,
+                             std::string{"Ollama returned malformed JSON: "} + error.what()};
+    }
+    if (response.status < 200 || response.status >= 300) {
+        const std::string* error = string_member(root, "error");
+        return http_error(response.status,
+                          error != nullptr ? *error : "the response contained no error message");
+    }
+    const JsonValue* models = member(root, "models");
+    if (root.kind != JsonValue::Kind::Object || models == nullptr ||
+        models->kind != JsonValue::Kind::Array) {
+        return ProviderError{ProviderErrorCode::MalformedResponse,
+                             "the Ollama model response is missing the models array"};
+    }
+    std::vector<std::string> names;
+    names.reserve(models->array.size());
+    for (const auto& model : models->array) {
+        const std::string* name = string_member(model, "name");
+        if (name == nullptr || name->empty()) {
+            return ProviderError{ProviderErrorCode::MalformedResponse,
+                                 "an Ollama model entry is missing its name"};
+        }
+        names.push_back(*name);
+    }
+    return names;
+}
+
 LlmResult OllamaProvider::generate_checked(const LlmRequest& request,
                                            CancellationToken cancellation) {
     if (cancellation.stop_requested()) {

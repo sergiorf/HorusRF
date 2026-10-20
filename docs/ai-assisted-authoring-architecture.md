@@ -1,7 +1,7 @@
 # HorusRF AI-assisted authoring architecture
 
-Status: Milestone M0 through M4 architecture, provider, prompt, and agent contracts, implemented
-on 2026-10-20.
+Status: Milestone M0 through M5 architecture, provider, prompt, agent, and Studio
+integration implemented on 2026-10-20.
 
 ## Purpose and authority
 
@@ -122,7 +122,8 @@ timeout; UI callers must schedule it on a worker thread. Cancellation uses the
 M0 `std::stop_token` contract.
 
 `horusrf_ai_ollama` implements that interface with Ollama's non-streaming local
-`/api/chat` endpoint. Its HTTP request/response seam exists to permit protocol
+`/api/chat` endpoint and exposes installed-model discovery through `/api/tags`.
+Its HTTP request/response seam exists to permit protocol
 tests without sockets. Native transport supports local `http://` endpoints,
 bounded responses, connection/request/response timeouts, cancellation, content
 length, and chunked responses. HTTPS and cloud fallback are deliberately absent.
@@ -138,8 +139,10 @@ horusrf_ai_validation --> horusrf_ai + horusrf_frontend + horusrf_ir
 horusrf_ai_agent --> horusrf_ai + horusrf_ai_prompt + horusrf_ai_validation
 ```
 
-None of these edges is reversed. Compiler, IR, runtime, device, simulator, CLI, and
-Studio UI targets do not depend on `horusrf_ai_ollama`.
+None of these edges is reversed. Compiler, IR, runtime, device, simulator, and CLI
+targets do not depend on `horusrf_ai_ollama`. The M5 Studio composition target
+depends on the agent and Ollama adapter while provider protocol types remain
+inside its asynchronous service boundary.
 
 ## Prompt construction and proposal response
 
@@ -204,10 +207,29 @@ expose an AST, semantic model, or IR program to the provider. It validates in
 memory for the agent repair loop and neither constructs devices nor calls runtime
 code.
 
-Studio's existing validation and run actions remain process based. The future
-agent service may use the adapter for its bounded repair loop, but accepting a
+Studio's existing validation and run actions remain process based. The M5 agent
+service uses the adapter for its bounded repair loop, but accepting a
 proposal only changes editor text. Running remains an independent explicit user
 action through `ExperimentRunner`.
+
+## Studio integration
+
+M5 adds a dockable Qt Widgets panel and a narrow `AssistantService`. The service
+runs the synchronous agent or model-discovery call on one owned `std::jthread`,
+propagates cancellation through `std::stop_token`, and marshals completion back to
+the GUI thread. Only one authoring or discovery operation may be active, and the
+service joins its worker during destruction so callbacks cannot reach destroyed
+widgets. Tests inject the provider-neutral `AssistantBackend`; production composes
+the same boundary with `OllamaProvider`, `PromptBuilder`, and `AgentSession`.
+
+The panel snapshots the editor source and document revision when a request starts.
+It displays the complete proposal, a line-oriented change view, explanation,
+warnings, and validation diagnostics without modifying the editor. Apply is
+enabled only for a compiler-valid proposal whose snapshot is still current. It
+replaces the editor in one undoable edit block, does not save, and does not invoke
+`ExperimentRunner`. Discard and retry are explicit. Endpoint, installed-model
+selection, and timeout are user-configurable; provider checks never download a
+model.
 
 ## Test strategy
 
@@ -220,8 +242,9 @@ read the clock, or cross a process boundary.
 M1 added adapter/compiler tests at their lowest owning layer, M2 added fake-provider
 transport tests, and M3 added deterministic prompt, curated-example, and response
 schema tests. M4 adds deterministic generation, repair, state, failure-retention,
-cancellation, modification, and fidelity-warning tests. M5 will add headless
-Studio AI tests. Real-model quality
+cancellation, modification, and fidelity-warning tests. M5 adds headless Studio
+tests for proposal presentation, apply/undo, change preview, stale-document
+protection, discard, cancellation, and model discovery. Real-model quality
 measurement remains a separately invoked benchmark, never a deterministic CTest
 dependency.
 
@@ -245,6 +268,7 @@ deterministic contract tests. M1 contains the compiler validation adapter and
 structured diagnostic JSON. M2 contains provider contracts, Ollama access, and
 deterministic provider tests. M3 contains prompt assembly, curated examples, the
 proposal response schema, and deterministic parsing. M4 contains bounded
-generation and repair orchestration. These milestones do not contain AI UI
-controls, editor changes, or experiment execution. Those remain M5 through M7
-work in the approved plan.
+generation and repair orchestration. M5 contains the asynchronous Studio service,
+assistant panel, proposal review and application, configuration, discovery, and
+headless UI tests. M6 and M7 retain quality evaluation, broader testing,
+documentation, and demonstration work.

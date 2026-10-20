@@ -335,7 +335,7 @@ The target-level dependency rules are:
 | `horusrf_procedural_example` | device, domain |
 | `horusrf_output` | domain |
 | `horusrf-run` | composition of the implemented layers |
-| `horusrf-studio` | parser metadata, Qt Widgets, and Qt Charts; validates and executes through `horusrf-run` |
+| `horusrf-studio` | parser metadata, AI agent and Ollama adapter, Qt Widgets, and Qt Charts; validates and executes through `horusrf-run` |
 
 Domain code must not depend on compiler layers. AST must not depend on semantic,
 runtime, or device code. Runtime must not access simulator internals, and procedural
@@ -348,8 +348,10 @@ explicit.
 Studio is a separate application layer. It writes the current editor buffer to a
 temporary source file and invokes the sibling `horusrf-run` executable asynchronously
 for validation or execution. It links `horusrf_parser` for fixed-token highlighting
-metadata, but does not invoke parsing there or link semantic, IR, runtime, device,
-simulator, or output targets. Structured source diagnostics are parsed from standard
+metadata and composes the AI agent and Ollama adapter for local assisted authoring.
+The agent reaches frontend and IR only through the validation adapter; Studio does
+not expose their programs or link runtime, device, simulator, or output targets.
+Structured source diagnostics are parsed from standard
 error for navigation while raw standard output and standard error remain distinct. A
 successful run's versioned JSON is validated and parsed into a typed, Studio-owned
 results model.
@@ -359,6 +361,11 @@ calibration entries. Assertion failures retain source spans for editor navigatio
 The strict legacy CSV parser and original frequency charts remain compatibility
 presentation paths; Studio never recomputes domain values or calibration results.
 The most recent valid results remain visible if a later run or result load fails.
+The dockable assistant runs inference and compiler-directed repair on one
+cancellable worker, presents complete source and a change preview, and applies a
+compiler-valid proposal only after explicit approval. An editor revision/source
+snapshot prevents stale proposals from overwriting newer edits. Applying is one
+undoable editor operation and cannot save or execute the source.
 The GPL-3.0-only desktop application may consume the Apache-2.0 parser library while
 remaining separately licensed; it does not change the licenses of core targets.
 

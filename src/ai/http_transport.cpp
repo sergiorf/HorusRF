@@ -446,6 +446,17 @@ class NativeTransport final : public Transport {
 public:
     HttpResult post(const HttpRequest& request,
                     CancellationToken cancellation) override {
+        return send(request, "POST", cancellation);
+    }
+
+    HttpResult get(const HttpRequest& request,
+                   CancellationToken cancellation) override {
+        return send(request, "GET", cancellation);
+    }
+
+private:
+    HttpResult send(const HttpRequest& request, std::string_view method,
+                    CancellationToken cancellation) {
 #ifdef _WIN32
         static const Winsock winsock;
         if (!winsock.ready()) {
@@ -466,13 +477,16 @@ public:
         Socket socket = std::get<Socket>(std::move(connection));
 
         std::ostringstream wire;
-        wire << "POST " << url.path << " HTTP/1.1\r\n"
+        wire << method << ' ' << url.path << " HTTP/1.1\r\n"
              << "Host: " << url.authority << "\r\n"
-             << "Content-Type: application/json\r\n"
              << "Accept: application/json\r\n"
-             << "Content-Length: " << request.body.size() << "\r\n"
-             << "Connection: close\r\n\r\n"
-             << request.body;
+             << "Connection: close\r\n";
+        if (method == "POST") {
+            wire << "Content-Type: application/json\r\n"
+                 << "Content-Length: " << request.body.size() << "\r\n";
+        }
+        wire << "\r\n";
+        if (method == "POST") wire << request.body;
         if (const auto error = send_all(socket.get(), wire.str(), deadline, cancellation)) {
             return *error;
         }
@@ -483,6 +497,11 @@ public:
 };
 
 } // namespace
+
+HttpResult Transport::get(const HttpRequest&, CancellationToken) {
+    return TransportError{TransportErrorCode::InvalidResponse,
+                          "the configured Ollama transport does not support GET"};
+}
 
 std::shared_ptr<Transport> make_native_transport() {
     return std::make_shared<NativeTransport>();

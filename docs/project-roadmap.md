@@ -1,7 +1,7 @@
 # HorusRF project roadmap
 
 Status: Phase 1 completed on 2026-10-18. Phase 2 local AI-assisted DSL
-authoring is in progress; M0 through M4 are complete.
+authoring is in progress; M0 through M5 are complete.
 
 HorusRF is a focused C++20 DSL demonstration. Current behavior belongs in the
 [language reference](language.md), and dependency/ownership rules belong in the
@@ -56,8 +56,9 @@ modified source is presented as a proposal, and applying or executing it always
 requires an explicit user action. The implementation is divided into milestones
 M0 through M7. M0, architecture and contracts, M1, machine-readable compiler
 validation, M2, the provider-neutral Ollama interface, M3, language-aware prompt
-construction, and M4, the bounded generation and compiler-directed repair loop,
-were completed on 2026-10-20; M5 through M7 have not started.
+construction, M4, the bounded generation and compiler-directed repair loop, and
+M5, Qt Studio integration, were completed on 2026-10-20; M6 and M7 have not
+started.
 
 M0 introduced the dependency-free `horusrf_ai` contract target, deterministic
 contract tests, and the documented component, validation, CLI compatibility, and
@@ -90,6 +91,14 @@ invalid output terminate the loop, and failures retain the last candidate and
 diagnostics when available. Explicit number-and-unit requirements receive
 conservative fidelity warnings for user review. The authoring path has no
 runtime, device, simulator, execution, or Qt dependency.
+
+M5 introduced a dockable Studio assistant for generation and current-document
+modification, line-oriented change review, compiler diagnostics and warnings,
+explicit apply/discard/retry actions, stale-document protection, and one-step
+undoable application. A cancellable worker service keeps Ollama inference and
+repair off the UI thread. Studio can query Ollama's `/api/tags` endpoint for
+installed models and configure the endpoint, model, and timeout. Deterministic
+headless tests inject a fake backend and use no network or model.
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "main_window.hpp"
 
+#include "assistant_panel.hpp"
+#include "assistant_service.hpp"
 #include "dsl_editor.hpp"
 #include "experiment_runner.hpp"
 #include "results_model.hpp"
@@ -8,6 +10,7 @@
 
 #include <QAction>
 #include <QCloseEvent>
+#include <QDockWidget>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -32,10 +35,13 @@ static void initializeStudioResources() {
 
 namespace horusrf::studio {
 
-MainWindow::MainWindow(QWidget* parent, const QString& runnerExecutable)
+MainWindow::MainWindow(QWidget* parent, const QString& runnerExecutable,
+                       std::shared_ptr<AssistantBackend> assistantBackend)
     : QMainWindow(parent) {
     initializeStudioResources();
     runner_ = new ExperimentRunner(runnerExecutable, this);
+    assistant_service_ = new AssistantService(
+        assistantBackend ? std::move(assistantBackend) : makeOllamaAssistantBackend(), this);
     createLayout();
     createActions();
 
@@ -107,6 +113,13 @@ void MainWindow::createLayout() {
     workspace->setStretchFactor(1, 1);
     setCentralWidget(workspace);
 
+    auto* assistantDock = new QDockWidget(tr("AI Assistant"), this);
+    assistantDock->setObjectName(QStringLiteral("assistantDock"));
+    assistantDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    assistant_panel_ = new AssistantPanel(editor_, assistant_service_, assistantDock);
+    assistantDock->setWidget(assistant_panel_);
+    addDockWidget(Qt::RightDockWidgetArea, assistantDock);
+
     cursor_position_ = new QLabel(this);
     cursor_position_->setObjectName(QStringLiteral("cursorPositionLabel"));
     cursor_position_->setMinimumWidth(
@@ -120,6 +133,12 @@ void MainWindow::createActions() {
     auto* file = menuBar()->addMenu(tr("&File"));
     auto* edit = menuBar()->addMenu(tr("&Edit"));
     auto* view = menuBar()->addMenu(tr("&View"));
+    if (auto* assistantDock = findChild<QDockWidget*>(QStringLiteral("assistantDock"))) {
+        auto* assistantVisibility = assistantDock->toggleViewAction();
+        assistantVisibility->setObjectName(QStringLiteral("assistantVisibilityAction"));
+        view->addAction(assistantVisibility);
+        view->addSeparator();
+    }
     auto* toolbar = addToolBar(tr("File"));
     toolbar->setObjectName(QStringLiteral("fileToolBar"));
 
@@ -407,6 +426,7 @@ void MainWindow::updateCursorPosition() {
 void MainWindow::closeEvent(QCloseEvent* event) {
     if (confirmSaveIfModified()) {
         runner_->cancel();
+        assistant_service_->cancel();
         event->accept();
     } else {
         event->ignore();

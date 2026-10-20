@@ -224,6 +224,10 @@ if(HORUSRF_BUILD_STUDIO)
     endif()
 
     add_library(horusrf_studio_ui STATIC
+        src/studio/assistant_panel.cpp
+        src/studio/assistant_panel.hpp
+        src/studio/assistant_service.cpp
+        src/studio/assistant_service.hpp
         src/studio/dsl_editor.cpp
         src/studio/dsl_editor.hpp
         src/studio/experiment_runner.cpp
@@ -240,7 +244,7 @@ if(HORUSRF_BUILD_STUDIO)
     target_compile_features(horusrf_studio_ui PUBLIC cxx_std_20)
     target_include_directories(horusrf_studio_ui PUBLIC src/studio)
     target_link_libraries(horusrf_studio_ui PUBLIC
-        horusrf_parser Qt6::Widgets Qt6::Charts
+        horusrf_parser horusrf_ai_agent horusrf_ai_ollama Qt6::Widgets Qt6::Charts
     )
     set_target_properties(horusrf_studio_ui PROPERTIES AUTOMOC ON AUTORCC ON)
     qt_add_resources(horusrf_studio_ui "studio_resources"

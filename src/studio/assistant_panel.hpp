@@ -1,0 +1,67 @@
+// SPDX-License-Identifier: GPL-3.0-only
+#pragma once
+
+#include "assistant_service.hpp"
+
+#include <QWidget>
+
+#include <memory>
+
+class QComboBox;
+class QLabel;
+class QLineEdit;
+class QPlainTextEdit;
+class QPushButton;
+class QSpinBox;
+class QTabWidget;
+
+namespace horusrf::studio {
+
+class DslEditor;
+
+class AssistantPanel final : public QWidget {
+    Q_OBJECT
+
+public:
+    AssistantPanel(DslEditor* editor, AssistantService* service,
+                   QWidget* parent = nullptr);
+
+private:
+    void submit();
+    void retry();
+    void applyProposal();
+    void discardProposal();
+    void refreshModels();
+    void requestFinished();
+    void discoveryFinished();
+    void updateStaleness();
+    void setBusy(bool busy, const QString& status);
+    void clearProposal();
+    [[nodiscard]] AssistantRequest currentRequest() const;
+
+    DslEditor* editor_;
+    AssistantService* service_;
+    QLineEdit* endpoint_;
+    QComboBox* model_;
+    QSpinBox* timeout_;
+    QComboBox* mode_;
+    QPlainTextEdit* instruction_;
+    QPushButton* generate_;
+    QPushButton* cancel_;
+    QPushButton* retry_;
+    QPushButton* apply_;
+    QPushButton* discard_;
+    QPushButton* refresh_models_;
+    QLabel* status_;
+    QLabel* stale_warning_;
+    QPlainTextEdit* proposal_;
+    QPlainTextEdit* changes_;
+    QPlainTextEdit* details_;
+    QString request_source_;
+    QString last_instruction_;
+    AssistantMode last_mode_{AssistantMode::Generate};
+    int request_revision_{};
+    bool proposal_valid_{};
+};
+
+} // namespace horusrf::studio

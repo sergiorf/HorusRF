@@ -112,10 +112,18 @@ It defaults to a Debug build and `C:\Qt\6.12.0\msvc2022_64`. Use `-QtPath` and
 
 Studio edits and validates HorusRF source, invokes the sibling `horusrf-run`
 process for execution, and presents JSON results as tables, plots, heatmaps,
-qualification summaries, and calibration entries. It links the parser only for
-compiler-owned highlighting metadata; validation and execution remain behind the
-CLI process boundary. It does not link semantic, IR, runtime, device, simulator,
-or output targets. Keep both executables together when deploying it. See
+qualification summaries, and calibration entries. Its dockable AI Assistant can
+generate a new script or propose changes to the current script through a local
+Ollama model. Start Ollama, install a compatible model such as
+`qwen2.5-coder:7b`, use **Check models**, enter a request, and review the proposal,
+line-oriented changes, compiler result, and warnings before choosing **Apply to
+Editor**. Applying is undoable and never saves or runs the script. A proposal is
+blocked if the editor changed while it was being generated.
+
+Validation and execution remain behind the CLI process boundary. The assistant's
+in-memory compiler validation cannot execute an experiment; Run remains a separate
+explicit action. Studio does not link runtime, device, simulator, or output
+targets. Keep both executables together when deploying it. See
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for Qt deployment and license
 obligations.
 
@@ -133,10 +141,10 @@ Qt-free callers can include `horusrf/frontend/language_services.hpp` and link
 
 These operations do not lower or execute a program, construct a device, or access
 hardware. Applications must treat generated source as untrusted, validate it, and
-keep execution behind a separate explicit approval. HorusRF now contains a local
-Ollama client, deterministic language-aware prompt construction, and a bounded
-Qt-free generation/repair agent. It has no Studio AI interface, MCP server, or
-unrestricted execution facility.
+keep execution behind a separate explicit approval. HorusRF contains a local
+Ollama client, deterministic language-aware prompt construction, a bounded
+Qt-free generation/repair agent, and an asynchronous Studio proposal interface.
+It has no MCP server or unrestricted execution facility.
 
 ## Documentation
 
@@ -149,7 +157,7 @@ unrestricted execution facility.
 - [Phase 2 AI-assisted authoring plan](docs/phase-2-local-ai-assisted-authoring-plan.md)
   — approved milestones and safety boundaries
 - [AI-assisted authoring architecture and contracts](docs/ai-assisted-authoring-architecture.md)
-  — implemented M0–M4 boundaries, interfaces, and decisions
+  — implemented M0–M5 boundaries, interfaces, and decisions
 - [Grammar audit](docs/dsl-grammar-audit.md) — syntax/semantic boundary and
   conformance coverage
 - [Test organization](tests/README.md) — suites, labels, and commands

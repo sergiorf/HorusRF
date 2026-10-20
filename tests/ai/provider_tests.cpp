@@ -24,8 +24,24 @@ public:
 
     ai::ollama::HttpResult post(const ai::ollama::HttpRequest& request,
                                 ai::CancellationToken cancellation) override {
+        return next(request, cancellation, false);
+    }
+
+    ai::ollama::HttpResult get(const ai::ollama::HttpRequest& request,
+                               ai::CancellationToken cancellation) override {
+        return next(request, cancellation, true);
+    }
+
+    std::vector<ai::ollama::HttpRequest> requests;
+    bool saw_cancellation{};
+    bool saw_get{};
+
+private:
+    ai::ollama::HttpResult next(const ai::ollama::HttpRequest& request,
+                                ai::CancellationToken cancellation, bool is_get) {
         requests.push_back(request);
         saw_cancellation = cancellation.stop_requested();
+        saw_get = saw_get || is_get;
         if (next_ >= results_.size()) {
             return ai::ollama::TransportError{
                 ai::ollama::TransportErrorCode::ConnectionFailure,
@@ -34,10 +50,6 @@ public:
         return results_[next_++];
     }
 
-    std::vector<ai::ollama::HttpRequest> requests;
-    bool saw_cancellation{};
-
-private:
     std::vector<ai::ollama::HttpResult> results_;
     std::size_t next_{};
 };
@@ -182,6 +194,30 @@ void cancellation_test() {
     CHECK(transport->requests.empty());
 }
 
+void model_discovery_test() {
+    auto transport = std::make_shared<FakeTransport>(
+        std::vector<ai::ollama::HttpResult>{ai::ollama::HttpResponse{
+            200, R"({"models":[{"name":"qwen2.5-coder:7b"},{"name":"qwen3:14b"}]})"}});
+    ai::OllamaProvider provider{{"http://127.0.0.1:11434/"}, transport};
+    const auto result = provider.list_models(std::chrono::milliseconds{2468});
+    CHECK(std::holds_alternative<std::vector<std::string>>(result));
+    const auto& models = std::get<std::vector<std::string>>(result);
+    CHECK_EQ(models.size(), std::size_t{2});
+    CHECK_EQ(models[0], "qwen2.5-coder:7b");
+    CHECK_EQ(models[1], "qwen3:14b");
+    CHECK(transport->saw_get);
+    CHECK_EQ(transport->requests.front().url, "http://127.0.0.1:11434/api/tags");
+    CHECK_EQ(transport->requests.front().timeout, std::chrono::milliseconds{2468});
+
+    auto malformed_transport = std::make_shared<FakeTransport>(
+        std::vector<ai::ollama::HttpResult>{ai::ollama::HttpResponse{
+            200, R"({"models":[{"model":"missing-name"}]})"}});
+    ai::OllamaProvider malformed{{}, malformed_transport};
+    const auto malformed_result = malformed.list_models();
+    CHECK_EQ(std::get<ai::ProviderError>(malformed_result).code,
+             ai::ProviderErrorCode::MalformedResponse);
+}
+
 void transport_exception_test() {
     ai::OllamaProvider provider{{}, std::make_shared<ThrowingTransport>()};
     const ai::LlmResult result = provider.generate(request());
@@ -215,6 +251,7 @@ int main() {
         provider_response_error_test();
         transport_error_mapping_test();
         cancellation_test();
+        model_discovery_test();
         transport_exception_test();
         scripted_provider_test();
         std::cout << "All HorusRF AI provider tests passed\n";

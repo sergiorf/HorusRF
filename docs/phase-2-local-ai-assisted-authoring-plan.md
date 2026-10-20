@@ -1,7 +1,7 @@
 # HorusRF — Phase 2: Local AI-Assisted DSL Authoring
 
-Status: Approved implementation plan. M0 through M4 were completed and verified
-on 2026-10-20; M5 through M7 have not started. Milestones must be implemented
+Status: Approved implementation plan. M0 through M5 were completed and verified
+on 2026-10-20; M6 and M7 have not started. Milestones must be implemented
 sequentially and marked complete only after verification.
 
 ## Mission
@@ -789,6 +789,8 @@ used.
 
 ## 9. Milestone M5 — Qt Studio integration
 
+Status: Completed and verified on 2026-10-20.
+
 ### Objective
 
 Expose the assistant through a usable, responsive desktop interface.
@@ -895,6 +897,32 @@ a selected model is unavailable.
 - Cancellation works.
 - Editor content is never replaced without approval.
 - The existing script execution workflow is unchanged.
+
+Implemented result:
+
+- Studio owns a dockable Qt Widgets assistant with generate and current-document
+  modification modes, provider configuration, status, complete proposal source,
+  a line-oriented change view, compiler details, and explicit apply, discard,
+  retry, and cancel controls.
+- `AssistantService` runs the Qt-free `AgentSession` on one owned worker thread,
+  forwards cooperative cancellation, prevents concurrent sessions, and returns
+  completion to the GUI thread without callbacks into destroyed widgets.
+- A request snapshots both source and document revision. Any subsequent editor
+  change marks the proposal stale and disables Apply until the user retries.
+- Applying a compiler-valid proposal is a single undoable editor edit. It neither
+  saves the document nor invokes validation or execution actions.
+- Endpoint, editable model selection, and bounded timeout are configurable. The
+  Ollama adapter now discovers installed models through `/api/tags`; Studio gives
+  explicit startup and `ollama pull` guidance without downloading models.
+- Headless Studio tests use an injected fake backend to cover generation,
+  modification context, preview, application and undo, stale protection,
+  discard, cancellation, and model discovery. Provider tests cover deterministic
+  `/api/tags` parsing through fake transport.
+
+Verification: the focused provider and headless Studio suites and the full
+unfiltered CTest suite passed in the existing `build/` directory with the Release
+configuration on 2026-10-20. No live model, network service, runtime, simulator,
+hardware, or wall-clock-dependent test was used.
 
 ## 10. Milestone M6 — Automated testing and quality evaluation
 
