@@ -1,16 +1,21 @@
 // Characterizes TX output power across frequency and derives a correction table.
 characterize tx_path {
 
+    // Establish the absolute-power target used to calculate correction values.
     reference power = -10 dBm
 
+    // Visit every frequency point from start through end in 1 MHz increments.
     sweep frequency
         2.40 GHz .. 2.50 GHz
         step 1 MHz
 
+    // The legacy unnamed form exposes this result as `power`.
     measure power
 
+    // Subtracting measured power from reference power produces a PowerDelta.
     derive calibration tx_power {
         correction = reference.power - power
+        // The correction table is indexed by the active sweep dimension.
         over frequency
     }
 }

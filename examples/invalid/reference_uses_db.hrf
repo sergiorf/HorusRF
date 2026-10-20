@@ -1,5 +1,6 @@
 // Demonstrates rejection of a relative-power unit for the absolute-power reference.
 characterize reference_uses_db {
+  // Invalid: a power reference requires an absolute-power unit such as dBm, not dB.
   reference power = -10 dB
   sweep frequency 2.40 GHz .. 2.50 GHz step 1 MHz
   measure power

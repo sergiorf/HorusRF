@@ -1,6 +1,7 @@
 // Demonstrates rejection of a sweep whose end precedes its start.
 characterize reversed_sweep {
   reference power = -10 dBm
+  // Invalid: a sweep end cannot precede its start.
   sweep frequency 2.50 GHz .. 2.40 GHz step 1 MHz
   measure power
 }

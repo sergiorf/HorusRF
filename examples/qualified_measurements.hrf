@@ -1,17 +1,21 @@
 // Qualifies power, EVM, and frequency error and derives a frequency correction table.
 characterize qualified_measurements {
+  // Establish the target power and the frequency range under qualification.
   reference power = -10 dBm
   sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
 
+  // Capture each supported RF observable under a descriptive result name.
   measure output_power = power
   measure evm_result = evm
   measure carrier_error = frequency_error
   derive power_error = output_power - reference.power
 
+  // Assertions are evaluated independently at every sweep point.
   assert abs(power_error) <= 1.5 dB
   assert evm_result <= 1 %
   assert abs(carrier_error) <= 20 kHz
 
+  // Reverse the measured error to obtain the frequency-indexed correction.
   derive calibration tx_power {
     correction = -power_error
     over frequency

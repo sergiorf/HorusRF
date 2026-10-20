@@ -1,9 +1,17 @@
 // Characterizes output power across frequency and temperature.
 characterize temperature_characterization {
+  // Define the absolute-power target before any measurements use it.
   reference power = -10 dBm
+
+  // Sweep declarations precede measurements; their Cartesian product forms the test points.
   sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
+  // Temperature endpoints are absolute, while the step is a temperature delta.
   sweep temperature -20 degC .. 80 degC step 20 deltaC
+
+  // The legacy measurement form stores the observed result under the name `power`.
   measure power
+
+  // A calibration correction is a PowerDelta and covers every sweep in declaration order.
   derive calibration tx_power {
     correction = reference.power - power
     over frequency, temperature

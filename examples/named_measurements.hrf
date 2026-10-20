@@ -1,14 +1,21 @@
 // Records named power, EVM, and frequency-error measurements over two sweep axes.
 characterize named_measurements {
+  // Establish the target power against which output-power error is calculated.
   reference power = -10 dBm
+
+  // These axes create a two-dimensional frequency-by-temperature grid.
   sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
   sweep temperature -20 degC .. 80 degC step 20 deltaC
 
+  // Named measurements distinguish the operation from its reusable result name.
   measure output_power = power
   measure evm_result = evm
   measure carrier_error = frequency_error
+
+  // Power minus Power yields the PowerDelta required for calibration arithmetic.
   derive power_error = output_power - reference.power
 
+  // Negating the error produces the correction for every point in the two-axis grid.
   derive calibration tx_power {
     correction = -power_error
     over frequency, temperature

@@ -3,4 +3,5 @@ characterize missing_calibration {
   reference power = -10 dBm
   sweep frequency 2.40 GHz .. 2.50 GHz step 1 MHz
   measure power
+  // Invalid: every characterization requires exactly one calibration declaration.
 }

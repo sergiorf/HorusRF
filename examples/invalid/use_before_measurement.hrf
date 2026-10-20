@@ -2,6 +2,7 @@
 characterize use_before_measurement {
   reference power = -10 dBm
   sweep frequency 2.40 GHz .. 2.50 GHz step 1 MHz
+  // Invalid: statements resolve in source order, so `power` is not defined yet.
   derive premature_error = power - reference.power
   measure power
 }

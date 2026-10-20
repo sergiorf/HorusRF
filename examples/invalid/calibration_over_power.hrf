@@ -5,6 +5,7 @@ characterize calibration_over_power {
   measure power
   derive calibration tx_power {
     correction = reference.power - power
+    // Invalid: `over` must name every active sweep, not a measurement result.
     over power
   }
 }

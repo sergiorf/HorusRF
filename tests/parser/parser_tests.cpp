@@ -58,7 +58,7 @@ void canonical_program_test() {
     const auto& reference = alternative<ast::ReferenceStatement>(characterization.statements[0]);
     CHECK_EQ(reference.power.number, "-10");
     CHECK_EQ(reference.power.unit, "dBm");
-    CHECK_EQ(reference.span.begin.line, std::size_t{4});
+    CHECK_EQ(reference.span.begin.line, std::size_t{5});
 
     const auto& sweep = alternative<ast::SweepStatement>(characterization.statements[1]);
     CHECK_EQ(sweep.dimension, "frequency");
