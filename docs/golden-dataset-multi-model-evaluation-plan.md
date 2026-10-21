@@ -1,7 +1,7 @@
 # HorusRF — Golden Dataset and Multi-Model Evaluation
 
-Status: Approved implementation plan. Phase A completed and verified on
-2026-10-21; Phases B-E have not started. Implement phases incrementally and mark
+Status: Approved implementation plan. Phases A and B completed and verified on
+2026-10-21; Phases C-E have not started. Implement phases incrementally and mark
 them complete only after verification.
 
 ## Objective
@@ -551,6 +551,23 @@ coverage.
 
 Implement a conservative structural comparison using existing compiler
 representations.
+
+Completed on 2026-10-21 with the Qt-free
+`horusrf_ai_semantic_comparison` target. Both scripts pass through the existing
+frontend and IR lowering path, after which canonical typed IR structure is
+compared. The comparison covers reference power, ordered sweep dimensions and
+parameters, measurement operations, normalized derived-expression graphs,
+assertions, and calibration indexes and correction expressions. It ignores
+formatting, source spans, display-unit spelling, characterization names,
+internal value IDs, and harmless identifier renaming. Results distinguish
+`Match`, structured `Mismatch`, and `NotEvaluated` for invalid or
+unnormalizable input.
+
+Deterministic offline tests cover canonical unit equivalence, mismatch classes,
+invalid candidates, and self-equivalence for all 16 supported golden cases. The
+focused suite and full unfiltered 31-test CTest suite passed in the existing
+`build/` directory with the Release configuration. No model, network, runtime,
+simulator, or hardware was used.
 
 ### Phase C — Model selection
 

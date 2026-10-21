@@ -9,6 +9,7 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 | AI contracts | authoring requests, validation/proposal invariants, errors, cancellation | `unit` |
 | AI validation | complete compiler adaptation, source ranges, deterministic diagnostic JSON | `unit` |
 | AI golden dataset | manifest/metadata integrity, discovery, unique IDs, curated script compilation | `unit` |
+| AI semantic comparison | canonical IR comparison, mismatch details, golden-case self-equivalence | `unit` |
 | AI provider | provider contracts, Ollama protocol/error adaptation, fake provider | `unit` |
 | AI prompt | compiler-derived contexts, compiling examples, response schema and parsing | `unit` |
 | AI agent | bounded generation/repair states, compiler feedback, cancellation and failures | `unit` |
@@ -62,6 +63,14 @@ stdout, stderr, and exit-status behavior.
 duplicate identifiers, unlisted directories, malformed expected programs, and
 passes every supported curated output through parsing, semantic analysis, and IR
 lowering. Explicitly unsupported requests remain separate rejection cases.
+
+`horusrf_ai_semantic_comparison_tests` compiles both sides through the existing
+frontend and IR lowering path, then checks conservative structural equivalence.
+It covers canonical unit conversion and harmless renaming, ordered sweep bounds
+and steps, measurement sets, normalized derived expressions, assertions,
+calibration indexes and correction expressions, invalid-source handling, and
+self-equivalence for all supported golden cases. It uses no model, network,
+runtime, simulator, or hardware.
 
 `horusrf_ai_provider_tests` covers provider request validation, Ollama request
 serialization and response decoding, structured error mapping, cancellation,

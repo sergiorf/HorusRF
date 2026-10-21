@@ -21,3 +21,11 @@ offline and never contacts Ollama or executes an RF experiment.
 
 Golden outputs are curated independently of model predictions. Do not replace an
 expected script automatically with generated output.
+
+The `horusrf_ai_semantic_comparison_tests` target uses the compiler's typed IR to
+compare supported expected scripts with generated candidates. Formatting,
+source locations, characterization names, harmless identifier renaming, and
+display-unit spelling are ignored after canonical conversion. Sweep structure,
+measurements, derived expressions, assertions, and calibration semantics are
+compared. Invalid or structurally unnormalizable input is `NotEvaluated`, never
+treated as a semantic match.

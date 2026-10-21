@@ -185,6 +185,18 @@ target_include_directories(horusrf_ai_golden PUBLIC
 target_link_libraries(horusrf_ai_golden PRIVATE horusrf_ai_validation)
 horusrf_enable_warnings(horusrf_ai_golden)
 
+add_library(horusrf_ai_semantic_comparison STATIC
+    src/ai/semantic_comparison.cpp
+)
+target_compile_features(horusrf_ai_semantic_comparison PUBLIC cxx_std_20)
+target_include_directories(horusrf_ai_semantic_comparison PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_ai_semantic_comparison
+    PRIVATE horusrf_frontend horusrf_ir
+)
+horusrf_enable_warnings(horusrf_ai_semantic_comparison)
+
 add_library(horusrf_ai_agent STATIC
     src/ai/agent.cpp
 )
@@ -432,6 +444,22 @@ if(BUILD_TESTING)
         COMMAND horusrf_ai_golden_dataset_tests
     )
 
+    add_executable(horusrf_ai_semantic_comparison_tests
+        tests/ai/semantic_comparison_tests.cpp
+    )
+    target_compile_features(horusrf_ai_semantic_comparison_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_ai_semantic_comparison_tests PRIVATE tests)
+    target_link_libraries(horusrf_ai_semantic_comparison_tests PRIVATE
+        horusrf_ai_semantic_comparison horusrf_ai_golden
+    )
+    target_compile_definitions(horusrf_ai_semantic_comparison_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    horusrf_enable_warnings(horusrf_ai_semantic_comparison_tests)
+    add_test(NAME horusrf_ai_semantic_comparison_tests
+        COMMAND horusrf_ai_semantic_comparison_tests
+    )
+
     add_executable(horusrf_ai_provider_tests tests/ai/provider_tests.cpp)
     target_compile_features(horusrf_ai_provider_tests PRIVATE cxx_std_20)
     target_include_directories(horusrf_ai_provider_tests PRIVATE tests)
@@ -650,6 +678,7 @@ if(BUILD_TESTING)
         horusrf_ai_provider_tests
         horusrf_ai_validation_tests
         horusrf_ai_golden_dataset_tests
+        horusrf_ai_semantic_comparison_tests
         horusrf_ir_tests
         horusrf_simulator_tests
         horusrf_runtime_tests

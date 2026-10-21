@@ -1,8 +1,8 @@
 # HorusRF AI-assisted authoring architecture
 
 Status: Milestone M0 through M5 architecture, provider, prompt, agent, and Studio
-integration implemented on 2026-10-20. Golden-dataset Phase A implemented on
-2026-10-21.
+integration implemented on 2026-10-20. Golden-dataset Phase A and semantic-
+comparison Phase B implemented on 2026-10-21.
 
 ## Purpose and authority
 
@@ -137,6 +137,7 @@ The implemented target dependencies are:
 horusrf_ai_ollama --> horusrf_ai
 horusrf_ai_prompt --> horusrf_ai + horusrf_frontend
 horusrf_ai_validation --> horusrf_ai + horusrf_frontend + horusrf_ir
+horusrf_ai_semantic_comparison --> horusrf_frontend + horusrf_ir
 horusrf_ai_agent --> horusrf_ai + horusrf_ai_prompt + horusrf_ai_validation
 ```
 
@@ -263,6 +264,18 @@ exact metadata shape, unique IDs, complete case discovery, required files, and
 expected validity without invoking a provider, runtime, simulator, or device.
 Unsupported requests are explicit cases with `comparison` set to `unsupported`;
 they cannot be counted as compiler-valid expected programs.
+
+Phase B adds the Qt-free `horusrf_ai_semantic_comparison` target. It compiles the
+expected and candidate sources through the existing frontend and IR lowering
+path, then normalizes IR value graphs for conservative structural comparison.
+Canonical quantities make equivalent unit spellings equal. Characterization
+names, source spans, display units, internal value IDs, and harmless identifier
+renaming do not affect the result. Ordered sweep dimensions and parameters,
+measurement operations, derived expressions, assertions, and calibration index
+and correction semantics do. Results are `Match`, `Mismatch` with structured
+differences, or `NotEvaluated` for invalid or unnormalizable input. This layer
+does not infer requirements directly from natural language and does not turn
+compiler validity into a semantic success.
 
 ## Recorded risks and controls
 
