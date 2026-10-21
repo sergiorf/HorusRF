@@ -1,4 +1,6 @@
 {
+  "schema": "horusrf.golden-case",
+  "version": 2,
   "id": "temperature_first_multidimensional",
   "description": "Two-dimensional calibration preserving temperature-first declaration order",
   "category": "multidimensional_sweep",
@@ -6,5 +8,12 @@
   "tags": ["temperature", "frequency", "order", "surface"],
   "expected_valid": true,
   "comparison": "semantic",
-  "required_capabilities": ["temperature_sweep", "frequency_sweep", "power_measurement", "calibration_surface"]
+  "required_capabilities": ["temperature_sweep", "frequency_sweep", "power_measurement", "calibration_surface"],
+  "requirements": [
+    {"id": "reference-power", "kind": "reference_power"},
+    {"id": "temperature-sweep", "kind": "sweep", "dimension": "temperature"},
+    {"id": "frequency-sweep", "kind": "sweep", "dimension": "frequency"},
+    {"id": "power", "kind": "measurement", "operation": "power"},
+    {"id": "calibration", "kind": "calibration"}
+  ]
 }

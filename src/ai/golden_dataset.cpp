@@ -16,6 +16,7 @@
 #include <variant>
 
 #include "horusrf/ai/validation.hpp"
+#include "horusrf/ai/requirement_verification.hpp"
 
 namespace horusrf::ai {
 namespace {
@@ -288,6 +289,24 @@ bool require_bool(const JsonObject& object, std::string_view name) {
     return *value;
 }
 
+double require_number(const JsonObject& object, std::string_view name) {
+    const auto* value = std::get_if<double>(&require_member(object, name).value);
+    if (value == nullptr) {
+        throw std::runtime_error("member '" + std::string{name} + "' must be a number");
+    }
+    return *value;
+}
+
+bool optional_bool(const JsonObject& object, std::string_view name, bool fallback) {
+    const auto found = object.find(name);
+    if (found == object.end()) return fallback;
+    const auto* value = std::get_if<bool>(&found->second.value);
+    if (value == nullptr) {
+        throw std::runtime_error("member '" + std::string{name} + "' must be a boolean");
+    }
+    return *value;
+}
+
 std::vector<std::string> require_string_array(const JsonObject& object,
                                                std::string_view name,
                                                bool allow_empty = false) {
@@ -325,11 +344,105 @@ void require_exact_members(const JsonObject& object,
     }
 }
 
-GoldenCaseMetadata parse_metadata(const std::string& source) {
+struct RequirementSelector final {
+    std::string id;
+    RequirementKind kind{RequirementKind::ReferencePower};
+    std::optional<ir::SweepDimension> dimension;
+    std::optional<ir::MeasurementOperation> operation;
+    std::optional<std::size_t> ordinal;
+    bool constrain_step{true};
+    bool constrain_order{true};
+    bool require_name{false};
+};
+
+struct ParsedMetadata final {
+    GoldenCaseMetadata metadata;
+    std::vector<RequirementSelector> selectors;
+};
+
+RequirementKind requirement_kind(std::string_view value) {
+    if (value == "reference_power") return RequirementKind::ReferencePower;
+    if (value == "sweep") return RequirementKind::Sweep;
+    if (value == "measurement") return RequirementKind::Measurement;
+    if (value == "assertion") return RequirementKind::Assertion;
+    if (value == "calibration") return RequirementKind::Calibration;
+    throw std::runtime_error("unsupported requirement kind '" + std::string{value} + "'");
+}
+
+std::vector<RequirementSelector> parse_requirement_selectors(const JsonObject& object) {
+    const auto* array = std::get_if<JsonArray>(&require_member(object, "requirements").value);
+    if (array == nullptr || array->empty()) {
+        throw std::runtime_error("member 'requirements' must be a non-empty array");
+    }
+    std::vector<RequirementSelector> result;
+    std::set<std::string, std::less<>> identifiers;
+    for (const auto& item : *array) {
+        const auto& requirement = require_object(item, "requirement");
+        const auto kind = requirement_kind(require_string(requirement, "kind"));
+        RequirementSelector selector{require_string(requirement, "id"), kind};
+        if (!identifiers.insert(selector.id).second) {
+            throw std::runtime_error("duplicate requirement id '" + selector.id + "'");
+        }
+        switch (kind) {
+        case RequirementKind::ReferencePower:
+            require_exact_members(requirement, {"id", "kind"});
+            break;
+        case RequirementKind::Sweep: {
+            require_exact_members(requirement, {"id", "kind", "dimension",
+                                                "constrain_step", "constrain_order"});
+            const auto dimension = require_string(requirement, "dimension");
+            if (dimension == "frequency") selector.dimension = ir::SweepDimension::Frequency;
+            else if (dimension == "temperature") selector.dimension = ir::SweepDimension::Temperature;
+            else throw std::runtime_error("unsupported sweep requirement dimension '" + dimension + "'");
+            selector.constrain_step = optional_bool(requirement, "constrain_step", true);
+            selector.constrain_order = optional_bool(requirement, "constrain_order", true);
+            break;
+        }
+        case RequirementKind::Measurement: {
+            require_exact_members(requirement, {"id", "kind", "operation", "require_name"});
+            const auto operation = require_string(requirement, "operation");
+            if (operation == "power") selector.operation = ir::MeasurementOperation::Power;
+            else if (operation == "evm") selector.operation = ir::MeasurementOperation::Evm;
+            else if (operation == "frequency_error") selector.operation = ir::MeasurementOperation::FrequencyError;
+            else throw std::runtime_error("unsupported measurement requirement operation '" + operation + "'");
+            selector.require_name = optional_bool(requirement, "require_name", false);
+            break;
+        }
+        case RequirementKind::Assertion: {
+            require_exact_members(requirement, {"id", "kind", "ordinal"});
+            const auto ordinal = require_number(requirement, "ordinal");
+            if (ordinal < 0 || ordinal != static_cast<double>(static_cast<std::size_t>(ordinal)))
+                throw std::runtime_error("assertion requirement ordinal must be a non-negative integer");
+            selector.ordinal = static_cast<std::size_t>(ordinal);
+            break;
+        }
+        case RequirementKind::Calibration:
+            require_exact_members(requirement, {"id", "kind"});
+            break;
+        }
+        result.push_back(std::move(selector));
+    }
+    return result;
+}
+
+ParsedMetadata parse_metadata(const std::string& source) {
     const auto object = require_object(JsonParser{source}.parse(), "metadata");
-    require_exact_members(object, {"id", "description", "category", "difficulty",
-                                   "tags", "expected_valid", "comparison",
-                                   "required_capabilities"});
+    const auto schema = object.find("schema");
+    const bool version_two = schema != object.end();
+    if (version_two) {
+        require_exact_members(object, {"schema", "version", "id", "description",
+                                       "category", "difficulty", "tags",
+                                       "expected_valid", "comparison",
+                                       "required_capabilities", "requirements"});
+        if (require_string(object, "schema") != "horusrf.golden-case" ||
+            require_number(object, "version") != 2.0) {
+            throw std::runtime_error("unsupported golden case schema version");
+        }
+    } else {
+        require_exact_members(object, {"id", "description", "category", "difficulty",
+                                       "tags", "expected_valid", "comparison",
+                                       "required_capabilities"});
+    }
     GoldenCaseMetadata metadata{
         require_string(object, "id"),
         require_string(object, "description"),
@@ -339,6 +452,8 @@ GoldenCaseMetadata parse_metadata(const std::string& source) {
         require_bool(object, "expected_valid"),
         require_string(object, "comparison"),
         require_string_array(object, "required_capabilities"),
+        version_two ? std::size_t{2} : std::size_t{1},
+        {},
     };
     const std::set<std::string_view> difficulties{"basic", "intermediate", "advanced"};
     if (!difficulties.contains(metadata.difficulty)) {
@@ -351,7 +466,56 @@ GoldenCaseMetadata parse_metadata(const std::string& source) {
         throw std::runtime_error(
             "expected_valid must be true for semantic cases and false for unsupported cases");
     }
-    return metadata;
+    std::vector<RequirementSelector> selectors;
+    if (version_two && metadata.expected_valid) {
+        selectors = parse_requirement_selectors(object);
+    } else if (version_two) {
+        const auto* requirements = std::get_if<JsonArray>(&require_member(object, "requirements").value);
+        if (requirements == nullptr || !requirements->empty()) {
+            throw std::runtime_error("unsupported cases must have an empty requirements array");
+        }
+    }
+    return {std::move(metadata), std::move(selectors)};
+}
+
+std::vector<RequirementClause> materialize_requirements(
+    const std::vector<RequirementSelector>& selectors, const ProgramFacts& facts) {
+    std::vector<RequirementClause> result;
+    for (const auto& selector : selectors) {
+        RequirementClause clause;
+        clause.id = selector.id;
+        clause.kind = selector.kind;
+        clause.constrain_sweep_step = selector.constrain_step;
+        clause.constrain_sweep_order = selector.constrain_order;
+        clause.constrain_measurement_name = selector.require_name;
+        switch (selector.kind) {
+        case RequirementKind::ReferencePower: clause.reference_power = facts.reference_power; break;
+        case RequirementKind::Sweep: {
+            const auto found = std::ranges::find(facts.sweeps, *selector.dimension,
+                                                 &SweepFact::dimension);
+            if (found == facts.sweeps.end()) throw std::runtime_error("requirement selects a missing sweep");
+            clause.sweep = *found;
+            break;
+        }
+        case RequirementKind::Measurement: {
+            const auto found = std::ranges::find(facts.measurements, *selector.operation,
+                                                 &MeasurementFact::operation);
+            if (found == facts.measurements.end()) throw std::runtime_error("requirement selects a missing measurement");
+            clause.measurement = *found;
+            break;
+        }
+        case RequirementKind::Assertion: {
+            const auto found = std::ranges::find(facts.assertions, *selector.ordinal,
+                                                 &AssertionFact::ordinal);
+            if (found == facts.assertions.end()) throw std::runtime_error("requirement selects a missing assertion");
+            clause.assertion = *found;
+            break;
+        }
+        case RequirementKind::Calibration: clause.calibration = facts.calibration; break;
+        }
+        result.push_back(std::move(clause));
+    }
+    return result;
 }
 
 struct Manifest final {
@@ -409,8 +573,11 @@ GoldenDatasetResult load_golden_dataset(const std::filesystem::path& root) {
         const auto directory = root / "cases" / entry;
         const auto metadata_path = directory / "metadata.json";
         GoldenCaseMetadata metadata;
+        std::vector<RequirementSelector> selectors;
         try {
-            metadata = parse_metadata(read_file(metadata_path));
+            auto parsed = parse_metadata(read_file(metadata_path));
+            metadata = std::move(parsed.metadata);
+            selectors = std::move(parsed.selectors);
         } catch (const std::exception& error) {
             add_diagnostic(result, metadata_path, error.what());
             continue;
@@ -455,6 +622,19 @@ GoldenDatasetResult load_golden_dataset(const std::filesystem::path& root) {
             } else if (!metadata.expected_valid && validation.ok()) {
                 add_diagnostic(result, expected_path,
                                "unsupported case unexpectedly contains a valid script");
+            }
+            if (metadata.expected_valid && validation.ok() && !selectors.empty()) {
+                const auto facts = compile_program_facts(expected_source);
+                if (!facts) {
+                    add_diagnostic(result, expected_path,
+                                   "expected-valid script could not be projected to program facts");
+                } else {
+                    try {
+                        metadata.requirements = materialize_requirements(selectors, *facts);
+                    } catch (const std::exception& error) {
+                        add_diagnostic(result, metadata_path, error.what());
+                    }
+                }
             }
         }
         dataset.cases.push_back(

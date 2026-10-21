@@ -79,7 +79,8 @@ public:
         return result;
     }
 
-    void finalize(std::string_view expected_source, bool compare_semantics) {
+    void finalize(std::string_view expected_source, bool compare_semantics,
+                  const std::vector<RequirementClause>& requirements) {
         for (std::size_t index = 0; index < attempts.size(); ++index) {
             if (index >= response_texts_.size() || !response_texts_[index]) continue;
             auto& attempt = attempts[index];
@@ -106,6 +107,11 @@ public:
                     expected_source, payload.script.text());
                 attempt.semantic_status = comparison.status;
                 attempt.semantic_differences = comparison.differences;
+                const auto facts = compile_program_facts(payload.script.text());
+                if (facts) {
+                    attempt.requirement_verification =
+                        verify_requirements(requirements, *facts);
+                }
             }
         }
         response_texts_.clear();
@@ -155,6 +161,27 @@ std::string_view semantic_name(SemanticComparisonStatus status) {
     case SemanticComparisonStatus::NotEvaluated: return "not_evaluated";
     }
     return "not_evaluated";
+}
+
+std::string_view requirement_status_name(RequirementSatisfactionStatus status) {
+    switch (status) {
+    case RequirementSatisfactionStatus::Satisfied: return "satisfied";
+    case RequirementSatisfactionStatus::Violated: return "violated";
+    case RequirementSatisfactionStatus::Unknown: return "unknown";
+    case RequirementSatisfactionStatus::Unsupported: return "unsupported";
+    case RequirementSatisfactionStatus::NotEvaluated: return "not_evaluated";
+    }
+    return "not_evaluated";
+}
+
+std::string_view requirement_outcome_name(RequirementOutcomeStatus status) {
+    switch (status) {
+    case RequirementOutcomeStatus::Satisfied: return "satisfied";
+    case RequirementOutcomeStatus::Violated: return "violated";
+    case RequirementOutcomeStatus::Unknown: return "unknown";
+    case RequirementOutcomeStatus::Unsupported: return "unsupported";
+    }
+    return "unknown";
 }
 
 std::string_view call_purpose_name(EvaluationCallPurpose purpose) {
@@ -292,6 +319,24 @@ void write_diagnostic(std::ostream& output,
            << diagnostic.span.end.offset << "}}}";
 }
 
+void write_requirement_verification(
+    std::ostream& output, const RequirementVerificationResult& verification) {
+    output << "{\"status\":"
+           << json_string(requirement_status_name(verification.status))
+           << ",\"outcomes\":[";
+    for (std::size_t index = 0; index < verification.outcomes.size(); ++index) {
+        if (index != 0) output << ',';
+        const auto& item = verification.outcomes[index];
+        output << "{\"requirement_id\":" << json_string(item.requirement_id)
+               << ",\"status\":" << json_string(requirement_outcome_name(item.status))
+               << ",\"code\":" << json_string(item.code)
+               << ",\"expected\":" << json_string(item.expected)
+               << ",\"actual\":" << json_string(item.actual)
+               << ",\"explanation\":" << json_string(item.explanation) << '}';
+    }
+    output << "]}";
+}
+
 ModelEvaluationSummary summarize(std::string model,
                                  const std::vector<CaseEvaluation>& cases) {
     ModelEvaluationSummary result;
@@ -315,6 +360,14 @@ ModelEvaluationSummary summarize(std::string model,
             item.semantic_status == SemanticComparisonStatus::Mismatch ? 1U : 0U;
         result.semantic_not_evaluated +=
             item.semantic_status == SemanticComparisonStatus::NotEvaluated ? 1U : 0U;
+        result.requirement_satisfied +=
+            item.requirement_verification.status == RequirementSatisfactionStatus::Satisfied ? 1U : 0U;
+        result.requirement_violated +=
+            item.requirement_verification.status == RequirementSatisfactionStatus::Violated ? 1U : 0U;
+        result.requirement_unknown +=
+            item.requirement_verification.status == RequirementSatisfactionStatus::Unknown ? 1U : 0U;
+        result.requirement_not_evaluated +=
+            item.requirement_verification.status == RequirementSatisfactionStatus::NotEvaluated ? 1U : 0U;
         result.unsupported_recognized += item.unsupported_recognized ? 1U : 0U;
         if (item.error) {
             const std::string category{error_name(item.error->code)};
@@ -399,6 +452,7 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
 
     EvaluationReport report{settings.prompt_configuration_id,
                             settings.comparison_version,
+                            "golden-requirements-v2",
                             dataset.dataset_version,
                             settings.timestamp_utc,
                             settings.git_revision,
@@ -435,7 +489,8 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                 item.total_latency = std::chrono::duration_cast<std::chrono::milliseconds>(
                     finished - started);
                 observed.finalize(golden.expected_source,
-                                  golden.metadata.expected_valid);
+                                  golden.metadata.expected_valid,
+                                  golden.metadata.requirements);
                 item.provider_identity = std::move(observed.identity);
                 item.attempts = std::move(observed.attempts);
                 item.provider_attempts.reserve(item.attempts.size());
@@ -470,6 +525,11 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                                                    golden.expected_source,
                                                    *item.generated_source)
                                                    .status;
+                        const auto facts = compile_program_facts(*item.generated_source);
+                        if (facts) {
+                            item.requirement_verification = verify_requirements(
+                                golden.metadata.requirements, *facts);
+                        }
                     }
                     if (!golden.metadata.expected_valid) {
                         item.unsupported_recognized = reports_unsupported(*proposal);
@@ -492,6 +552,8 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
     output << "{\"schema\":\"horusrf.ai-evaluation\",\"version\":2"
            << ",\"dataset_version\":" << json_string(report.dataset_version)
            << ",\"comparison_version\":" << json_string(report.comparison_version)
+           << ",\"requirement_schema_version\":"
+           << json_string(report.requirement_schema_version)
            << ",\"prompt_configuration_id\":"
            << json_string(report.prompt_configuration_id)
            << ",\"timestamp_utc\":" << json_string(report.timestamp_utc)
@@ -518,7 +580,9 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"first_attempt_valid\":" << (item.first_attempt_valid ? "true" : "false")
                << ",\"final_valid\":" << (item.final_valid ? "true" : "false")
                << ",\"semantic_status\":" << json_string(semantic_name(item.semantic_status))
-               << ",\"unsupported_recognized\":" << (item.unsupported_recognized ? "true" : "false")
+               << ",\"requirement_verification\":";
+        write_requirement_verification(output, item.requirement_verification);
+        output << ",\"unsupported_recognized\":" << (item.unsupported_recognized ? "true" : "false")
                << ",\"repair_attempts\":" << item.repair_attempts
                << ",\"total_latency_ms\":" << item.total_latency.count()
                << ",\"provider_identity\":";
@@ -584,7 +648,9 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                        << ",\"expected\":" << json_string(value.expected)
                        << ",\"actual\":" << json_string(value.actual) << '}';
             }
-            output << "],\"provider_metrics\":";
+            output << "],\"requirement_verification\":";
+            write_requirement_verification(output, attempt.requirement_verification);
+            output << ",\"provider_metrics\":";
             write_provider_metrics(output, attempt.provider_metrics);
             output << ",\"provider_identity\":";
             write_provider_identity(output, attempt.provider_identity);
@@ -620,6 +686,10 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"semantic_matches\":" << item.semantic_matches
                << ",\"semantic_mismatches\":" << item.semantic_mismatches
                << ",\"semantic_not_evaluated\":" << item.semantic_not_evaluated
+               << ",\"requirement_satisfied\":" << item.requirement_satisfied
+               << ",\"requirement_violated\":" << item.requirement_violated
+               << ",\"requirement_unknown\":" << item.requirement_unknown
+               << ",\"requirement_not_evaluated\":" << item.requirement_not_evaluated
                << ",\"unsupported_recognized\":" << item.unsupported_recognized
                << ",\"average_repair_attempts\":" << item.average_repair_attempts
                << ",\"median_latency_ms\":" << item.median_latency.count()
@@ -632,6 +702,9 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << item.first_attempt_valid << ",\"denominator\":" << item.total_cases
                << "},\"final_valid\":{\"numerator\":" << item.final_valid
                << ",\"denominator\":" << item.total_cases
+               << "},\"requirement_satisfied\":{\"numerator\":"
+               << item.requirement_satisfied << ",\"denominator\":"
+               << item.supported_cases
                << "},\"semantic_matches\":{\"numerator\":" << item.semantic_matches
                << ",\"denominator\":" << item.supported_cases
                << "},\"unsupported_recognized\":{\"numerator\":"
@@ -649,17 +722,18 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
 }
 
 void write_evaluation_table(std::ostream& output, const EvaluationReport& report) {
-    output << "Model                       Cases  First valid  Final valid  Semantic  Median ms  P90 ms\n";
-    output << "---------------------------------------------------------------------------------------\n";
+    output << "Model                       Cases  First valid  Final valid  Required  Semantic  Median ms  P90 ms\n";
+    output << "-------------------------------------------------------------------------------------------------\n";
     for (const auto& item : report.summaries) {
         output << std::left << std::setw(27) << item.model << std::right
                << std::setw(6) << item.total_cases << std::setw(13)
                << item.first_attempt_valid << std::setw(13) << item.final_valid
+               << std::setw(10) << item.requirement_satisfied
                << std::setw(10) << item.semantic_matches << std::setw(11)
                << item.median_latency.count() << std::setw(8)
                << item.p90_latency.count() << '\n';
     }
-    output << "Semantic counts use supported golden cases; unsupported recognition is reported in JSON.\n";
+    output << "Required is explicit requirement satisfaction; Semantic is strict full-program comparison.\n";
 }
 
 } // namespace horusrf::ai

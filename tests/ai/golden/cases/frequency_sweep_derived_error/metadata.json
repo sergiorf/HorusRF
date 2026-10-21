@@ -1,4 +1,6 @@
 {
+  "schema": "horusrf.golden-case",
+  "version": 2,
   "id": "frequency_sweep_derived_error",
   "description": "Named power error used to derive a calibration correction",
   "category": "derived_measurement",
@@ -6,5 +8,11 @@
   "tags": ["frequency", "power", "derived", "negation"],
   "expected_valid": true,
   "comparison": "semantic",
-  "required_capabilities": ["frequency_sweep", "named_measurement", "derived_value", "calibration"]
+  "required_capabilities": ["frequency_sweep", "named_measurement", "derived_value", "calibration"],
+  "requirements": [
+    {"id": "reference-power", "kind": "reference_power"},
+    {"id": "frequency-sweep", "kind": "sweep", "dimension": "frequency"},
+    {"id": "measured-power", "kind": "measurement", "operation": "power", "require_name": true},
+    {"id": "calibration", "kind": "calibration"}
+  ]
 }

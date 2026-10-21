@@ -55,6 +55,7 @@ struct EvaluationAttempt final {
     std::vector<ValidationDiagnostic> compiler_diagnostics;
     SemanticComparisonStatus semantic_status{SemanticComparisonStatus::NotEvaluated};
     std::vector<SemanticDifference> semantic_differences;
+    RequirementVerificationResult requirement_verification;
     std::optional<ProviderMetrics> provider_metrics;
     std::optional<ProviderIdentity> provider_identity;
 };
@@ -71,6 +72,7 @@ struct CaseEvaluation final {
     bool first_attempt_valid{};
     bool final_valid{};
     SemanticComparisonStatus semantic_status{SemanticComparisonStatus::NotEvaluated};
+    RequirementVerificationResult requirement_verification;
     bool unsupported_recognized{};
     std::size_t repair_attempts{};
     std::chrono::milliseconds total_latency{};
@@ -93,6 +95,10 @@ struct ModelEvaluationSummary final {
     std::size_t semantic_matches{};
     std::size_t semantic_mismatches{};
     std::size_t semantic_not_evaluated{};
+    std::size_t requirement_satisfied{};
+    std::size_t requirement_violated{};
+    std::size_t requirement_unknown{};
+    std::size_t requirement_not_evaluated{};
     std::size_t unsupported_recognized{};
     double average_repair_attempts{};
     std::chrono::milliseconds median_latency{};
@@ -104,6 +110,7 @@ struct ModelEvaluationSummary final {
 struct EvaluationReport final {
     std::string prompt_configuration_id;
     std::string comparison_version;
+    std::string requirement_schema_version;
     std::string dataset_version;
     std::string timestamp_utc;
     std::optional<std::string> git_revision;
@@ -125,7 +132,7 @@ struct EvaluationSettings final {
     std::string timestamp_utc;
     std::optional<std::string> git_revision;
     std::string prompt_configuration_id{"direct-dsl-v1"};
-    std::string comparison_version{"semantic-ir-v1"};
+    std::string comparison_version{"semantic-ir-v2"};
 };
 
 using EvaluationClock =

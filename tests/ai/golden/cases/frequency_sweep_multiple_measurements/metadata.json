@@ -1,4 +1,6 @@
 {
+  "schema": "horusrf.golden-case",
+  "version": 2,
   "id": "frequency_sweep_multiple_measurements",
   "description": "Frequency sweep collecting all supported RF observables",
   "category": "multiple_measurements",
@@ -6,5 +8,13 @@
   "tags": ["frequency", "power", "evm", "frequency_error"],
   "expected_valid": true,
   "comparison": "semantic",
-  "required_capabilities": ["frequency_sweep", "power_measurement", "evm_measurement", "frequency_error_measurement", "calibration"]
+  "required_capabilities": ["frequency_sweep", "power_measurement", "evm_measurement", "frequency_error_measurement", "calibration"],
+  "requirements": [
+    {"id": "reference-power", "kind": "reference_power"},
+    {"id": "frequency-sweep", "kind": "sweep", "dimension": "frequency"},
+    {"id": "output-power", "kind": "measurement", "operation": "power"},
+    {"id": "modulation-evm", "kind": "measurement", "operation": "evm"},
+    {"id": "carrier-error", "kind": "measurement", "operation": "frequency_error"},
+    {"id": "calibration", "kind": "calibration"}
+  ]
 }

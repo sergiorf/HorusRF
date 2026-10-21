@@ -1,4 +1,6 @@
 {
+  "schema": "horusrf.golden-case",
+  "version": 2,
   "id": "frequency_sweep_named_power",
   "description": "Frequency sweep with a named power measurement",
   "category": "named_measurement",
@@ -6,5 +8,11 @@
   "tags": ["frequency", "named", "power", "calibration"],
   "expected_valid": true,
   "comparison": "semantic",
-  "required_capabilities": ["frequency_sweep", "named_measurement", "calibration"]
+  "required_capabilities": ["frequency_sweep", "named_measurement", "calibration"],
+  "requirements": [
+    {"id": "reference-power", "kind": "reference_power"},
+    {"id": "frequency-sweep", "kind": "sweep", "dimension": "frequency"},
+    {"id": "named-power", "kind": "measurement", "operation": "power", "require_name": true},
+    {"id": "calibration", "kind": "calibration"}
+  ]
 }

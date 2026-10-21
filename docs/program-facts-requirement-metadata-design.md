@@ -1,6 +1,6 @@
 # ProgramFacts and curated requirement metadata design
 
-**Status:** M6Q.0 design note for M6Q.1
+**Status:** Implemented by M6Q.1 on 2026-10-22
 
 ## Boundary
 
@@ -50,8 +50,11 @@ for explanations but are not part of requirement equality.
 ## Curated requirements
 
 Golden metadata advances to its own versioned schema. Each supported case gains
-an ordered `requirements` array. A requirement has a stable ID, kind, expected
-typed fields, and provenance. Initial kinds are:
+an ordered `requirements` array. A requirement has a stable ID, kind, and selector
+for the corresponding fact in the compiler-validated expected program. The loader
+materializes the selector into canonical typed expected fields; JSON therefore
+does not duplicate unit conversion or normalized-expression logic. Initial kinds
+are:
 
 - `reference_power`;
 - `sweep` (dimension, canonical range and optional step/order);
@@ -59,10 +62,10 @@ typed fields, and provenance. Initial kinds are:
 - `assertion` (normalized operands, operator, threshold);
 - `calibration` (normalized correction and ordered indexes).
 
-An omitted field is not a wildcard invented by the verifier; it means that the
-curated requirement does not constrain that property. In particular, a
-one-point frequency sweep whose user request omits a representational step must
-omit `step` from its requirement.
+Constraint flags are explicit. In particular, a one-point frequency sweep whose
+user request omits a representational step sets `constrain_step` to `false`.
+Measurement selectors set `require_name` only when the request specifies the
+result name, and sweep selectors may independently constrain order.
 
 Example shape:
 
@@ -75,26 +78,24 @@ Example shape:
       "id": "frequency-range",
       "kind": "sweep",
       "dimension": "frequency",
-      "start_hz": 2400000000,
-      "end_hz": 2500000000,
-      "step_hz": 10000000,
-      "order": 0,
-      "provenance": "curated"
+      "constrain_step": true,
+      "constrain_order": true
     },
     {
       "id": "output-power",
       "kind": "measurement",
       "operation": "power",
-      "required_name": "output_power",
-      "provenance": "curated"
+      "require_name": true
     }
   ]
 }
 ```
 
-The loader rejects unknown versions, duplicate requirement IDs, dimension/unit
-mismatches, non-finite values, invalid ranges, unsupported operations, and
-requirements inconsistent with `expected_valid` or comparison mode.
+The loader rejects unknown versions, duplicate requirement IDs, unsupported
+dimensions or operations, invalid assertion ordinals, selectors absent from the
+expected program, and requirements inconsistent with `expected_valid` or
+comparison mode. Version-1 metadata remains accepted during migration but yields
+no requirement oracle.
 
 ## Verification result
 

@@ -48,10 +48,22 @@ ai::ProviderResponse response(std::string source, std::string explanation = "ok"
 }
 
 ai::GoldenCase golden(std::string id, bool supported) {
-    return {{std::move(id), "test", supported ? "basic" : "unsupported_request",
-             "basic", {}, supported, supported ? "semantic" : "unsupported", {}},
-            "Create the requested characterization.",
-            supported ? valid_source : "// unsupported\n", {}};
+    ai::GoldenCase result{
+        {std::move(id), "test", supported ? "basic" : "unsupported_request",
+         "basic", {}, supported, supported ? "semantic" : "unsupported", {}},
+        "Create the requested characterization.",
+        supported ? valid_source : "// unsupported\n", {}};
+    if (supported) {
+        const auto facts = ai::compile_program_facts(valid_source);
+        if (!facts) throw std::runtime_error("test golden source did not compile");
+        ai::RequirementClause requirement;
+        requirement.id = "reference-power";
+        requirement.kind = ai::RequirementKind::ReferencePower;
+        requirement.reference_power = facts->reference_power;
+        result.metadata.requirement_schema_version = 2;
+        result.metadata.requirements.push_back(std::move(requirement));
+    }
+    return result;
 }
 
 ai::EvaluationClock fixed_clock() {
@@ -85,6 +97,8 @@ void supported_and_unsupported_report_test() {
     CHECK(report.cases[0].final_valid);
     CHECK_EQ(report.cases[0].semantic_status,
              ai::SemanticComparisonStatus::Match);
+    CHECK_EQ(report.cases[0].requirement_verification.status,
+             ai::RequirementSatisfactionStatus::Satisfied);
     CHECK(report.cases[1].unsupported_recognized);
     CHECK_EQ(report.cases[1].semantic_status,
              ai::SemanticComparisonStatus::NotEvaluated);
@@ -94,6 +108,7 @@ void supported_and_unsupported_report_test() {
     CHECK(!report.cases[1].final_warnings.empty());
     CHECK_EQ(report.summaries.size(), std::size_t{1});
     CHECK_EQ(report.summaries[0].semantic_matches, std::size_t{1});
+    CHECK_EQ(report.summaries[0].requirement_satisfied, std::size_t{1});
     CHECK_EQ(report.summaries[0].unsupported_recognized, std::size_t{1});
     CHECK_NEAR(*report.summaries[0].average_output_tokens_per_second,
                10.0, 1e-9);
@@ -180,11 +195,13 @@ void schema_v2_diagnostics_and_differences_test() {
         dataset, provider, settings, {}, fixed_clock());
 
     CHECK_EQ(report.prompt_configuration_id, "direct-dsl-v1");
-    CHECK_EQ(report.comparison_version, "semantic-ir-v1");
+    CHECK_EQ(report.comparison_version, "semantic-ir-v2");
     CHECK_EQ(report.cases[0].run_order, std::size_t{1});
     CHECK_EQ(report.cases[0].warm_cold_status, ai::WarmColdStatus::Cold);
     CHECK_EQ(report.cases[0].attempts[1].semantic_status,
              ai::SemanticComparisonStatus::Mismatch);
+    CHECK_EQ(report.cases[0].attempts[1].requirement_verification.status,
+             ai::RequirementSatisfactionStatus::Violated);
     CHECK(!report.cases[0].attempts[1].semantic_differences.empty());
     CHECK_EQ(report.cases[0].attempts[1].semantic_differences[0].path,
              "reference");
@@ -199,6 +216,10 @@ void schema_v2_diagnostics_and_differences_test() {
     CHECK(json.str().find("\"compiler_diagnostics\":[{") !=
           std::string::npos);
     CHECK(json.str().find("\"semantic_differences\":[{") !=
+          std::string::npos);
+    CHECK(json.str().find("\"requirement_schema_version\":\"golden-requirements-v2\"") !=
+          std::string::npos);
+    CHECK(json.str().find("\"requirement_verification\":{\"status\":\"violated\"") !=
           std::string::npos);
     CHECK(json.str().find("\"input_token_count\":123") !=
           std::string::npos);

@@ -293,11 +293,14 @@ Unsupported cases are reported separately and require an explicit limitation in
 the proposal explanation or warnings. Evaluation never reaches runtime,
 simulator, or device targets.
 
-Reports use schema `horusrf.ai-evaluation` version 1. They retain generated source,
-requested and actual provider identity, compiler and semantic outcomes, repair
-counts, errors, latency, explicit rate denominators, and optional provider-neutral
-inference telemetry. Ollama duration and token fields are adapted into that
-optional telemetry; unavailable fields remain JSON `null`. The checked-in
+Reports use schema `horusrf.ai-evaluation` version 2. They retain generated source,
+requested and actual provider identity, every provider attempt, compiler outcomes,
+strict semantic differences, clause-level requirement outcomes, repair counts,
+errors, latency, explicit rate denominators, prompt sizes, run order, warm/cold
+classification, and optional provider-neutral inference telemetry. Ollama duration
+and token fields are adapted into that optional telemetry; unavailable fields
+remain JSON `null`. Reports are write-only artifacts, so no schema-v1 reader is
+maintained. The checked-in
 evaluation tests inject scripted providers and a deterministic clock. Live model
 evaluation is invoked explicitly through the executable or
 `scripts/run-ai-evaluation.ps1`, writes under `build/` by default, and is not a
@@ -328,3 +331,10 @@ assistant panel, proposal review and application, configuration, discovery, and
 headless UI tests. M6 contains the golden dataset, semantic comparison, model
 selection, opt-in live evaluation, and broader deterministic testing. M7 retains
 user documentation and demonstration work.
+
+M6 quality hardening adds a Qt-free compiler-backed `ProgramFacts` projection and
+curated golden requirement schema. The requirement verifier reports each explicit
+clause as satisfied, violated, unknown, or unsupported. Exact full-program
+comparison remains a separate strict signal; compiler validity and requirement
+satisfaction are not conflated. This layer depends on frontend validation and IR
+lowering only and has no runtime, simulator, device, output, or Studio dependency.

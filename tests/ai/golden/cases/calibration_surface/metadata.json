@@ -1,4 +1,6 @@
 {
+  "schema": "horusrf.golden-case",
+  "version": 2,
   "id": "calibration_surface",
   "description": "Named power measurement feeding a two-dimensional correction surface",
   "category": "calibration_surface",
@@ -6,5 +8,12 @@
   "tags": ["frequency", "temperature", "kelvin", "surface"],
   "expected_valid": true,
   "comparison": "semantic",
-  "required_capabilities": ["frequency_sweep", "temperature_sweep", "named_measurement", "derived_value", "calibration_surface"]
+  "required_capabilities": ["frequency_sweep", "temperature_sweep", "named_measurement", "derived_value", "calibration_surface"],
+  "requirements": [
+    {"id": "reference-power", "kind": "reference_power"},
+    {"id": "frequency-sweep", "kind": "sweep", "dimension": "frequency"},
+    {"id": "temperature-sweep", "kind": "sweep", "dimension": "temperature"},
+    {"id": "output-power", "kind": "measurement", "operation": "power", "require_name": true},
+    {"id": "calibration", "kind": "calibration"}
+  ]
 }

@@ -1,4 +1,6 @@
 {
+  "schema": "horusrf.golden-case",
+  "version": 2,
   "id": "multiple_constraints",
   "description": "Multidimensional request with several measurements and limits",
   "category": "multiple_constraints",
@@ -6,5 +8,17 @@
   "tags": ["frequency", "temperature", "measurements", "assertions"],
   "expected_valid": true,
   "comparison": "semantic",
-  "required_capabilities": ["frequency_sweep", "temperature_sweep", "power_measurement", "evm_measurement", "frequency_error_measurement", "assertion", "calibration_surface"]
+  "required_capabilities": ["frequency_sweep", "temperature_sweep", "power_measurement", "evm_measurement", "frequency_error_measurement", "assertion", "calibration_surface"],
+  "requirements": [
+    {"id": "reference-power", "kind": "reference_power"},
+    {"id": "frequency-sweep", "kind": "sweep", "dimension": "frequency"},
+    {"id": "temperature-sweep", "kind": "sweep", "dimension": "temperature"},
+    {"id": "rx-power", "kind": "measurement", "operation": "power", "require_name": true},
+    {"id": "quality", "kind": "measurement", "operation": "evm", "require_name": true},
+    {"id": "offset", "kind": "measurement", "operation": "frequency_error", "require_name": true},
+    {"id": "power-limit", "kind": "assertion", "ordinal": 1},
+    {"id": "evm-limit", "kind": "assertion", "ordinal": 2},
+    {"id": "frequency-limit", "kind": "assertion", "ordinal": 3},
+    {"id": "calibration", "kind": "calibration"}
+  ]
 }

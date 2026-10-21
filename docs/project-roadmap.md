@@ -112,6 +112,12 @@ optional Ollama token/timing metrics. The clean 2026-10-21 comparison produced
 12/17 and 9/16 for 7B; neither model recognized the single unsupported request.
 Live evaluation remains explicitly invoked and excluded from normal CTest.
 
+M6 quality hardening milestones Q0 and Q1 were completed on 2026-10-22. Reports
+now retain per-attempt diagnostics and telemetry, and the 17-case dataset has a
+compiler-backed explicit-requirement oracle. Requirement satisfaction is reported
+separately from strict full-program semantic comparison; no prompt, runtime,
+device, simulator, output, or Studio behavior changed.
+
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the
 [Phase 2 local AI-assisted authoring plan](phase-2-local-ai-assisted-authoring-plan.md).

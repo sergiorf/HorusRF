@@ -79,8 +79,14 @@ void checked_in_dataset_test() {
     for (const auto& test_case : result.dataset->cases) {
         CHECK(!test_case.prompt.empty());
         CHECK(!test_case.expected_source.empty());
-        if (test_case.metadata.expected_valid) ++supported;
-        else ++unsupported;
+        CHECK_EQ(test_case.metadata.requirement_schema_version, std::size_t{2});
+        if (test_case.metadata.expected_valid) {
+            ++supported;
+            CHECK(!test_case.metadata.requirements.empty());
+        } else {
+            ++unsupported;
+            CHECK(test_case.metadata.requirements.empty());
+        }
     }
     CHECK_EQ(supported, std::size_t{16});
     CHECK_EQ(unsupported, std::size_t{1});

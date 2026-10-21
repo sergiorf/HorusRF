@@ -1,4 +1,6 @@
 {
+  "schema": "horusrf.golden-case",
+  "version": 2,
   "id": "derived_measurement_chain",
   "description": "Calibration based on a chain of derived power-delta values",
   "category": "derived_measurement",
@@ -6,5 +8,11 @@
   "tags": ["frequency", "derived", "power_delta", "calibration"],
   "expected_valid": true,
   "comparison": "semantic",
-  "required_capabilities": ["frequency_sweep", "named_measurement", "derived_value", "calibration"]
+  "required_capabilities": ["frequency_sweep", "named_measurement", "derived_value", "calibration"],
+  "requirements": [
+    {"id": "reference-power", "kind": "reference_power"},
+    {"id": "frequency-sweep", "kind": "sweep", "dimension": "frequency"},
+    {"id": "output", "kind": "measurement", "operation": "power", "require_name": true},
+    {"id": "calibration", "kind": "calibration"}
+  ]
 }

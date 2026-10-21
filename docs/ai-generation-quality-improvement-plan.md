@@ -1,6 +1,6 @@
 # HorusRF AI generation quality improvement plan
 
-**Status:** Proposed after repository review  
+**Status:** M6Q.0 and M6Q.1 completed on 2026-10-22
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
 **Reviewed baseline artifact:** `build/ai-evaluation/results-20261021-193036.json`
@@ -191,6 +191,8 @@ Verification policy:
 
 ### M6Q.0 — Reproducible baseline and diagnostic report
 
+**Status:** Completed on 2026-10-21.
+
 **Changes**
 
 - Extend evaluation schema to version 2 while retaining a version-1 reader if a
@@ -226,6 +228,13 @@ All 17 saved cases have an evidence-backed classification, and the latency
 discrepancy is resolved or explicitly preserved as two separate runs.
 
 ### M6Q.1 — Requirement oracle for evaluation
+
+**Status:** Completed on 2026-10-22. The checked-in 17-case dataset now uses
+version-2 curated requirement metadata for all 16 supported cases. Evaluation
+reports compiler validity, requirement satisfaction, and strict semantic
+comparison independently. The compiler-backed projection canonicalizes quantities
+and linear delta expressions, including algebraically equivalent calibration
+forms, while one-point sweep steps can remain explicitly unconstrained.
 
 **Changes**
 

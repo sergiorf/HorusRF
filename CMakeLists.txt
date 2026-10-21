@@ -175,6 +175,16 @@ target_link_libraries(horusrf_ai_validation
 )
 horusrf_enable_warnings(horusrf_ai_validation)
 
+add_library(horusrf_ai_requirements STATIC
+    src/ai/requirement_verification.cpp
+)
+target_compile_features(horusrf_ai_requirements PUBLIC cxx_std_20)
+target_include_directories(horusrf_ai_requirements PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_ai_requirements PRIVATE horusrf_frontend horusrf_ir)
+horusrf_enable_warnings(horusrf_ai_requirements)
+
 add_library(horusrf_ai_golden STATIC
     src/ai/golden_dataset.cpp
 )
@@ -182,7 +192,10 @@ target_compile_features(horusrf_ai_golden PUBLIC cxx_std_20)
 target_include_directories(horusrf_ai_golden PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
-target_link_libraries(horusrf_ai_golden PRIVATE horusrf_ai_validation)
+target_link_libraries(horusrf_ai_golden
+    PUBLIC horusrf_ai_requirements
+    PRIVATE horusrf_ai_validation
+)
 horusrf_enable_warnings(horusrf_ai_golden)
 
 add_library(horusrf_ai_semantic_comparison STATIC
@@ -193,6 +206,7 @@ target_include_directories(horusrf_ai_semantic_comparison PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 target_link_libraries(horusrf_ai_semantic_comparison
+    PUBLIC horusrf_ai_requirements
     PRIVATE horusrf_frontend horusrf_ir
 )
 horusrf_enable_warnings(horusrf_ai_semantic_comparison)
@@ -480,6 +494,22 @@ if(BUILD_TESTING)
         COMMAND horusrf_ai_semantic_comparison_tests
     )
 
+    add_executable(horusrf_ai_requirement_verification_tests
+        tests/ai/requirement_verification_tests.cpp
+    )
+    target_compile_features(horusrf_ai_requirement_verification_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_ai_requirement_verification_tests PRIVATE tests)
+    target_link_libraries(horusrf_ai_requirement_verification_tests PRIVATE
+        horusrf_ai_golden horusrf_ai_requirements
+    )
+    target_compile_definitions(horusrf_ai_requirement_verification_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    horusrf_enable_warnings(horusrf_ai_requirement_verification_tests)
+    add_test(NAME horusrf_ai_requirement_verification_tests
+        COMMAND horusrf_ai_requirement_verification_tests
+    )
+
     add_executable(horusrf_ai_provider_tests tests/ai/provider_tests.cpp)
     target_compile_features(horusrf_ai_provider_tests PRIVATE cxx_std_20)
     target_include_directories(horusrf_ai_provider_tests PRIVATE tests)
@@ -709,6 +739,7 @@ if(BUILD_TESTING)
         horusrf_ai_validation_tests
         horusrf_ai_golden_dataset_tests
         horusrf_ai_semantic_comparison_tests
+        horusrf_ai_requirement_verification_tests
         horusrf_ir_tests
         horusrf_simulator_tests
         horusrf_runtime_tests

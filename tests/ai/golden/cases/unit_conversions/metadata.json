@@ -1,4 +1,6 @@
 {
+  "schema": "horusrf.golden-case",
+  "version": 2,
   "id": "unit_conversions",
   "description": "Equivalent supported units without inventing an mdBm token",
   "category": "unit_conversion",
@@ -6,5 +8,11 @@
   "tags": ["frequency", "units", "kilohertz", "power"],
   "expected_valid": true,
   "comparison": "semantic",
-  "required_capabilities": ["frequency_sweep", "power_measurement", "calibration", "unit_conversion"]
+  "required_capabilities": ["frequency_sweep", "power_measurement", "calibration", "unit_conversion"],
+  "requirements": [
+    {"id": "reference-power", "kind": "reference_power"},
+    {"id": "frequency-sweep", "kind": "sweep", "dimension": "frequency"},
+    {"id": "power", "kind": "measurement", "operation": "power"},
+    {"id": "calibration", "kind": "calibration"}
+  ]
 }

@@ -1,4 +1,6 @@
 {
+  "schema": "horusrf.golden-case",
+  "version": 2,
   "id": "fixed_frequency_power_sweep_unsupported",
   "description": "Explicit rejection case for the unsupported power sweep dimension",
   "category": "unsupported_request",
@@ -6,5 +8,6 @@
   "tags": ["fixed_frequency", "power_sweep", "unsupported", "rejection"],
   "expected_valid": false,
   "comparison": "unsupported",
-  "required_capabilities": ["graceful_rejection"]
+  "required_capabilities": ["graceful_rejection"],
+  "requirements": []
 }

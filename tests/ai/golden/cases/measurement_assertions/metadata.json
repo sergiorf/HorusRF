@@ -1,4 +1,6 @@
 {
+  "schema": "horusrf.golden-case",
+  "version": 2,
   "id": "measurement_assertions",
   "description": "Qualification limits for power, EVM, and frequency error",
   "category": "measurement_assertion",
@@ -6,5 +8,16 @@
   "tags": ["power", "evm", "frequency_error", "assertion"],
   "expected_valid": true,
   "comparison": "semantic",
-  "required_capabilities": ["frequency_sweep", "power_measurement", "evm_measurement", "frequency_error_measurement", "derived_value", "assertion", "calibration"]
+  "required_capabilities": ["frequency_sweep", "power_measurement", "evm_measurement", "frequency_error_measurement", "derived_value", "assertion", "calibration"],
+  "requirements": [
+    {"id": "reference-power", "kind": "reference_power"},
+    {"id": "frequency-sweep", "kind": "sweep", "dimension": "frequency"},
+    {"id": "power", "kind": "measurement", "operation": "power"},
+    {"id": "evm", "kind": "measurement", "operation": "evm"},
+    {"id": "carrier-error", "kind": "measurement", "operation": "frequency_error"},
+    {"id": "power-limit", "kind": "assertion", "ordinal": 1},
+    {"id": "evm-limit", "kind": "assertion", "ordinal": 2},
+    {"id": "frequency-error-limit", "kind": "assertion", "ordinal": 3},
+    {"id": "calibration", "kind": "calibration"}
+  ]
 }

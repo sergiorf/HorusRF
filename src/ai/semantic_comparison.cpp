@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "horusrf/frontend/language_services.hpp"
+#include "horusrf/ai/requirement_verification.hpp"
 #include "horusrf/ir/ir.hpp"
 #include "horusrf/ir/lowering.hpp"
 
@@ -36,18 +37,6 @@ std::string value_type(ir::ValueType type) {
     return std::string{ir::type_name(type)};
 }
 
-std::string comparison_operator(ir::ComparisonOperator op) {
-    switch (op) {
-    case ir::ComparisonOperator::Less: return "less";
-    case ir::ComparisonOperator::LessEqual: return "less_equal";
-    case ir::ComparisonOperator::Greater: return "greater";
-    case ir::ComparisonOperator::GreaterEqual: return "greater_equal";
-    case ir::ComparisonOperator::Equal: return "equal";
-    case ir::ComparisonOperator::NotEqual: return "not_equal";
-    }
-    return "unknown";
-}
-
 std::string measurement_operation(ir::MeasurementOperation operation) {
     switch (operation) {
     case ir::MeasurementOperation::Power: return "power";
@@ -63,31 +52,6 @@ std::string sweep_dimension(ir::SweepDimension dimension) {
     case ir::SweepDimension::Temperature: return "temperature";
     }
     return "unknown";
-}
-
-std::string constant(const ir::ConstantValue& input) {
-    return std::visit(
-        [](const auto& value) {
-            using T = std::decay_t<decltype(value)>;
-            if constexpr (std::is_same_v<T, domain::Frequency>) {
-                return std::string{"frequency:"} + number(value.hertz());
-            } else if constexpr (std::is_same_v<T, domain::FrequencyDelta>) {
-                return std::string{"frequency_delta:"} + number(value.hertz());
-            } else if constexpr (std::is_same_v<T, domain::Ratio>) {
-                return std::string{"ratio:"} + number(value.ratio());
-            } else if constexpr (std::is_same_v<T, domain::Temperature>) {
-                return std::string{"temperature:"} + number(value.kelvin());
-            } else if constexpr (std::is_same_v<T, domain::TemperatureDelta>) {
-                return std::string{"temperature_delta:"} + number(value.kelvin());
-            } else if constexpr (std::is_same_v<T, domain::Power>) {
-                return std::string{"power:"} + number(value.dbm());
-            } else if constexpr (std::is_same_v<T, domain::PowerDelta>) {
-                return std::string{"power_delta:"} + number(value.db());
-            } else {
-                return std::string{"boolean:"} + (value ? "true" : "false");
-            }
-        },
-        input);
 }
 
 CompiledProgram compile(std::string_view source) {
@@ -116,89 +80,11 @@ public:
     explicit ExpressionNormalizer(const ir::Program& program) : program_(program) {}
 
     std::optional<std::string> normalize(ir::ValueId id) {
-        if (id.value >= program_.values.size()) return std::nullopt;
-        if (!active_.insert(id.value).second) return std::nullopt;
-        const auto& value = program_.values[id.value];
-        auto result = std::visit(
-            [this](const auto& definition) { return normalize_definition(definition); },
-            value.definition);
-        active_.erase(id.value);
-        if (!result) return std::nullopt;
-        return value_type(value.type) + "{" + *result + "}";
+        return normalize_expression(program_, id);
     }
 
 private:
-    std::optional<std::string> unary(std::string_view name, ir::ValueId operand) {
-        auto normalized = normalize(operand);
-        if (!normalized) return std::nullopt;
-        return std::string{name} + "(" + *normalized + ")";
-    }
-
-    std::optional<std::string> binary(std::string_view name, ir::ValueId left,
-                                      ir::ValueId right) {
-        auto normalized_left = normalize(left);
-        auto normalized_right = normalize(right);
-        if (!normalized_left || !normalized_right) return std::nullopt;
-        return std::string{name} + "(" + *normalized_left + "," +
-               *normalized_right + ")";
-    }
-
-    std::optional<std::string> normalize_definition(const ir::Constant& value) {
-        return constant(value.value);
-    }
-    std::optional<std::string> normalize_definition(const ir::ReferencePower& value) {
-        return "reference_power:" + number(value.value.dbm());
-    }
-    std::optional<std::string> normalize_definition(const ir::SweepFrequency&) {
-        return "sweep:frequency";
-    }
-    std::optional<std::string> normalize_definition(const ir::SweepTemperature&) {
-        return "sweep:temperature";
-    }
-    std::optional<std::string> normalize_definition(const ir::MeasurePower&) {
-        return "measure:power";
-    }
-    std::optional<std::string> normalize_definition(const ir::MeasureEvm&) {
-        return "measure:evm";
-    }
-    std::optional<std::string> normalize_definition(const ir::MeasureFrequencyError&) {
-        return "measure:frequency_error";
-    }
-    std::optional<std::string> normalize_definition(const ir::NegateDelta& value) {
-        return unary("negate", value.operand);
-    }
-    std::optional<std::string> normalize_definition(const ir::AddDelta& value) {
-        return binary("add", value.left, value.right);
-    }
-    std::optional<std::string> normalize_definition(const ir::SubtractDelta& value) {
-        return binary("subtract", value.left, value.right);
-    }
-    std::optional<std::string> normalize_definition(const ir::Alias& value) {
-        return normalize(value.value);
-    }
-    std::optional<std::string> normalize_definition(const ir::NegatePowerDelta& value) {
-        return unary("negate", value.operand);
-    }
-    std::optional<std::string> normalize_definition(const ir::AddPowerDelta& value) {
-        return binary("add", value.left, value.right);
-    }
-    std::optional<std::string> normalize_definition(const ir::ApplyPowerDelta& value) {
-        return binary("apply_power_delta", value.power, value.delta);
-    }
-    std::optional<std::string> normalize_definition(const ir::PowerDifference& value) {
-        return binary("power_difference", value.left, value.right);
-    }
-    std::optional<std::string> normalize_definition(const ir::AbsoluteValue& value) {
-        return unary("absolute", value.operand);
-    }
-    std::optional<std::string> normalize_definition(const ir::Compare& value) {
-        auto operands = binary(comparison_operator(value.op), value.left, value.right);
-        if (!operands) return std::nullopt;
-        return "compare:" + value_type(value.operand_type) + ":" + *operands;
-    }
-
     const ir::Program& program_;
-    std::set<std::size_t> active_;
 };
 
 void add_difference(SemanticComparisonResult& result, std::string path,
