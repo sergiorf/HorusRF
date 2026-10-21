@@ -130,10 +130,20 @@ the requested background server. Select another installed model with
 `-Model <name>`. A missing model is never downloaded implicitly; add `-Pull` to
 authorize the download.
 
+Install either supported Qwen size explicitly; Studio never downloads models:
+
+```powershell
+ollama pull qwen2.5-coder:3b
+ollama pull qwen2.5-coder:7b
+```
+
 After Ollama is ready, use **Check models**, enter a request, and review the
 proposal, line-oriented changes, compiler result, and warnings before choosing
 **Apply to Editor**. Applying is undoable and never saves or runs the script. A
-proposal is blocked if the editor changed while it was being generated.
+proposal is blocked if the editor changed while it was being generated. Studio
+shows friendly names for the two Qwen sizes while retaining their exact Ollama
+identifiers, remembers the selected model across restarts, and reports any
+fallback if that model is no longer installed.
 
 Validation and execution remain behind the CLI process boundary. The assistant's
 in-memory compiler validation cannot execute an experiment; Run remains a separate

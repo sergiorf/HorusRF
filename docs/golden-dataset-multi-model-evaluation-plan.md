@@ -1,8 +1,8 @@
 # HorusRF — Golden Dataset and Multi-Model Evaluation
 
-Status: Approved implementation plan. Phases A and B completed and verified on
-2026-10-21; Phases C-E have not started. Implement phases incrementally and mark
-them complete only after verification.
+Status: Approved implementation plan. Phases A through C completed and verified
+on 2026-10-21; Phases D and E have not started. Implement phases incrementally
+and mark them complete only after verification.
 
 ## Objective
 
@@ -572,6 +572,21 @@ simulator, or hardware was used.
 ### Phase C — Model selection
 
 Extend Studio's existing Ollama model selection and persistence.
+
+Completed on 2026-10-21. Studio discovery retains every installed Ollama model,
+shows friendly labels for `qwen2.5-coder:3b` and `qwen2.5-coder:7b`, and keeps the
+exact external identifier as item data and in every assistant request. The
+selected identifier is persisted with `QSettings`. Discovery preserves an
+installed selection or explicitly reports and persists a deterministic fallback
+when the saved model is missing. Active requests retain their copied selection
+while the configuration controls are disabled.
+
+Headless fake-backend tests cover 3B/7B enumeration, friendly presentation,
+exact provider propagation, restart persistence in an isolated settings store,
+and missing-model fallback. The focused Studio suite and the full unfiltered
+31-test CTest suite passed in the existing `build/` directory with the Release
+configuration. No Ollama service, model, download, network, runtime, simulator,
+or hardware was used.
 
 ### Phase D — Evaluation runner
 

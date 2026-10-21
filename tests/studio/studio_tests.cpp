@@ -23,6 +23,7 @@
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QSettings>
 #include <QPen>
 #include <QTableWidget>
 #include <QTabWidget>
@@ -31,6 +32,7 @@
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextLayout>
+#include <QTemporaryDir>
 #include <QtTest>
 
 #include <condition_variable>
@@ -113,11 +115,14 @@ public:
         const std::string& endpoint, std::chrono::milliseconds,
         std::stop_token) override {
         discovered_endpoint = endpoint;
-        return {{"qwen2.5-coder:7b", "qwen3:14b"}, {}};
+        return {installed_models, discovery_error};
     }
 
     horusrf::studio::AssistantRequest last_request;
     std::string discovered_endpoint;
+    std::vector<std::string> installed_models{
+        "qwen2.5-coder:3b", "qwen2.5-coder:7b", "qwen3:14b"};
+    std::string discovery_error;
     bool block_until_cancelled{};
     std::mutex mutex;
     std::condition_variable_any condition;
@@ -129,6 +134,21 @@ class StudioTests final : public QObject {
     Q_OBJECT
 
 private slots:
+    void initTestCase() {
+        QVERIFY(settings_directory_.isValid());
+        QCoreApplication::setOrganizationName(QStringLiteral("HorusRFTests"));
+        QCoreApplication::setApplicationName(QStringLiteral("StudioTests"));
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
+                           settings_directory_.path());
+    }
+
+    void init() {
+        QSettings settings;
+        settings.clear();
+        settings.sync();
+    }
+
     void assistantGeneratesProposalAndAppliesAsOneUndoableEdit() {
         auto backend = std::make_shared<FakeAssistantBackend>();
         horusrf::studio::MainWindow window(nullptr, runnerPath(), backend);
@@ -235,8 +255,60 @@ private slots:
         auto* models = discoveryWindow.findChild<QComboBox*>(
             QStringLiteral("assistantModel"));
         refresh->click();
-        QTRY_VERIFY(models->findText(QStringLiteral("qwen3:14b")) >= 0);
+        QTRY_VERIFY(models->findData(QStringLiteral("qwen3:14b")) >= 0);
+        QVERIFY(models->itemText(models->findData(QStringLiteral("qwen2.5-coder:3b")))
+                    .startsWith(QStringLiteral("Qwen 2.5 Coder 3B")));
+        QVERIFY(models->itemText(models->findData(QStringLiteral("qwen2.5-coder:7b")))
+                    .startsWith(QStringLiteral("Qwen 2.5 Coder 7B")));
         QCOMPARE(discovery->discovered_endpoint, "http://127.0.0.1:11434");
+    }
+
+    void assistantPersistsModelAndPropagatesExactIdentifier() {
+        auto backend = std::make_shared<FakeAssistantBackend>();
+        {
+            horusrf::studio::MainWindow window(nullptr, runnerPath(), backend);
+            auto* refresh = window.findChild<QPushButton*>(
+                QStringLiteral("assistantRefreshModels"));
+            auto* models = window.findChild<QComboBox*>(QStringLiteral("assistantModel"));
+            auto* instruction = window.findChild<QPlainTextEdit*>(
+                QStringLiteral("assistantInstruction"));
+            auto* generate = window.findChild<QPushButton*>(
+                QStringLiteral("assistantGenerate"));
+            refresh->click();
+            QTRY_VERIFY(models->findData(QStringLiteral("qwen2.5-coder:3b")) >= 0);
+            const int three_b = models->findData(QStringLiteral("qwen2.5-coder:3b"));
+            models->setCurrentIndex(three_b);
+            QMetaObject::invokeMethod(models, "activated", Q_ARG(int, three_b));
+            instruction->setPlainText(QStringLiteral("Generate a power measurement."));
+            generate->click();
+            QTRY_COMPARE(QString::fromStdString(backend->last_request.model),
+                         QStringLiteral("qwen2.5-coder:3b"));
+        }
+
+        horusrf::studio::MainWindow restored(nullptr, runnerPath(), backend);
+        auto* restored_models = restored.findChild<QComboBox*>(
+            QStringLiteral("assistantModel"));
+        QCOMPARE(restored_models->currentData().toString(),
+                 QStringLiteral("qwen2.5-coder:3b"));
+    }
+
+    void assistantFallsBackWhenSavedModelIsMissing() {
+        QSettings{}.setValue(QStringLiteral("aiAssistant/model"),
+                             QStringLiteral("removed-model:latest"));
+        auto backend = std::make_shared<FakeAssistantBackend>();
+        horusrf::studio::MainWindow window(nullptr, runnerPath(), backend);
+        auto* refresh = window.findChild<QPushButton*>(
+            QStringLiteral("assistantRefreshModels"));
+        auto* models = window.findChild<QComboBox*>(QStringLiteral("assistantModel"));
+        auto* status = window.findChild<QLabel*>(QStringLiteral("assistantStatus"));
+
+        QCOMPARE(models->currentData().toString(), QStringLiteral("removed-model:latest"));
+        refresh->click();
+        QTRY_COMPARE(models->currentData().toString(),
+                     QStringLiteral("qwen2.5-coder:7b"));
+        QVERIFY(status->text().contains(QStringLiteral("is not installed")));
+        QCOMPARE(QSettings{}.value(QStringLiteral("aiAssistant/model")).toString(),
+                 QStringLiteral("qwen2.5-coder:7b"));
     }
 
     void editorProvidesLineNumbersAndWritableLineHighlight() {
@@ -1026,6 +1098,9 @@ private slots:
         QCOMPARE(window.editor()->textCursor().blockNumber(), 9);
         QCOMPARE(window.editor()->textCursor().positionInBlock(), 9);
     }
+
+private:
+    QTemporaryDir settings_directory_;
 };
 
 QTEST_MAIN(StudioTests)

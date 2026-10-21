@@ -45,6 +45,10 @@ private:
                             bool completed);
     void setBusy(bool busy, const QString& status);
     void clearProposal();
+    void restoreSelectedModel();
+    void persistSelectedModel() const;
+    [[nodiscard]] QString selectedModelIdentifier() const;
+    void setConfiguredModel(const QString& identifier);
     [[nodiscard]] AssistantRequest currentRequest() const;
 
     DslEditor* editor_;

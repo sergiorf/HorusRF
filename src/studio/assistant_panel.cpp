@@ -12,6 +12,8 @@
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QSettings>
+#include <QSignalBlocker>
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QTextCursor>
@@ -27,8 +29,20 @@
 namespace horusrf::studio {
 namespace {
 
+constexpr auto selected_model_setting = "aiAssistant/model";
+
 QString fromUtf8(const std::string& text) {
     return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
+}
+
+QString modelDisplayName(const QString& identifier) {
+    if (identifier == QStringLiteral("qwen2.5-coder:3b")) {
+        return QStringLiteral("Qwen 2.5 Coder 3B (%1)").arg(identifier);
+    }
+    if (identifier == QStringLiteral("qwen2.5-coder:7b")) {
+        return QStringLiteral("Qwen 2.5 Coder 7B (%1)").arg(identifier);
+    }
+    return identifier;
 }
 
 QString lineDiff(const QString& original, const QString& proposal) {
@@ -78,7 +92,7 @@ AssistantPanel::AssistantPanel(DslEditor* editor, AssistantService* service,
     model_ = new QComboBox(configuration);
     model_->setObjectName(QStringLiteral("assistantModel"));
     model_->setEditable(true);
-    model_->addItem(QStringLiteral("qwen2.5-coder:7b"));
+    restoreSelectedModel();
     timeout_ = new QSpinBox(configuration);
     timeout_->setObjectName(QStringLiteral("assistantTimeout"));
     timeout_->setRange(1, 1800);
@@ -181,12 +195,52 @@ AssistantPanel::AssistantPanel(DslEditor* editor, AssistantService* service,
     connect(apply_, &QPushButton::clicked, this, &AssistantPanel::applyProposal);
     connect(discard_, &QPushButton::clicked, this, &AssistantPanel::discardProposal);
     connect(refresh_models_, &QPushButton::clicked, this, &AssistantPanel::refreshModels);
+    connect(model_, &QComboBox::activated, this,
+            [this](int) { persistSelectedModel(); });
+    connect(model_->lineEdit(), &QLineEdit::editingFinished, this,
+            &AssistantPanel::persistSelectedModel);
     connect(service_, &AssistantService::requestFinished,
             this, &AssistantPanel::requestFinished);
     connect(service_, &AssistantService::discoveryFinished,
             this, &AssistantPanel::discoveryFinished);
     connect(editor_->document(), &QTextDocument::contentsChanged,
             this, &AssistantPanel::updateStaleness);
+}
+
+QString AssistantPanel::selectedModelIdentifier() const {
+    const int index = model_->currentIndex();
+    if (index >= 0 && model_->currentText() == model_->itemText(index)) {
+        const QString identifier = model_->itemData(index).toString().trimmed();
+        if (!identifier.isEmpty()) return identifier;
+    }
+    return model_->currentText().trimmed();
+}
+
+void AssistantPanel::setConfiguredModel(const QString& identifier) {
+    const QString normalized = identifier.trimmed();
+    for (int index = 0; index < model_->count(); ++index) {
+        if (model_->itemData(index).toString() == normalized) {
+            model_->setCurrentIndex(index);
+            return;
+        }
+    }
+    model_->addItem(modelDisplayName(normalized), normalized);
+    model_->setCurrentIndex(model_->count() - 1);
+}
+
+void AssistantPanel::restoreSelectedModel() {
+    const QString identifier =
+        QSettings{}.value(QLatin1String(selected_model_setting),
+                          QStringLiteral("qwen2.5-coder:7b")).toString();
+    setConfiguredModel(identifier.isEmpty() ? QStringLiteral("qwen2.5-coder:7b")
+                                             : identifier);
+}
+
+void AssistantPanel::persistSelectedModel() const {
+    const QString identifier = selectedModelIdentifier();
+    if (!identifier.isEmpty()) {
+        QSettings{}.setValue(QLatin1String(selected_model_setting), identifier);
+    }
 }
 
 AssistantRequest AssistantPanel::currentRequest() const {
@@ -196,7 +250,7 @@ AssistantRequest AssistantPanel::currentRequest() const {
     request.instruction = instruction_->toPlainText().toUtf8().toStdString();
     request.current_source = editor_->toPlainText().toUtf8().toStdString();
     request.endpoint = endpoint_->text().trimmed().toUtf8().toStdString();
-    request.model = model_->currentText().trimmed().toUtf8().toStdString();
+    request.model = selectedModelIdentifier().toUtf8().toStdString();
     request.timeout = std::chrono::seconds{timeout_->value()};
     return request;
 }
@@ -206,7 +260,7 @@ void AssistantPanel::submit() {
         status_->setText(tr("Enter a request before generating."));
         return;
     }
-    if (endpoint_->text().trimmed().isEmpty() || model_->currentText().trimmed().isEmpty()) {
+    if (endpoint_->text().trimmed().isEmpty() || selectedModelIdentifier().isEmpty()) {
         status_->setText(tr("Configure an Ollama endpoint and model first."));
         return;
     }
@@ -217,6 +271,7 @@ void AssistantPanel::submit() {
     last_mode_ = mode_->currentIndex() == 0 ? AssistantMode::Generate
                                             : AssistantMode::Modify;
     const AssistantRequest request = currentRequest();
+    persistSelectedModel();
     if (service_->startRequest(request)) {
         startRequestTimer(request.timeout);
         setBusy(true, tr("Generating, validating, and repairing if needed..."));
@@ -327,17 +382,49 @@ void AssistantPanel::discoveryFinished() {
                              .arg(error));
         return;
     }
-    const QString selected = model_->currentText();
+    const QString selected = selectedModelIdentifier();
+    const QSignalBlocker blocker(model_);
     model_->clear();
-    for (const auto& name : result->models) model_->addItem(fromUtf8(name));
-    const int previous = model_->findText(selected);
-    if (previous >= 0) model_->setCurrentIndex(previous);
-    else if (model_->count() == 0) model_->setEditText(selected);
-    status_->setText(result->models.empty()
-                         ? tr("Ollama is available, but no models are installed. Run "
-                              "'ollama pull qwen2.5-coder:7b'.")
-                         : tr("Ollama is available; found %1 installed model(s).")
-                               .arg(result->models.size()));
+    for (const auto& name : result->models) {
+        const QString identifier = fromUtf8(name);
+        model_->addItem(modelDisplayName(identifier), identifier);
+    }
+    int selected_index = -1;
+    for (int index = 0; index < model_->count(); ++index) {
+        if (model_->itemData(index).toString() == selected) {
+            selected_index = index;
+            break;
+        }
+    }
+    if (selected_index >= 0) {
+        model_->setCurrentIndex(selected_index);
+        status_->setText(tr("Ollama is available; found %1 installed model(s).")
+                             .arg(result->models.size()));
+    } else if (model_->count() == 0) {
+        setConfiguredModel(selected);
+        status_->setText(tr("Ollama is available, but no models are installed. Run "
+                            "'ollama pull qwen2.5-coder:3b' or "
+                            "'ollama pull qwen2.5-coder:7b'."));
+    } else {
+        int fallback = -1;
+        const QStringList preferred{QStringLiteral("qwen2.5-coder:7b"),
+                                    QStringLiteral("qwen2.5-coder:3b")};
+        for (const QString& identifier : preferred) {
+            for (int index = 0; index < model_->count(); ++index) {
+                if (model_->itemData(index).toString() == identifier) {
+                    fallback = index;
+                    break;
+                }
+            }
+            if (fallback >= 0) break;
+        }
+        if (fallback < 0) fallback = 0;
+        model_->setCurrentIndex(fallback);
+        persistSelectedModel();
+        status_->setText(
+            tr("The configured model '%1' is not installed. Selected '%2' instead.")
+                .arg(selected, selectedModelIdentifier()));
+    }
 }
 
 void AssistantPanel::updateStaleness() {

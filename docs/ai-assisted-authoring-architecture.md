@@ -235,7 +235,12 @@ enabled only for a compiler-valid proposal whose snapshot is still current. It
 replaces the editor in one undoable edit block, does not save, and does not invoke
 `ExperimentRunner`. Discard and retry are explicit. Endpoint, installed-model
 selection, and timeout are user-configurable; provider checks never download a
-model.
+model. The selection widget associates its friendly display text with the exact
+Ollama identifier used by generation, modification, and repair. That identifier
+is persisted with `QSettings`. Discovery retains it when still installed; if it
+has disappeared, Studio selects a deterministic installed fallback and tells the
+user which change was made. Configuration controls are disabled for the lifetime
+of an active request, whose copied model identifier cannot change in flight.
 
 ## Test strategy
 
@@ -250,9 +255,10 @@ transport tests, and M3 added deterministic prompt, curated-example, and respons
 schema tests. M4 adds deterministic generation, repair, state, failure-retention,
 cancellation, modification, and fidelity-warning tests. M5 adds headless Studio
 tests for proposal presentation, apply/undo, change preview, stale-document
-protection, discard, cancellation, and model discovery. Real-model quality
-measurement remains a separately invoked benchmark, never a deterministic CTest
-dependency.
+protection, discard, cancellation, model discovery, friendly 3B/7B presentation,
+exact identifier propagation, selection persistence, and missing-model fallback.
+Real-model quality measurement remains a separately invoked benchmark, never a
+deterministic CTest dependency.
 
 The versioned golden authoring dataset lives under `tests/ai/golden/`. The small
 `horusrf_ai_golden` target owns its filesystem/schema loader and depends privately

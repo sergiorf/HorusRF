@@ -90,6 +90,12 @@ context preservation, retained invalid proposals, and conservative numeric
 fidelity warnings. It does not invoke Ollama, the network, runtime, simulator, or
 hardware.
 
+`horusrf_studio_tests` exercises the assistant through an injected fake backend.
+Its offline model-selection coverage includes discovery of the 3B and 7B Qwen
+identifiers, friendly labels, propagation of the exact selected identifier,
+restart persistence in isolated test settings, and explicit fallback when a
+saved model is no longer installed.
+
 `horusrf_antlr_toolchain_smoke_tests` generates a small test-only C++ lexer and
 parser with the vendored ANTLR 4.13.2 JAR, compiles them against the matching
 vendored runtime, and parses a fixed input. This keeps tool/runtime versioning,
