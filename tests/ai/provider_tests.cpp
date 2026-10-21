@@ -83,7 +83,7 @@ void request_encoding_and_success_test() {
     auto transport = std::make_shared<FakeTransport>(
         std::vector<ai::ollama::HttpResult>{ai::ollama::HttpResponse{
             200,
-            R"({"model":"qwen2.5-coder:7b","message":{"role":"assistant","content":"characterize caf\u00e9 {}"},"done":true,"done_reason":"stop"})"}});
+            R"({"model":"qwen2.5-coder:7b","message":{"role":"assistant","content":"characterize caf\u00e9 {}"},"done":true,"done_reason":"stop","load_duration":1000000,"prompt_eval_duration":2000000,"eval_duration":4000000,"prompt_eval_count":120,"eval_count":40})"}});
     ai::OllamaProvider provider{{"http://127.0.0.1:11434/"}, transport};
     const ai::LlmResult result = provider.generate(request());
 
@@ -92,6 +92,15 @@ void request_encoding_and_success_test() {
     CHECK_EQ(response.text, "characterize caf\xc3\xa9 {}");
     CHECK_EQ(response.identity.provider, "ollama");
     CHECK_EQ(response.identity.model, "qwen2.5-coder:7b");
+    CHECK(response.metrics.has_value());
+    CHECK_EQ(response.metrics->model_load_duration,
+             std::optional{std::chrono::nanoseconds{1000000}});
+    CHECK_EQ(response.metrics->prompt_evaluation_duration,
+             std::optional{std::chrono::nanoseconds{2000000}});
+    CHECK_EQ(response.metrics->generation_duration,
+             std::optional{std::chrono::nanoseconds{4000000}});
+    CHECK_EQ(response.metrics->input_token_count, std::optional<std::size_t>{120});
+    CHECK_EQ(response.metrics->output_token_count, std::optional<std::size_t>{40});
     CHECK_EQ(transport->requests.size(), std::size_t{1});
     CHECK_EQ(transport->requests.front().url, "http://127.0.0.1:11434/api/chat");
     CHECK_EQ(transport->requests.front().timeout, std::chrono::milliseconds{4321});

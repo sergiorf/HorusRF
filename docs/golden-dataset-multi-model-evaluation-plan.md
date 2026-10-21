@@ -592,6 +592,23 @@ or hardware was used.
 
 Implement the live benchmarking executable and reports.
 
+Completed on 2026-10-21. The Qt-free `horusrf_ai_evaluation` target runs the
+versioned golden dataset through the existing agent, complete compiler
+validation, and semantic comparison without reaching runtime or device layers.
+The opt-in `horusrf-ai-eval` executable supports multiple installed models,
+individual case selection, repetitions, bounded generation settings, versioned
+JSON reports, and a concise comparison table. Provider responses expose optional
+provider-neutral duration and token telemetry populated by Ollama when available.
+
+`scripts/run-ai-evaluation.ps1` and its CMD wrapper configure and build in the
+single `build/` directory and place timestamped reports under
+`build/ai-evaluation/` by default. They never download models or execute generated
+experiments. Deterministic fake-provider tests cover first-pass success, repair,
+unsupported recognition, failures, aggregate metrics, and serialization. The
+full unfiltered 32-test Release CTest suite passed on 2026-10-21. No live benchmark
+result is claimed; running installed 3B and 7B models remains an explicit Phase E
+activity.
+
 ### Phase E — Verification
 
 Run tests, update documentation, and review architectural boundaries.

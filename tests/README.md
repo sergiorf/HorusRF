@@ -13,6 +13,7 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 | AI provider | provider contracts, Ollama protocol/error adaptation, fake provider | `unit` |
 | AI prompt | compiler-derived contexts, compiling examples, response schema and parsing | `unit` |
 | AI agent | bounded generation/repair states, compiler feedback, cancellation and failures | `unit` |
+| AI evaluation | fake-provider golden evaluation, semantic outcomes, metrics, report serialization | `unit` |
 | device, executor, characterization | separated simulated equipment and runtime routing | `unit` |
 | procedural example, CSV, JSON | independent orchestration and serialization | `unit` |
 | declarative end-to-end | actual fixture through compiler and runtime | `integration` |
@@ -89,6 +90,13 @@ and structured-response failures, cancellation, invalid requests, modification
 context preservation, retained invalid proposals, and conservative numeric
 fidelity warnings. It does not invoke Ollama, the network, runtime, simulator, or
 hardware.
+
+`horusrf_ai_evaluation_tests` runs supported, repaired, unsupported, and failed
+golden-style cases through the real agent, compiler validation, and semantic
+comparison using scripted providers and an injected deterministic clock. It
+checks aggregate denominators, provider-neutral telemetry, JSON report
+serialization, and the human-readable summary without contacting Ollama. The
+live `horusrf-ai-eval` executable is intentionally not registered with CTest.
 
 `horusrf_studio_tests` exercises the assistant through an injected fake backend.
 Its offline model-selection coverage includes discovery of the 3B and 7B Qwen

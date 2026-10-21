@@ -139,6 +139,8 @@ horusrf_ai_prompt --> horusrf_ai + horusrf_frontend
 horusrf_ai_validation --> horusrf_ai + horusrf_frontend + horusrf_ir
 horusrf_ai_semantic_comparison --> horusrf_frontend + horusrf_ir
 horusrf_ai_agent --> horusrf_ai + horusrf_ai_prompt + horusrf_ai_validation
+horusrf_ai_evaluation --> horusrf_ai_agent + horusrf_ai_golden + horusrf_ai_semantic_comparison
+horusrf-ai-eval --> horusrf_ai_evaluation + horusrf_ai_ollama
 ```
 
 None of these edges is reversed. Compiler, IR, runtime, device, simulator, and CLI
@@ -283,13 +285,31 @@ differences, or `NotEvaluated` for invalid or unnormalizable input. This layer
 does not infer requirements directly from natural language and does not turn
 compiler validity into a semantic success.
 
+Phase D adds the Qt-free `horusrf_ai_evaluation` target and the opt-in
+`horusrf-ai-eval` executable. The evaluator runs golden prompts through the
+existing agent, records every bounded provider attempt, validates the final
+candidate again, and invokes semantic comparison only for supported cases.
+Unsupported cases are reported separately and require an explicit limitation in
+the proposal explanation or warnings. Evaluation never reaches runtime,
+simulator, or device targets.
+
+Reports use schema `horusrf.ai-evaluation` version 1. They retain generated source,
+requested and actual provider identity, compiler and semantic outcomes, repair
+counts, errors, latency, explicit rate denominators, and optional provider-neutral
+inference telemetry. Ollama duration and token fields are adapted into that
+optional telemetry; unavailable fields remain JSON `null`. The checked-in
+evaluation tests inject scripted providers and a deterministic clock. Live model
+evaluation is invoked explicitly through the executable or
+`scripts/run-ai-evaluation.ps1`, writes under `build/` by default, and is not a
+CTest dependency.
+
 ## Recorded risks and controls
 
 | Risk | M0 control |
 |---|---|
 | Frontend-only checks disagree with CLI acceptance | Full validation explicitly includes IR lowering |
 | A second parser or rule set drifts from the language | All validation and language discovery reuse compiler contracts |
-| Provider details spread through the application | Provider response exposes only text and provider/model identity |
+| Provider details spread through the application | Provider response exposes text, provider/model identity, and optional provider-neutral telemetry only |
 | Qt leaks into reusable authoring code | `horusrf_ai` uses only the C++ standard library |
 | Invalid source is offered for application | Apply eligibility is derived from successful validation |
 | A presented proposal is mutated by orchestration | Proposal state is private, const, and exposed read-only |

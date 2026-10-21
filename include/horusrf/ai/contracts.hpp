@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <optional>
 #include <stop_token>
@@ -51,9 +52,22 @@ struct ProviderIdentity final {
     friend bool operator==(const ProviderIdentity&, const ProviderIdentity&) = default;
 };
 
+// Provider-independent inference telemetry. Providers leave fields empty when
+// the backend does not report them; callers must not substitute estimates.
+struct ProviderMetrics final {
+    std::optional<std::chrono::nanoseconds> model_load_duration;
+    std::optional<std::chrono::nanoseconds> prompt_evaluation_duration;
+    std::optional<std::chrono::nanoseconds> generation_duration;
+    std::optional<std::size_t> input_token_count;
+    std::optional<std::size_t> output_token_count;
+
+    friend bool operator==(const ProviderMetrics&, const ProviderMetrics&) = default;
+};
+
 struct ProviderResponse final {
     std::string text;
     ProviderIdentity identity;
+    std::optional<ProviderMetrics> metrics;
 };
 
 enum class DiagnosticCategory { Syntax, Semantic, Lowering };

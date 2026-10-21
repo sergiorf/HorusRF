@@ -209,6 +209,19 @@ target_link_libraries(horusrf_ai_agent
 )
 horusrf_enable_warnings(horusrf_ai_agent)
 
+add_library(horusrf_ai_evaluation STATIC
+    src/ai/evaluation.cpp
+)
+target_compile_features(horusrf_ai_evaluation PUBLIC cxx_std_20)
+target_include_directories(horusrf_ai_evaluation PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_ai_evaluation
+    PUBLIC horusrf_ai horusrf_ai_golden horusrf_ai_semantic_comparison
+    PRIVATE horusrf_ai_agent horusrf_ai_validation
+)
+horusrf_enable_warnings(horusrf_ai_evaluation)
+
 add_library(horusrf_runtime STATIC
     src/runtime/characterization.cpp
     src/runtime/executor.cpp
@@ -238,6 +251,13 @@ target_link_libraries(horusrf-run PRIVATE
     horusrf_ai_validation
 )
 horusrf_enable_warnings(horusrf-run)
+
+add_executable(horusrf-ai-eval src/ai_eval/main.cpp)
+target_compile_features(horusrf-ai-eval PRIVATE cxx_std_20)
+target_link_libraries(horusrf-ai-eval PRIVATE
+    horusrf_ai_evaluation horusrf_ai_ollama
+)
+horusrf_enable_warnings(horusrf-ai-eval)
 
 if(HORUSRF_BUILD_STUDIO)
     find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
@@ -483,6 +503,15 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_ai_agent_tests)
     add_test(NAME horusrf_ai_agent_tests COMMAND horusrf_ai_agent_tests)
 
+    add_executable(horusrf_ai_evaluation_tests tests/ai/evaluation_tests.cpp)
+    target_compile_features(horusrf_ai_evaluation_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_ai_evaluation_tests PRIVATE tests)
+    target_link_libraries(horusrf_ai_evaluation_tests PRIVATE
+        horusrf_ai_evaluation
+    )
+    horusrf_enable_warnings(horusrf_ai_evaluation_tests)
+    add_test(NAME horusrf_ai_evaluation_tests COMMAND horusrf_ai_evaluation_tests)
+
     add_executable(horusrf_ir_tests tests/ir/lowering_tests.cpp)
     target_compile_features(horusrf_ir_tests PRIVATE cxx_std_20)
     target_include_directories(horusrf_ir_tests PRIVATE tests)
@@ -674,6 +703,7 @@ if(BUILD_TESTING)
         horusrf_frontend_tests
         horusrf_ai_contract_tests
         horusrf_ai_agent_tests
+        horusrf_ai_evaluation_tests
         horusrf_ai_prompt_tests
         horusrf_ai_provider_tests
         horusrf_ai_validation_tests

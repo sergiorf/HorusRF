@@ -29,3 +29,28 @@ display-unit spelling are ignored after canonical conversion. Sweep structure,
 measurements, derived expressions, assertions, and calibration semantics are
 compared. Invalid or structurally unnormalizable input is `NotEvaluated`, never
 treated as a semantic match.
+
+## Live evaluation
+
+Live evaluation is opt-in and requires a running local Ollama service plus every
+requested installed model. It never executes generated experiments. From the
+repository root on Windows, run both comparison models with:
+
+```powershell
+.\scripts\run-ai-evaluation.ps1 -Configuration Release `
+  -Models "qwen2.5-coder:3b,qwen2.5-coder:7b"
+```
+
+For a fast single-case run:
+
+```powershell
+.\scripts\run-ai-evaluation.ps1 -Models "qwen2.5-coder:3b" `
+  -CaseIds "frequency_sweep_basic"
+```
+
+The script configures and builds only in the repository's `build/` directory,
+then invokes `horusrf-ai-eval`. Reports default to timestamped JSON files under
+`build/ai-evaluation/`. Use `-OutputPath`, `-Repeat`, `-Temperature`,
+`-TimeoutSeconds`, `-MaxOutputTokens`, `-MaxRepairs`, or `-Endpoint` to override
+the corresponding evaluation setting. The script checks installed models but
+does not download them or start Ollama.

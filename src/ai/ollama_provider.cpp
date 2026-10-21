@@ -261,6 +261,31 @@ const std::string* string_member(const JsonValue& object, std::string_view name)
                                                                      : nullptr;
 }
 
+std::optional<double> number_member(const JsonValue& object, std::string_view name) {
+    const JsonValue* value = member(object, name);
+    if (value == nullptr || value->kind != JsonValue::Kind::Number) return std::nullopt;
+    return value->number;
+}
+
+std::optional<std::chrono::nanoseconds> duration_member(
+    const JsonValue& object, std::string_view name) {
+    const auto value = number_member(object, name);
+    if (!value || *value < 0.0 || *value > static_cast<double>(INT64_MAX)) {
+        return std::nullopt;
+    }
+    return std::chrono::nanoseconds{static_cast<std::int64_t>(*value)};
+}
+
+std::optional<std::size_t> count_member(const JsonValue& object,
+                                        std::string_view name) {
+    const auto value = number_member(object, name);
+    if (!value || *value < 0.0 || std::floor(*value) != *value ||
+        *value > static_cast<double>(SIZE_MAX)) {
+        return std::nullopt;
+    }
+    return static_cast<std::size_t>(*value);
+}
+
 std::string json_escape(std::string_view input) {
     std::ostringstream output;
     output << '"';
@@ -529,7 +554,19 @@ LlmResult OllamaProvider::generate_checked(const LlmRequest& request,
                              "Ollama returned an incomplete non-streaming response"};
     }
 
-    return ProviderResponse{*content, {"ollama", *model}};
+    ProviderMetrics metrics{
+        duration_member(root, "load_duration"),
+        duration_member(root, "prompt_eval_duration"),
+        duration_member(root, "eval_duration"),
+        count_member(root, "prompt_eval_count"),
+        count_member(root, "eval_count"),
+    };
+    const bool has_metrics = metrics.model_load_duration ||
+                             metrics.prompt_evaluation_duration ||
+                             metrics.generation_duration || metrics.input_token_count ||
+                             metrics.output_token_count;
+    return ProviderResponse{*content, {"ollama", *model},
+                            has_metrics ? std::optional{metrics} : std::nullopt};
 }
 
 } // namespace horusrf::ai
