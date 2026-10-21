@@ -31,6 +31,7 @@ struct Options final {
     std::size_t maximum_repairs{3};
     std::size_t repetitions{1};
     std::chrono::milliseconds timeout{std::chrono::minutes{2}};
+    std::string prompt_configuration_id{"direct-dsl-v1"};
 };
 
 std::vector<std::string> split(std::string_view input) {
@@ -73,6 +74,7 @@ void usage(std::ostream& output) {
               "  --max-output-tokens COUNT  Provider output limit\n"
               "  --timeout-seconds COUNT    Per-provider-call timeout\n"
               "  --max-repairs COUNT        Bounded compiler repair attempts\n"
+              "  --prompt-configuration ID Prompt: direct-dsl-v1, direct-dsl-compact-v1, or direct-dsl-relevant-v1\n"
               "  --endpoint URL             Local Ollama HTTP endpoint\n"
               "  --git-revision REVISION    Source revision recorded in the report\n";
 }
@@ -110,6 +112,8 @@ Options parse_options(int argc, char** argv) {
                 positive_size(value_after(index, argc, argv, argument), argument)};
         } else if (argument == "--max-repairs") {
             options.maximum_repairs = positive_size(value_after(index, argc, argv, argument), argument);
+        } else if (argument == "--prompt-configuration") {
+            options.prompt_configuration_id = value_after(index, argc, argv, argument);
         } else if (argument == "--endpoint") {
             options.endpoint = value_after(index, argc, argv, argument);
         } else if (argument == "--git-revision") {
@@ -180,7 +184,7 @@ int main(int argc, char** argv) {
         const horusrf::ai::EvaluationSettings settings{
             options.models, options.temperature, options.max_output_tokens,
             options.timeout, options.maximum_repairs, options.repetitions,
-            utc_timestamp(), options.git_revision};
+            utc_timestamp(), options.git_revision, options.prompt_configuration_id};
         const auto report = horusrf::ai::evaluate_golden_dataset(
             dataset, provider, settings);
 

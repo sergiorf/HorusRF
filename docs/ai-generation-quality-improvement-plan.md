@@ -1,6 +1,7 @@
 # HorusRF AI generation quality improvement plan
 
-**Status:** M6Q.0 and M6Q.1 completed on 2026-10-22
+**Status:** M6Q.0 and M6Q.1 completed; M6Q.2 implementation completed on
+2026-10-22 with live A/B/C measurements pending
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
 **Reviewed baseline artifact:** `build/ai-evaluation/results-20261021-193036.json`
@@ -271,6 +272,14 @@ Every supported case reports clause outcomes and a requirement-satisfaction
 status. Exact comparison and requirement satisfaction are separate fields.
 
 ### M6Q.2 — Measured prompt experiment
+
+**Implementation status:** Completed on 2026-10-22. The unchanged
+`direct-dsl-v1` prompt remains the default. `direct-dsl-compact-v1` and
+`direct-dsl-relevant-v1` are opt-in evaluator configurations. The latter uses
+deterministic request-feature tags; both experimental configurations remove
+example comments, shorten example explanations, and add explicit preservation
+rules. The evaluator and PowerShell runner accept and record the selected stable
+ID. Default promotion remains pending the required repeated live A/B/C reports.
 
 **Changes**
 

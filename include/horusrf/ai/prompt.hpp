@@ -13,11 +13,34 @@
 
 namespace horusrf::ai {
 
+enum class PromptConfiguration {
+    Baseline,
+    Compact,
+    CapabilityRelevant,
+};
+
+[[nodiscard]] std::string_view prompt_configuration_id(
+    PromptConfiguration configuration) noexcept;
+[[nodiscard]] std::optional<PromptConfiguration> parse_prompt_configuration(
+    std::string_view id) noexcept;
+
 struct PromptSettings final {
     std::string model{"qwen2.5-coder:7b"};
     double temperature{0.0};
     std::size_t max_output_tokens{2048};
     std::chrono::milliseconds timeout{std::chrono::minutes{2}};
+    PromptConfiguration configuration{PromptConfiguration::Baseline};
+};
+
+enum class PromptFeature {
+    Frequency,
+    Temperature,
+    PowerMeasurement,
+    EvmMeasurement,
+    FrequencyErrorMeasurement,
+    Assertion,
+    Calibration,
+    Modification,
 };
 
 struct RepairPromptRequest final {
@@ -33,6 +56,7 @@ struct PromptExample final {
     std::optional<ScriptSource> current_source;
     ScriptSource proposal;
     std::string explanation;
+    std::vector<PromptFeature> features;
 };
 
 // Returns the deterministic, compiler-valid examples used for few-shot context.

@@ -25,6 +25,9 @@ param(
     [ValidateRange(1, 20)]
     [int]$MaxRepairs = 3,
 
+    [ValidateSet("direct-dsl-v1", "direct-dsl-compact-v1", "direct-dsl-relevant-v1")]
+    [string]$PromptConfiguration = "direct-dsl-v1",
+
     [ValidateNotNullOrEmpty()]
     [string]$Endpoint = "http://127.0.0.1:11434",
 
@@ -92,6 +95,7 @@ try {
         "--timeout-seconds", $TimeoutSeconds,
         "--max-output-tokens", $MaxOutputTokens,
         "--max-repairs", $MaxRepairs,
+        "--prompt-configuration", $PromptConfiguration,
         "--endpoint", $Endpoint
     )
     if ($CaseIds) {

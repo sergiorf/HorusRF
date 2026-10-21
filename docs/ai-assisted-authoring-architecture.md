@@ -304,7 +304,11 @@ maintained. The checked-in
 evaluation tests inject scripted providers and a deterministic clock. Live model
 evaluation is invoked explicitly through the executable or
 `scripts/run-ai-evaluation.ps1`, writes under `build/` by default, and is not a
-CTest dependency.
+CTest dependency. The evaluator accepts three versioned prompt configurations:
+the unchanged `direct-dsl-v1` default, `direct-dsl-compact-v1` with compact
+comment-free examples, and `direct-dsl-relevant-v1` with deterministic
+feature-tag selection. Prompt configuration is evaluation input and remains
+independent of the compiler, runtime, and Studio execution boundaries.
 
 ## Recorded risks and controls
 

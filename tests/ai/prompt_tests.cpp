@@ -33,6 +33,13 @@ bool contains(const ai::LlmRequest& request, std::string_view text) {
     return false;
 }
 
+std::size_t prompt_bytes(const ai::LlmRequest& request) {
+    std::size_t result{};
+    for (const auto& message : request.messages) result += message.content.size();
+    if (request.json_schema) result += request.json_schema->size();
+    return result;
+}
+
 const ai::ProposalResponseError& response_error(const ai::ProposalResponseResult& result) {
     CHECK(std::holds_alternative<ai::ProposalResponseError>(result));
     return std::get<ai::ProposalResponseError>(result);
@@ -133,6 +140,64 @@ void curated_examples_compile_test() {
     CHECK(saw_repository_comment);
 }
 
+void named_prompt_configuration_test() {
+    CHECK_EQ(ai::prompt_configuration_id(ai::PromptConfiguration::Baseline),
+             "direct-dsl-v1");
+    CHECK_EQ(ai::parse_prompt_configuration("direct-dsl-compact-v1"),
+             std::optional{ai::PromptConfiguration::Compact});
+    CHECK_EQ(ai::parse_prompt_configuration("direct-dsl-relevant-v1"),
+             std::optional{ai::PromptConfiguration::CapabilityRelevant});
+    CHECK(!ai::parse_prompt_configuration("unknown"));
+
+    const ai::GenerationRequest input{ai::NaturalLanguageInstruction{
+        "Sweep frequency from 900 MHz to 1 GHz and measure power."}};
+    const auto baseline = ai::PromptBuilder{}.build_generation(input);
+    const auto compact = ai::PromptBuilder{{
+        "qwen2.5-coder:7b", 0.0, 2048, std::chrono::minutes{2},
+        ai::PromptConfiguration::Compact}}.build_generation(input);
+    CHECK(prompt_bytes(compact) < prompt_bytes(baseline));
+    CHECK(contains(compact, "Preserve every explicit operation"));
+    CHECK(!contains(compact, "// Characterizes"));
+}
+
+void capability_relevant_selection_test() {
+    const ai::PromptBuilder builder{{
+        "qwen2.5-coder:7b", 0.0, 2048, std::chrono::minutes{2},
+        ai::PromptConfiguration::CapabilityRelevant}};
+
+    const auto frequency = builder.build_generation({ai::NaturalLanguageInstruction{
+        "Sweep frequency from 900 MHz to 1 GHz and measure power."}});
+    CHECK(contains(frequency, "Characterize output power from 2.40 GHz"));
+    CHECK(!contains(frequency, "Sweep frequency and temperature"));
+    CHECK(!contains(frequency, "Check power error within 1.5 dB"));
+
+    const auto temperature = builder.build_generation({ai::NaturalLanguageInstruction{
+        "Sweep temperature and record EVM."}});
+    CHECK(contains(temperature, "Sweep frequency and temperature"));
+    CHECK(!contains(temperature, "Characterize output power from 2.40 GHz"));
+    CHECK(!contains(temperature, "Check power error within 1.5 dB"));
+
+    const auto assertion = builder.build_generation({ai::NaturalLanguageInstruction{
+        "Keep the measured power error within 1 dB."}});
+    CHECK(contains(assertion, "Check power error within 1.5 dB"));
+    CHECK(!contains(assertion, "Sweep frequency and temperature"));
+
+    const auto calibration = builder.build_generation({ai::NaturalLanguageInstruction{
+        "Create a calibration correction for measured power."}});
+    CHECK(contains(calibration, "Characterize output power from 2.40 GHz"));
+
+    const ai::ModificationRequest modification{
+        ai::ScriptSource{std::string{valid_source}},
+        ai::NaturalLanguageInstruction{"Change only the frequency step."}};
+    const auto modified = builder.build_modification(modification);
+    CHECK(contains(modified, "Change only the frequency step to 10 MHz"));
+    CHECK(!contains(modified, "Characterize output power from 2.40 GHz"));
+
+    CHECK_EQ(frequency.messages,
+             builder.build_generation({ai::NaturalLanguageInstruction{
+                 "Sweep frequency from 900 MHz to 1 GHz and measure power."}}).messages);
+}
+
 void modification_context_test() {
     const ai::PromptBuilder builder;
     const ai::ModificationRequest input{
@@ -222,6 +287,8 @@ int main() {
         compiler_derived_generation_prompt_test();
         custom_settings_and_input_validation_test();
         curated_examples_compile_test();
+        named_prompt_configuration_test();
+        capability_relevant_selection_test();
         modification_context_test();
         repair_context_test();
         structured_response_test();

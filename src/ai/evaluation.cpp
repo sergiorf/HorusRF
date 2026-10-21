@@ -438,6 +438,12 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
     if (settings.prompt_configuration_id.empty()) {
         throw std::invalid_argument("prompt configuration ID must not be empty");
     }
+    const auto prompt_configuration = parse_prompt_configuration(
+        settings.prompt_configuration_id);
+    if (!prompt_configuration) {
+        throw std::invalid_argument("unknown prompt configuration ID: " +
+                                    settings.prompt_configuration_id);
+    }
     if (settings.comparison_version.empty()) {
         throw std::invalid_argument("comparison version must not be empty");
     }
@@ -479,7 +485,8 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
 
                 ObservingProvider observed{provider};
                 PromptBuilder prompts{{model, settings.temperature,
-                                       settings.max_output_tokens, settings.timeout}};
+                                       settings.max_output_tokens, settings.timeout,
+                                       *prompt_configuration}};
                 AgentSession session{observed, std::move(prompts),
                                      {settings.maximum_repair_attempts}};
                 const auto started = clock();
@@ -722,6 +729,7 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
 }
 
 void write_evaluation_table(std::ostream& output, const EvaluationReport& report) {
+    output << "Prompt configuration: " << report.prompt_configuration_id << '\n';
     output << "Model                       Cases  First valid  Final valid  Required  Semantic  Median ms  P90 ms\n";
     output << "-------------------------------------------------------------------------------------------------\n";
     for (const auto& item : report.summaries) {

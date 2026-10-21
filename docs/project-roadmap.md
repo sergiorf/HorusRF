@@ -118,6 +118,12 @@ compiler-backed explicit-requirement oracle. Requirement satisfaction is reporte
 separately from strict full-program semantic comparison; no prompt, runtime,
 device, simulator, output, or Studio behavior changed.
 
+M6Q.2 prompt-experiment support was implemented on 2026-10-22. The evaluator can
+run the unchanged baseline, a compact-example variant, or a deterministically
+feature-selected variant while recording the stable configuration ID and prompt
+sizes. The baseline remains the product default until repeated live A/B/C runs
+show no material requirement-satisfaction regression.
+
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the
 [Phase 2 local AI-assisted authoring plan](phase-2-local-ai-assisted-authoring-plan.md).

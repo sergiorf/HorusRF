@@ -84,3 +84,22 @@ UTF-8 sizes, provider telemetry, run order, cold/warm classification, and model
 digest when Ollama reports one. The first evaluated case for each model is
 classified cold and subsequent cases warm; per-call model-load telemetry remains
 available to identify later reloads.
+
+M6Q.2 prompt experiments use `-PromptConfiguration` with one of these stable IDs:
+
+- `direct-dsl-v1` (A): the unchanged baseline and default;
+- `direct-dsl-compact-v1` (B): all applicable examples with comments removed and
+  compact explanations; or
+- `direct-dsl-relevant-v1` (C): the same compact form with deterministic
+  feature-relevant example selection.
+
+Run each configuration against the same models and settings with `-Repeat 3` to
+`-Repeat 5`, writing a separate report. Do not promote B or C to the default
+until the reports show no material requirement-satisfaction regression. Example:
+
+```powershell
+.\scripts\run-ai-evaluation.ps1 -Configuration Release `
+  -Models "qwen2.5-coder:3b,qwen2.5-coder:7b" -Repeat 3 `
+  -PromptConfiguration direct-dsl-relevant-v1 `
+  -OutputPath build/ai-evaluation/m6q2-relevant.json
+```

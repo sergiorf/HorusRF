@@ -124,6 +124,8 @@ void supported_and_unsupported_report_test() {
     std::ostringstream table;
     ai::write_evaluation_table(table, report);
     CHECK(table.str().find("test-model") != std::string::npos);
+    CHECK(table.str().find("Prompt configuration: direct-dsl-v1") !=
+          std::string::npos);
 }
 
 void repair_and_failure_test() {
@@ -266,6 +268,17 @@ void invalid_settings_test() {
     try {
         static_cast<void>(ai::evaluate_golden_dataset(
             dataset, provider, ai::EvaluationSettings{}));
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    CHECK(threw);
+
+    ai::EvaluationSettings unknown{{"test-model"}};
+    unknown.prompt_configuration_id = "not-a-prompt";
+    ai::GoldenDataset nonempty{"1.0.0", {golden("prompt", true)}};
+    threw = false;
+    try {
+        static_cast<void>(ai::evaluate_golden_dataset(nonempty, provider, unknown));
     } catch (const std::invalid_argument&) {
         threw = true;
     }
