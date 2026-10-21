@@ -114,11 +114,26 @@ Studio edits and validates HorusRF source, invokes the sibling `horusrf-run`
 process for execution, and presents JSON results as tables, plots, heatmaps,
 qualification summaries, and calibration entries. Its dockable AI Assistant can
 generate a new script or propose changes to the current script through a local
-Ollama model. Start Ollama, install a compatible model such as
-`qwen2.5-coder:7b`, use **Check models**, enter a request, and review the proposal,
-line-oriented changes, compiler result, and warnings before choosing **Apply to
-Editor**. Applying is undoable and never saves or runs the script. A proposal is
-blocked if the editor changed while it was being generated.
+Ollama model. The development helper starts Ollama, verifies the model, loads it,
+and keeps it ready for ten minutes:
+
+```powershell
+.\scripts\start-ollama.cmd
+```
+
+It defaults to `qwen2.5-coder:7b` and requires verified GPU use, including
+supported integrated GPUs. Use `-Processor Auto` to let Ollama select CPU or GPU,
+or `-Processor Cpu` to force CPU-only operation when the script starts the
+server. If the Windows Ollama app is already running with a different processor
+selection, add `-RestartServer` to stop that local app/server and replace it with
+the requested background server. Select another installed model with
+`-Model <name>`. A missing model is never downloaded implicitly; add `-Pull` to
+authorize the download.
+
+After Ollama is ready, use **Check models**, enter a request, and review the
+proposal, line-oriented changes, compiler result, and warnings before choosing
+**Apply to Editor**. Applying is undoable and never saves or runs the script. A
+proposal is blocked if the editor changed while it was being generated.
 
 Validation and execution remain behind the CLI process boundary. The assistant's
 in-memory compiler validation cannot execute an experiment; Run remains a separate
