@@ -1,8 +1,9 @@
 # HorusRF — Phase 2: Local AI-Assisted DSL Authoring
 
 Status: Approved implementation plan. M0 through M5 were completed and verified
-on 2026-10-20; M6 and M7 have not started. Milestones must be implemented
-sequentially and marked complete only after verification.
+on 2026-10-20; M6 was completed and verified on 2026-10-21. M7 has not started.
+Milestones must be implemented sequentially and marked complete only after
+verification.
 
 ## Mission
 
@@ -928,6 +929,8 @@ hardware, or wall-clock-dependent test was used.
 
 ### Objective
 
+Status: Completed and verified on 2026-10-21.
+
 Demonstrate that the architecture works reliably, independently of the quality
 of any individual LLM. Separate deterministic software tests from empirical
 model evaluation.
@@ -1038,6 +1041,31 @@ model.
 - Model failures are reported transparently.
 - No live-model dependency enters the normal test suite.
 - No regression in existing compiler, CLI, or Studio functionality.
+
+Implemented result:
+
+- The later approved golden-dataset and multi-model evaluation plan refined the
+  initial approximate 40-task suggestion into a versioned 17-case suite: 16
+  supported requests and one explicit unsupported request. This smaller initial
+  suite meets that plan's 15-case minimum and retains representative coverage.
+- Offline tests validate the dataset, compiler integration, semantic comparison,
+  provider behavior, bounded agent workflow, report serialization, model
+  selection, persistence, and Studio behavior without Ollama or network access.
+- The opt-in `horusrf-ai-eval` runner records compiler validity, semantic
+  equivalence, unsupported recognition, repair behavior, failures, latency, and
+  provider telemetry without executing generated experiments.
+- A clean 3B/7B live comparison at Git revision `66e692f` produced a version-1
+  report. The 3B model reached 10/17 final-valid and 5/16 semantic-match results;
+  the 7B model reached 12/17 and 9/16 respectively. Neither model explicitly
+  recognized the one unsupported request, and those limitations are retained
+  transparently in the report.
+
+Verification: the full unfiltered 32-test CTest suite passed in the existing
+`build/` directory with the Release configuration on 2026-10-21. The clean live
+report is `build/ai-evaluation/results-20261021-193036.json`; its revision,
+dataset version, inference bounds, exact model identifiers, per-case outcomes,
+and timing telemetry make the run repeatable. Live evaluation remains opt-in and
+outside CTest.
 
 ## 11. Milestone M7 — Documentation and demonstration
 

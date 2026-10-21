@@ -1,7 +1,7 @@
 # HorusRF project roadmap
 
 Status: Phase 1 completed on 2026-10-18. Phase 2 local AI-assisted DSL
-authoring is in progress; M0 through M5 are complete.
+authoring is in progress; M0 through M6 are complete.
 
 HorusRF is a focused C++20 DSL demonstration. Current behavior belongs in the
 [language reference](language.md), and dependency/ownership rules belong in the
@@ -57,10 +57,11 @@ requires an explicit user action. The implementation is divided into milestones
 M0 through M7. M0, architecture and contracts, M1, machine-readable compiler
 validation, M2, the provider-neutral Ollama interface, M3, language-aware prompt
 construction, M4, the bounded generation and compiler-directed repair loop, and
-M5, Qt Studio integration, were completed on 2026-10-20. M6 is in progress: its
-17-case golden dataset, semantic comparison, 3B/7B Studio selection, and opt-in
-evaluation runner are implemented; live-model measurement and final verification
-remain. M7 has not started.
+M5, Qt Studio integration, were completed on 2026-10-20. M6, automated testing
+and quality evaluation, was completed on 2026-10-21 with a 17-case golden
+dataset, semantic comparison, 3B/7B Studio selection, an opt-in evaluation
+runner, clean live-model measurements, and final verification. M7 has not
+started.
 
 M0 introduced the dependency-free `horusrf_ai` contract target, deterministic
 contract tests, and the documented component, validation, CLI compatibility, and
@@ -102,12 +103,14 @@ repair off the UI thread. Studio can query Ollama's `/api/tags` endpoint for
 installed models and configure the endpoint, model, and timeout. Deterministic
 headless tests inject a fake backend and use no network or model.
 
-The current M6 increment adds a versioned 17-case golden authoring dataset,
+M6 added a versioned 17-case golden authoring dataset,
 compiler-backed semantic comparison, persisted installed-model selection, and
 the `horusrf-ai-eval` developer CLI. Its versioned reports distinguish compiler
 success from semantic correctness and include repair, latency, failure, and
-optional Ollama token/timing metrics. Live evaluation remains explicitly invoked
-and is excluded from normal CTest execution.
+optional Ollama token/timing metrics. The clean 2026-10-21 comparison produced
+10/17 final-valid and 5/16 semantic-match results for Qwen 2.5 Coder 3B, versus
+12/17 and 9/16 for 7B; neither model recognized the single unsupported request.
+Live evaluation remains explicitly invoked and excluded from normal CTest.
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

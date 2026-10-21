@@ -1,8 +1,6 @@
 # HorusRF — Golden Dataset and Multi-Model Evaluation
 
-Status: Approved implementation plan. Phases A through C completed and verified
-on 2026-10-21; Phases D and E have not started. Implement phases incrementally
-and mark them complete only after verification.
+Status: Completed and verified on 2026-10-21. Phases A through E are complete.
 
 ## Objective
 
@@ -612,6 +610,33 @@ activity.
 ### Phase E — Verification
 
 Run tests, update documentation, and review architectural boundaries.
+
+Completed on 2026-10-21. A clean live evaluation at Git revision
+`66e692f5d76db7e91273ca59fa8fdfa963e97c1d` compared all 17 dataset cases with
+`qwen2.5-coder:3b` (`f72c60cabf62`) and `qwen2.5-coder:7b`
+(`dae161e27b0e`) through Ollama 0.40.6. The run used temperature 0, a 2,048-token
+output limit, a 120-second per-request timeout, and at most three repair attempts
+on Windows 10.0.26200 with an Intel Core Ultra 7 258V; Ollama reported 100% GPU
+execution for the final loaded model.
+
+| Model | First valid | Final valid | Semantic matches | Median | P90 |
+|---|---:|---:|---:|---:|---:|
+| Qwen 2.5 Coder 3B | 8/17 | 10/17 | 5/16 | 10,876 ms | 22,762 ms |
+| Qwen 2.5 Coder 7B | 10/17 | 12/17 | 9/16 | 19,634 ms | 58,726 ms |
+
+The version-1 report is
+`build/ai-evaluation/results-20261021-193036.json`. The build artifact remains
+outside version control; this summary, the recorded settings, and the documented
+command make the evaluation repeatable. Both models failed to explicitly
+recognize the single unsupported request. Supported-case failures stopped at the
+bounded repair limit, and compiler-valid semantic mismatches remain reported
+separately rather than counted as matches. These measured model-quality limits
+do not weaken compiler validation or the explicit user-review boundary.
+
+The full unfiltered 32-test Release CTest suite passed after the live evaluation.
+Normal CTest remains deterministic, offline, and independent of Ollama. The
+dependency review confirmed that evaluation remains outside runtime, simulator,
+device, and normal Studio execution paths.
 
 Before implementing each phase, inspect the corresponding existing code and
 reuse established patterns.

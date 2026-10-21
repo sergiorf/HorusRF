@@ -325,5 +325,6 @@ deterministic provider tests. M3 contains prompt assembly, curated examples, the
 proposal response schema, and deterministic parsing. M4 contains bounded
 generation and repair orchestration. M5 contains the asynchronous Studio service,
 assistant panel, proposal review and application, configuration, discovery, and
-headless UI tests. M6 and M7 retain quality evaluation, broader testing,
-documentation, and demonstration work.
+headless UI tests. M6 contains the golden dataset, semantic comparison, model
+selection, opt-in live evaluation, and broader deterministic testing. M7 retains
+user documentation and demonstration work.
