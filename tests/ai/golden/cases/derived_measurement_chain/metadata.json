@@ -1,0 +1,10 @@
+{
+  "id": "derived_measurement_chain",
+  "description": "Calibration based on a chain of derived power-delta values",
+  "category": "derived_measurement",
+  "difficulty": "advanced",
+  "tags": ["frequency", "derived", "power_delta", "calibration"],
+  "expected_valid": true,
+  "comparison": "semantic",
+  "required_capabilities": ["frequency_sweep", "named_measurement", "derived_value", "calibration"]
+}

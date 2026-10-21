@@ -1,0 +1,1 @@
+For a -10 dBm transmission from 2.40 GHz to 2.50 GHz in 5 MHz steps, measure output power, EVM, and carrier error. Require power error within 1.5 dB, EVM no more than 2%, and absolute carrier error no more than 20 kHz. Produce the power calibration.

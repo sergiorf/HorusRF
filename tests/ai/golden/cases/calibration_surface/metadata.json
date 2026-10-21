@@ -1,0 +1,10 @@
+{
+  "id": "calibration_surface",
+  "description": "Named power measurement feeding a two-dimensional correction surface",
+  "category": "calibration_surface",
+  "difficulty": "advanced",
+  "tags": ["frequency", "temperature", "kelvin", "surface"],
+  "expected_valid": true,
+  "comparison": "semantic",
+  "required_capabilities": ["frequency_sweep", "temperature_sweep", "named_measurement", "derived_value", "calibration_surface"]
+}

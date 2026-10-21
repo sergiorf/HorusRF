@@ -175,6 +175,16 @@ target_link_libraries(horusrf_ai_validation
 )
 horusrf_enable_warnings(horusrf_ai_validation)
 
+add_library(horusrf_ai_golden STATIC
+    src/ai/golden_dataset.cpp
+)
+target_compile_features(horusrf_ai_golden PUBLIC cxx_std_20)
+target_include_directories(horusrf_ai_golden PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_ai_golden PRIVATE horusrf_ai_validation)
+horusrf_enable_warnings(horusrf_ai_golden)
+
 add_library(horusrf_ai_agent STATIC
     src/ai/agent.cpp
 )
@@ -405,6 +415,23 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_ai_validation_tests)
     add_test(NAME horusrf_ai_validation_tests COMMAND horusrf_ai_validation_tests)
 
+    add_executable(horusrf_ai_golden_dataset_tests
+        tests/ai/golden_dataset_tests.cpp
+    )
+    target_compile_features(horusrf_ai_golden_dataset_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_ai_golden_dataset_tests PRIVATE tests)
+    target_link_libraries(horusrf_ai_golden_dataset_tests PRIVATE
+        horusrf_ai_golden
+    )
+    target_compile_definitions(horusrf_ai_golden_dataset_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        HORUSRF_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+    )
+    horusrf_enable_warnings(horusrf_ai_golden_dataset_tests)
+    add_test(NAME horusrf_ai_golden_dataset_tests
+        COMMAND horusrf_ai_golden_dataset_tests
+    )
+
     add_executable(horusrf_ai_provider_tests tests/ai/provider_tests.cpp)
     target_compile_features(horusrf_ai_provider_tests PRIVATE cxx_std_20)
     target_include_directories(horusrf_ai_provider_tests PRIVATE tests)
@@ -622,6 +649,7 @@ if(BUILD_TESTING)
         horusrf_ai_prompt_tests
         horusrf_ai_provider_tests
         horusrf_ai_validation_tests
+        horusrf_ai_golden_dataset_tests
         horusrf_ir_tests
         horusrf_simulator_tests
         horusrf_runtime_tests

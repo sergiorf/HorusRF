@@ -1,0 +1,10 @@
+{
+  "id": "measurement_assertions",
+  "description": "Qualification limits for power, EVM, and frequency error",
+  "category": "measurement_assertion",
+  "difficulty": "advanced",
+  "tags": ["power", "evm", "frequency_error", "assertion"],
+  "expected_valid": true,
+  "comparison": "semantic",
+  "required_capabilities": ["frequency_sweep", "power_measurement", "evm_measurement", "frequency_error_measurement", "derived_value", "assertion", "calibration"]
+}

@@ -1,0 +1,1 @@
+Make temperature the outer sweep from 10 to 30 degC by 10 deltaC, then sweep frequency from 2 GHz to 2.1 GHz by 50 MHz. Use -6 dBm, measure power, and preserve that sweep order in the calibration surface.

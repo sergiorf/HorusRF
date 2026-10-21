@@ -1,0 +1,1 @@
+Build me a TX power calibration table at -10 dBm, covering 2400 MHz to 2500 MHz every 10 MHz.

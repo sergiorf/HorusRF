@@ -1,0 +1,10 @@
+{
+  "id": "qualification_boolean_alias",
+  "description": "Assertion through a named derived Boolean value",
+  "category": "qualification_condition",
+  "difficulty": "advanced",
+  "tags": ["frequency", "boolean", "derived", "assertion"],
+  "expected_valid": true,
+  "comparison": "semantic",
+  "required_capabilities": ["frequency_sweep", "derived_value", "comparison", "assertion", "calibration"]
+}

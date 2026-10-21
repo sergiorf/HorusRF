@@ -1,0 +1,1 @@
+Test a -20 dBm signal from 700 MHz to 900 MHz every 50 MHz and from -40 degC to 60 degC every 25 deltaC. Collect power as rx_power, EVM as quality, and frequency error as offset. Assert absolute power error below 2 dB, quality below 5%, and offset within 50 kHz. Calibrate over frequency and temperature.

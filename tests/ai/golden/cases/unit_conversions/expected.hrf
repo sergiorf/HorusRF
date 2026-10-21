@@ -1,0 +1,9 @@
+characterize supported_unit_conversion {
+  reference power = -10 dBm
+  sweep frequency 2400000 kHz .. 2500000 kHz step 10000 kHz
+  measure power
+  derive calibration tx_power {
+    correction = reference.power - power
+    over frequency
+  }
+}

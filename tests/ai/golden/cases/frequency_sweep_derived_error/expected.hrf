@@ -1,0 +1,10 @@
+characterize derived_error {
+  reference power = -12 dBm
+  sweep frequency 800 MHz .. 900 MHz step 25 MHz
+  measure measured_power = power
+  derive power_error = measured_power - reference.power
+  derive calibration tx_power {
+    correction = -power_error
+    over frequency
+  }
+}

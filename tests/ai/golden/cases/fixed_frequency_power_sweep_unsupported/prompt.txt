@@ -1,0 +1,1 @@
+At a fixed 2.45 GHz, sweep the requested transmit power from -20 dBm to 0 dBm in 1 dB steps and build a power-indexed correction table.

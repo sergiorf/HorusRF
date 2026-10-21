@@ -1,0 +1,10 @@
+characterize multidimensional_sweep {
+  reference power = -15 dBm
+  sweep frequency 2.40 GHz .. 2.44 GHz step 20 MHz
+  sweep temperature 0 degC .. 40 degC step 20 deltaC
+  measure power
+  derive calibration tx_power {
+    correction = reference.power - power
+    over frequency, temperature
+  }
+}

@@ -1,0 +1,10 @@
+characterize temperature_sweep {
+  reference power = -10 dBm
+  sweep frequency 2.45 GHz .. 2.45 GHz step 1 MHz
+  sweep temperature -20 degC .. 80 degC step 20 deltaC
+  measure power
+  derive calibration temperature_power {
+    correction = reference.power - power
+    over frequency, temperature
+  }
+}

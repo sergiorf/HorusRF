@@ -1,0 +1,12 @@
+characterize derived_measurement_chain {
+  reference power = -3 dBm
+  sweep frequency 100 MHz .. 200 MHz step 25 MHz
+  measure output = power
+  derive output_error = output - reference.power
+  derive adjusted_error = output_error + 0.25 dB
+  derive correction_value = -adjusted_error
+  derive calibration adjusted_power {
+    correction = correction_value
+    over frequency
+  }
+}

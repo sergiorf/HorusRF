@@ -1,0 +1,1 @@
+Characterize -12 dBm output power between 800 MHz and 900 MHz at 25 MHz spacing. Name the reading measured_power, derive power_error as measured minus reference, and negate that error for calibration.

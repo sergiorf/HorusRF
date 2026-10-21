@@ -1,0 +1,10 @@
+{
+  "id": "frequency_sweep_derived_error",
+  "description": "Named power error used to derive a calibration correction",
+  "category": "derived_measurement",
+  "difficulty": "intermediate",
+  "tags": ["frequency", "power", "derived", "negation"],
+  "expected_valid": true,
+  "comparison": "semantic",
+  "required_capabilities": ["frequency_sweep", "named_measurement", "derived_value", "calibration"]
+}

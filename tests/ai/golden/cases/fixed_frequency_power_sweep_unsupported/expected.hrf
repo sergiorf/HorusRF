@@ -1,0 +1,2 @@
+// Unsupported by the current HorusRF language: power is not a sweep dimension.
+// A model must report this limitation instead of dropping the requested power sweep.

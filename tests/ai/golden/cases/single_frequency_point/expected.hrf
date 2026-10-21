@@ -1,0 +1,9 @@
+characterize single_frequency_point {
+  reference power = 3 dBm
+  sweep frequency 915 MHz .. 915 MHz step 1 MHz
+  measure power
+  derive calibration point_correction {
+    correction = reference.power - power
+    over frequency
+  }
+}

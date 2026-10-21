@@ -8,6 +8,7 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 | parser, frontend, domain, semantic, IR | syntax, structured language services, quantities, analysis, lowering | `unit` |
 | AI contracts | authoring requests, validation/proposal invariants, errors, cancellation | `unit` |
 | AI validation | complete compiler adaptation, source ranges, deterministic diagnostic JSON | `unit` |
+| AI golden dataset | manifest/metadata integrity, discovery, unique IDs, curated script compilation | `unit` |
 | AI provider | provider contracts, Ollama protocol/error adaptation, fake provider | `unit` |
 | AI prompt | compiler-derived contexts, compiling examples, response schema and parsing | `unit` |
 | AI agent | bounded generation/repair states, compiler feedback, cancellation and failures | `unit` |
@@ -55,6 +56,12 @@ the AI-facing contract, representative syntax and semantic failures, multiple
 diagnostics, exact source spans, and JSON escaping. CLI acceptance separately
 parses valid and invalid `horusrf.validation-result` documents and locks their
 stdout, stderr, and exit-status behavior.
+
+`horusrf_ai_golden_dataset_tests` validates the versioned dataset in
+`tests/ai/golden/` without Ollama or network access. It checks strict metadata,
+duplicate identifiers, unlisted directories, malformed expected programs, and
+passes every supported curated output through parsing, semantic analysis, and IR
+lowering. Explicitly unsupported requests remain separate rejection cases.
 
 `horusrf_ai_provider_tests` covers provider request validation, Ollama request
 serialization and response decoding, structured error mapping, cancellation,

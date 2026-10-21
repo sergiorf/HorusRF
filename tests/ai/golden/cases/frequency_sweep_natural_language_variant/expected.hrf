@@ -1,0 +1,9 @@
+characterize frequency_sweep_variant {
+  reference power = -10 dBm
+  sweep frequency 2400 MHz .. 2500 MHz step 10 MHz
+  measure power
+  derive calibration tx_power {
+    correction = reference.power - power
+    over frequency
+  }
+}

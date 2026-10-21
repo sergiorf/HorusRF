@@ -1,0 +1,10 @@
+{
+  "id": "single_frequency_point",
+  "description": "Single-point characterization represented by a one-point frequency sweep",
+  "category": "frequency_sweep",
+  "difficulty": "basic",
+  "tags": ["frequency", "single_point", "power", "calibration"],
+  "expected_valid": true,
+  "comparison": "semantic",
+  "required_capabilities": ["frequency_sweep", "power_measurement", "calibration"]
+}

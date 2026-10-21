@@ -1,7 +1,8 @@
 # HorusRF AI-assisted authoring architecture
 
 Status: Milestone M0 through M5 architecture, provider, prompt, agent, and Studio
-integration implemented on 2026-10-20.
+integration implemented on 2026-10-20. Golden-dataset Phase A implemented on
+2026-10-21.
 
 ## Purpose and authority
 
@@ -251,6 +252,17 @@ tests for proposal presentation, apply/undo, change preview, stale-document
 protection, discard, cancellation, and model discovery. Real-model quality
 measurement remains a separately invoked benchmark, never a deterministic CTest
 dependency.
+
+The versioned golden authoring dataset lives under `tests/ai/golden/`. The small
+`horusrf_ai_golden` target owns its filesystem/schema loader and depends privately
+on `horusrf_ai_validation`, so supported expected outputs pass through the same
+complete compiler adapter used by the agent without broadening that adapter's
+responsibility. This does not give the compiler a dependency on AI or evaluation
+code. Dataset validation is deterministic and offline: it checks the manifest,
+exact metadata shape, unique IDs, complete case discovery, required files, and
+expected validity without invoking a provider, runtime, simulator, or device.
+Unsupported requests are explicit cases with `comparison` set to `unsupported`;
+they cannot be counted as compiler-valid expected programs.
 
 ## Recorded risks and controls
 

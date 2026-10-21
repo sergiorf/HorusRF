@@ -1,0 +1,10 @@
+{
+  "id": "frequency_sweep_multiple_measurements",
+  "description": "Frequency sweep collecting all supported RF observables",
+  "category": "multiple_measurements",
+  "difficulty": "intermediate",
+  "tags": ["frequency", "power", "evm", "frequency_error"],
+  "expected_valid": true,
+  "comparison": "semantic",
+  "required_capabilities": ["frequency_sweep", "power_measurement", "evm_measurement", "frequency_error_measurement", "calibration"]
+}

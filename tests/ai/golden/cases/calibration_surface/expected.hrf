@@ -1,0 +1,11 @@
+characterize calibration_surface {
+  reference power = -8 dBm
+  sweep frequency 900 MHz .. 1.1 GHz step 50 MHz
+  sweep temperature 250 K .. 350 K step 25 deltaK
+  measure output_power = power
+  derive output_error = output_power - reference.power
+  derive calibration tx_surface {
+    correction = -output_error
+    over frequency, temperature
+  }
+}

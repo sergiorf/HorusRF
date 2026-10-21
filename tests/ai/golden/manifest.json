@@ -1,0 +1,24 @@
+{
+  "schema": "horusrf.golden-dataset",
+  "version": 1,
+  "dataset_version": "1.0.0",
+  "cases": [
+    "frequency_sweep_basic",
+    "frequency_sweep_natural_language_variant",
+    "frequency_sweep_named_power",
+    "frequency_sweep_multiple_measurements",
+    "frequency_sweep_derived_error",
+    "frequency_sweep_power_assertion",
+    "measurement_assertions",
+    "temperature_sweep",
+    "multidimensional_sweep",
+    "calibration_surface",
+    "multiple_constraints",
+    "unit_conversions",
+    "single_frequency_point",
+    "derived_measurement_chain",
+    "qualification_boolean_alias",
+    "temperature_first_multidimensional",
+    "fixed_frequency_power_sweep_unsupported"
+  ]
+}

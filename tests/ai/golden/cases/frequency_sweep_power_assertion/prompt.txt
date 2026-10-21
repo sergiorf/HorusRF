@@ -1,0 +1,1 @@
+Sweep 2.4 GHz to 2.5 GHz every 25 MHz with a -10 dBm reference. Require absolute output-power error to be at most 1.5 dB and create the correction table.

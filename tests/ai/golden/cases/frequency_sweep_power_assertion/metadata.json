@@ -1,0 +1,10 @@
+{
+  "id": "frequency_sweep_power_assertion",
+  "description": "Frequency sweep with an absolute power-error limit",
+  "category": "measurement_assertion",
+  "difficulty": "intermediate",
+  "tags": ["frequency", "power", "assertion", "absolute"],
+  "expected_valid": true,
+  "comparison": "semantic",
+  "required_capabilities": ["frequency_sweep", "derived_value", "assertion", "calibration"]
+}

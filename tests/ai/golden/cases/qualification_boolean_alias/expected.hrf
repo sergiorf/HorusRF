@@ -1,0 +1,12 @@
+characterize qualification_boolean_alias {
+  reference power = 0 dBm
+  sweep frequency 1 GHz .. 1.2 GHz step 50 MHz
+  measure output_power = power
+  derive power_error = output_power - reference.power
+  derive within_limit = abs(power_error) <= 1 dB
+  assert within_limit
+  derive calibration tx_power {
+    correction = -power_error
+    over frequency
+  }
+}

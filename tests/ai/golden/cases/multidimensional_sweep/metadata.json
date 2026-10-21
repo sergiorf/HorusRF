@@ -1,0 +1,10 @@
+{
+  "id": "multidimensional_sweep",
+  "description": "Two-dimensional frequency and temperature characterization",
+  "category": "multidimensional_sweep",
+  "difficulty": "intermediate",
+  "tags": ["frequency", "temperature", "grid", "calibration"],
+  "expected_valid": true,
+  "comparison": "semantic",
+  "required_capabilities": ["frequency_sweep", "temperature_sweep", "power_measurement", "calibration_surface"]
+}

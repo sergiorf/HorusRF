@@ -1,0 +1,10 @@
+{
+  "id": "temperature_first_multidimensional",
+  "description": "Two-dimensional calibration preserving temperature-first declaration order",
+  "category": "multidimensional_sweep",
+  "difficulty": "advanced",
+  "tags": ["temperature", "frequency", "order", "surface"],
+  "expected_valid": true,
+  "comparison": "semantic",
+  "required_capabilities": ["temperature_sweep", "frequency_sweep", "power_measurement", "calibration_surface"]
+}

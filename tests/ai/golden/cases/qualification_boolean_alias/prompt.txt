@@ -1,0 +1,1 @@
+Sweep 1 GHz through 1.2 GHz by 50 MHz at 0 dBm. Compute the output-power error, derive a Boolean named within_limit for an absolute error no greater than 1 dB, assert that Boolean, and calibrate the error away.

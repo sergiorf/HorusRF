@@ -1,0 +1,11 @@
+characterize power_qualification {
+  reference power = -10 dBm
+  sweep frequency 2.4 GHz .. 2.5 GHz step 25 MHz
+  measure output_power = power
+  derive power_error = output_power - reference.power
+  assert abs(power_error) <= 1.5 dB
+  derive calibration tx_power {
+    correction = -power_error
+    over frequency
+  }
+}

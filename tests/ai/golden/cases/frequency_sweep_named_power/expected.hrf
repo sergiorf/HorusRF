@@ -1,0 +1,9 @@
+characterize named_power_sweep {
+  reference power = 0 dBm
+  sweep frequency 1 GHz .. 2 GHz step 100 MHz
+  measure output_power = power
+  derive calibration output_correction {
+    correction = reference.power - output_power
+    over frequency
+  }
+}

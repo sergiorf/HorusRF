@@ -1,0 +1,1 @@
+Across 100 MHz to 200 MHz in 25 MHz steps at -3 dBm, name the power reading output, derive its error from the reference, add a 0.25 dB allowance to that error, and use the negated adjusted error as the calibration correction.

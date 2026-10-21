@@ -1,0 +1,1 @@
+Use a -10000 mdBm target—if unsupported, express the equivalent supported value—and characterize from 2400000 kHz to 2500000 kHz in 10000 kHz steps. Measure power and produce the correction calibration.

@@ -1,0 +1,15 @@
+characterize measurement_assertions {
+  reference power = -10 dBm
+  sweep frequency 2.40 GHz .. 2.50 GHz step 5 MHz
+  measure output_power = power
+  measure modulation_evm = evm
+  measure carrier_error = frequency_error
+  derive power_error = output_power - reference.power
+  assert abs(power_error) <= 1.5 dB
+  assert modulation_evm <= 2 %
+  assert abs(carrier_error) <= 20 kHz
+  derive calibration tx_power {
+    correction = -power_error
+    over frequency
+  }
+}

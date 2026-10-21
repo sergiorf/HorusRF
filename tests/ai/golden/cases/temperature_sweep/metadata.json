@@ -1,0 +1,10 @@
+{
+  "id": "temperature_sweep",
+  "description": "Temperature sweep at a single frequency",
+  "category": "temperature_sweep",
+  "difficulty": "intermediate",
+  "tags": ["temperature", "fixed_frequency", "power", "calibration"],
+  "expected_valid": true,
+  "comparison": "semantic",
+  "required_capabilities": ["frequency_sweep", "temperature_sweep", "power_measurement", "calibration"]
+}

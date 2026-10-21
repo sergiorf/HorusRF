@@ -1,0 +1,16 @@
+characterize multiple_constraints {
+  reference power = -20 dBm
+  sweep frequency 700 MHz .. 900 MHz step 50 MHz
+  sweep temperature -40 degC .. 60 degC step 25 deltaC
+  measure rx_power = power
+  measure quality = evm
+  measure offset = frequency_error
+  derive power_error = rx_power - reference.power
+  assert abs(power_error) < 2 dB
+  assert quality < 5 %
+  assert abs(offset) <= 50 kHz
+  derive calibration constrained_surface {
+    correction = -power_error
+    over frequency, temperature
+  }
+}

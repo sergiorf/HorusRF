@@ -1,0 +1,1 @@
+Characterize -15 dBm output power on a grid from 2.40 to 2.44 GHz by 20 MHz and 0 to 40 degC by 20 deltaC. Return a calibration over both dimensions.

@@ -1,0 +1,11 @@
+characterize multiple_measurements {
+  reference power = -5 dBm
+  sweep frequency 2.40 GHz .. 2.48 GHz step 20 MHz
+  measure output_power = power
+  measure modulation_evm = evm
+  measure carrier_error = frequency_error
+  derive calibration tx_power {
+    correction = reference.power - output_power
+    over frequency
+  }
+}

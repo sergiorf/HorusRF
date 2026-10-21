@@ -1,0 +1,1 @@
+Characterize output power from 2.40 GHz through 2.50 GHz in 10 MHz steps. Use -10 dBm as the reference and produce a frequency-indexed power correction calibration.

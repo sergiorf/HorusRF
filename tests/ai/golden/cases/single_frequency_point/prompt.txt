@@ -1,0 +1,1 @@
+Measure output power once at 915 MHz with a 3 dBm reference and produce the required frequency calibration.

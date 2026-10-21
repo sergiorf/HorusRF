@@ -1,0 +1,1 @@
+At -5 dBm, sweep 2.40 GHz to 2.48 GHz in 20 MHz increments and collect named output power, EVM, and carrier frequency error. Calibrate output power over frequency.

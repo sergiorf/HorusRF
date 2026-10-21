@@ -1,0 +1,1 @@
+At 2.45 GHz and -10 dBm, characterize output power from -20 degC to 80 degC in 20 degree increments and create a calibration indexed by frequency and temperature.
