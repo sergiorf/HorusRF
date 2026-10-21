@@ -48,6 +48,7 @@ struct ModificationRequest final {
 struct ProviderIdentity final {
     std::string provider;
     std::string model;
+    std::optional<std::string> model_digest;
 
     friend bool operator==(const ProviderIdentity&, const ProviderIdentity&) = default;
 };

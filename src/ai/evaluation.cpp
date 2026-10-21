@@ -25,19 +25,98 @@ public:
 
     LlmResult generate(const LlmRequest& request,
                        CancellationToken cancellation) override {
-        LlmResult result = provider_.generate(request, cancellation);
-        if (const auto* response = std::get_if<ProviderResponse>(&result)) {
-            attempts.push_back(response->metrics);
-            identity = response->identity;
-        } else {
-            attempts.push_back(std::nullopt);
+        EvaluationAttempt attempt;
+        attempt.number = attempts.size() + 1;
+        attempt.purpose = attempts.empty() ? EvaluationCallPurpose::Generation
+                                           : EvaluationCallPurpose::CompilerRepair;
+        for (std::size_t index = 0; index < request.messages.size(); ++index) {
+            const auto& message = request.messages[index];
+            std::string section = "message[" + std::to_string(index) + "].";
+            switch (message.role) {
+            case LlmRole::System: section += "system"; break;
+            case LlmRole::User: section += "user"; break;
+            case LlmRole::Assistant: section += "assistant"; break;
+            }
+            attempt.prompt_size.sections.push_back(
+                {std::move(section), message.content.size()});
+            attempt.prompt_size.total_utf8_bytes += message.content.size();
         }
+        if (request.json_schema) {
+            attempt.prompt_size.sections.push_back(
+                {"response_schema", request.json_schema->size()});
+            attempt.prompt_size.total_utf8_bytes += request.json_schema->size();
+        }
+
+        LlmResult result;
+        try {
+            result = provider_.generate(request, cancellation);
+        } catch (const std::exception& error) {
+            attempt.structured_response_status =
+                StructuredResponseStatus::ProviderException;
+            attempt.response_error = error.what();
+            attempts.push_back(std::move(attempt));
+            response_texts_.push_back(std::nullopt);
+            throw;
+        } catch (...) {
+            attempt.structured_response_status =
+                StructuredResponseStatus::ProviderException;
+            attempt.response_error = "non-standard provider exception";
+            attempts.push_back(std::move(attempt));
+            response_texts_.push_back(std::nullopt);
+            throw;
+        }
+        if (const auto* response = std::get_if<ProviderResponse>(&result)) {
+            attempt.provider_metrics = response->metrics;
+            attempt.provider_identity = response->identity;
+            identity = response->identity;
+            response_texts_.push_back(response->text);
+        } else {
+            attempt.structured_response_status = StructuredResponseStatus::ProviderError;
+            attempt.response_error = std::get<ProviderError>(result).message;
+            response_texts_.push_back(std::nullopt);
+        }
+        attempts.push_back(std::move(attempt));
         return result;
     }
 
+    void finalize(std::string_view expected_source, bool compare_semantics) {
+        for (std::size_t index = 0; index < attempts.size(); ++index) {
+            if (index >= response_texts_.size() || !response_texts_[index]) continue;
+            auto& attempt = attempts[index];
+            auto parsed = parse_proposal_response(*response_texts_[index]);
+            if (const auto* error = std::get_if<ProposalResponseError>(&parsed)) {
+                attempt.structured_response_status =
+                    error->code == ProposalResponseErrorCode::MalformedJson
+                        ? StructuredResponseStatus::MalformedJson
+                        : StructuredResponseStatus::SchemaViolation;
+                attempt.response_error = error->message;
+                continue;
+            }
+            attempt.structured_response_status = StructuredResponseStatus::Parsed;
+            const auto& payload = std::get<ProposalPayload>(parsed);
+            attempt.candidate_source = payload.script.text();
+            attempt.explanation = payload.explanation;
+            attempt.warnings = payload.warnings;
+            if (payload.script.text().empty()) continue;
+            const auto validation = validate_script(payload.script.text());
+            attempt.compiler_valid = validation.ok();
+            attempt.compiler_diagnostics = validation.diagnostics();
+            if (compare_semantics && validation.ok()) {
+                const auto comparison = compare_script_semantics(
+                    expected_source, payload.script.text());
+                attempt.semantic_status = comparison.status;
+                attempt.semantic_differences = comparison.differences;
+            }
+        }
+        response_texts_.clear();
+    }
+
     LlmProvider& provider_;
-    std::vector<std::optional<ProviderMetrics>> attempts;
+    std::vector<EvaluationAttempt> attempts;
     std::optional<ProviderIdentity> identity;
+
+private:
+    std::vector<std::optional<std::string>> response_texts_;
 };
 
 std::string lower_ascii(std::string value) {
@@ -76,6 +155,44 @@ std::string_view semantic_name(SemanticComparisonStatus status) {
     case SemanticComparisonStatus::NotEvaluated: return "not_evaluated";
     }
     return "not_evaluated";
+}
+
+std::string_view call_purpose_name(EvaluationCallPurpose purpose) {
+    switch (purpose) {
+    case EvaluationCallPurpose::Generation: return "generation";
+    case EvaluationCallPurpose::CompilerRepair: return "compiler_repair";
+    case EvaluationCallPurpose::RequirementCorrection: return "requirement_correction";
+    }
+    return "generation";
+}
+
+std::string_view structured_response_name(StructuredResponseStatus status) {
+    switch (status) {
+    case StructuredResponseStatus::Parsed: return "parsed";
+    case StructuredResponseStatus::MalformedJson: return "malformed_json";
+    case StructuredResponseStatus::SchemaViolation: return "schema_violation";
+    case StructuredResponseStatus::ProviderError: return "provider_error";
+    case StructuredResponseStatus::ProviderException: return "provider_exception";
+    }
+    return "provider_error";
+}
+
+std::string_view warm_cold_name(WarmColdStatus status) {
+    switch (status) {
+    case WarmColdStatus::Cold: return "cold";
+    case WarmColdStatus::Warm: return "warm";
+    case WarmColdStatus::Unknown: return "unknown";
+    }
+    return "unknown";
+}
+
+std::string_view diagnostic_category_name(DiagnosticCategory category) {
+    switch (category) {
+    case DiagnosticCategory::Syntax: return "syntax";
+    case DiagnosticCategory::Semantic: return "semantic";
+    case DiagnosticCategory::Lowering: return "lowering";
+    }
+    return "unknown";
 }
 
 std::string_view error_name(AgentErrorCode code) {
@@ -125,6 +242,54 @@ void write_optional_duration(std::ostream& output,
                              const std::optional<std::chrono::nanoseconds>& value) {
     if (value) output << value->count();
     else output << "null";
+}
+
+void write_provider_metrics(std::ostream& output,
+                            const std::optional<ProviderMetrics>& value) {
+    if (!value) {
+        output << "null";
+        return;
+    }
+    output << "{\"model_load_duration_ns\":";
+    write_optional_duration(output, value->model_load_duration);
+    output << ",\"prompt_evaluation_duration_ns\":";
+    write_optional_duration(output, value->prompt_evaluation_duration);
+    output << ",\"generation_duration_ns\":";
+    write_optional_duration(output, value->generation_duration);
+    output << ",\"input_token_count\":";
+    write_optional_number(output, value->input_token_count);
+    output << ",\"output_token_count\":";
+    write_optional_number(output, value->output_token_count);
+    output << '}';
+}
+
+void write_provider_identity(std::ostream& output,
+                             const std::optional<ProviderIdentity>& value) {
+    if (!value) {
+        output << "null";
+        return;
+    }
+    output << "{\"provider\":" << json_string(value->provider)
+           << ",\"model\":" << json_string(value->model)
+           << ",\"model_digest\":";
+    if (value->model_digest) output << json_string(*value->model_digest);
+    else output << "null";
+    output << '}';
+}
+
+void write_diagnostic(std::ostream& output,
+                      const ValidationDiagnostic& diagnostic) {
+    output << "{\"category\":"
+           << json_string(diagnostic_category_name(diagnostic.category))
+           << ",\"code\":" << json_string(diagnostic.code)
+           << ",\"message\":" << json_string(diagnostic.message)
+           << ",\"range\":{\"start\":{\"line\":"
+           << diagnostic.span.begin.line << ",\"column\":"
+           << diagnostic.span.begin.column << ",\"offset\":"
+           << diagnostic.span.begin.offset << "},\"end\":{\"line\":"
+           << diagnostic.span.end.line << ",\"column\":"
+           << diagnostic.span.end.column << ",\"offset\":"
+           << diagnostic.span.end.offset << "}}}";
 }
 
 ModelEvaluationSummary summarize(std::string model,
@@ -217,6 +382,12 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
         throw std::invalid_argument("timeout must be positive");
     }
     if (!clock) throw std::invalid_argument("an evaluation clock is required");
+    if (settings.prompt_configuration_id.empty()) {
+        throw std::invalid_argument("prompt configuration ID must not be empty");
+    }
+    if (settings.comparison_version.empty()) {
+        throw std::invalid_argument("comparison version must not be empty");
+    }
 
     std::set<std::string, std::less<>> distinct_models;
     for (const auto& model : settings.models) {
@@ -226,7 +397,9 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
         }
     }
 
-    EvaluationReport report{dataset.dataset_version,
+    EvaluationReport report{settings.prompt_configuration_id,
+                            settings.comparison_version,
+                            dataset.dataset_version,
                             settings.timestamp_utc,
                             settings.git_revision,
                             settings.temperature,
@@ -234,7 +407,9 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                             settings.timeout,
                             settings.maximum_repair_attempts,
                             {}, {}};
+    std::size_t run_order{};
     for (const auto& model : settings.models) {
+        bool first_model_run = true;
         for (std::size_t repetition = 1; repetition <= settings.repetitions; ++repetition) {
             for (const auto& golden : dataset.cases) {
                 CaseEvaluation item;
@@ -242,6 +417,10 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                 item.category = golden.metadata.category;
                 item.model = model;
                 item.repetition = repetition;
+                item.run_order = ++run_order;
+                item.warm_cold_status = first_model_run ? WarmColdStatus::Cold
+                                                        : WarmColdStatus::Warm;
+                first_model_run = false;
                 item.expected_supported = golden.metadata.expected_valid;
 
                 ObservingProvider observed{provider};
@@ -255,11 +434,19 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                 const auto finished = clock();
                 item.total_latency = std::chrono::duration_cast<std::chrono::milliseconds>(
                     finished - started);
-                item.provider_attempts = std::move(observed.attempts);
+                observed.finalize(golden.expected_source,
+                                  golden.metadata.expected_valid);
                 item.provider_identity = std::move(observed.identity);
-                item.repair_attempts = item.provider_attempts.empty()
+                item.attempts = std::move(observed.attempts);
+                item.provider_attempts.reserve(item.attempts.size());
+                for (const auto& attempt : item.attempts) {
+                    item.provider_attempts.push_back(attempt.provider_metrics);
+                }
+                item.repair_attempts = item.attempts.empty()
                                            ? 0
-                                           : item.provider_attempts.size() - 1;
+                                           : item.attempts.size() - 1;
+                item.first_attempt_valid = !item.attempts.empty() &&
+                                           item.attempts.front().compiler_valid == true;
 
                 const ScriptProposal* proposal = std::get_if<ScriptProposal>(&agent_result);
                 if (proposal != nullptr) {
@@ -275,10 +462,9 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
 
                 if (proposal != nullptr) {
                     item.generated_source = proposal->candidate_source().text();
+                    item.final_warnings = proposal->warnings();
                     const auto validation = validate_script(*item.generated_source);
                     item.final_valid = validation.ok();
-                    item.first_attempt_valid = item.final_valid &&
-                                               item.provider_attempts.size() == 1;
                     if (golden.metadata.expected_valid && item.final_valid) {
                         item.semantic_status = compare_script_semantics(
                                                    golden.expected_source,
@@ -303,8 +489,11 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
 }
 
 void write_evaluation_json(std::ostream& output, const EvaluationReport& report) {
-    output << "{\"schema\":\"horusrf.ai-evaluation\",\"version\":1"
+    output << "{\"schema\":\"horusrf.ai-evaluation\",\"version\":2"
            << ",\"dataset_version\":" << json_string(report.dataset_version)
+           << ",\"comparison_version\":" << json_string(report.comparison_version)
+           << ",\"prompt_configuration_id\":"
+           << json_string(report.prompt_configuration_id)
            << ",\"timestamp_utc\":" << json_string(report.timestamp_utc)
            << ",\"git_revision\":";
     if (report.git_revision) output << json_string(*report.git_revision);
@@ -321,6 +510,9 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"category\":" << json_string(item.category)
                << ",\"model\":" << json_string(item.model)
                << ",\"repetition\":" << item.repetition
+               << ",\"run_order\":" << item.run_order
+               << ",\"warm_cold_status\":"
+               << json_string(warm_cold_name(item.warm_cold_status))
                << ",\"expected_supported\":" << (item.expected_supported ? "true" : "false")
                << ",\"generation_status\":" << json_string(generation_name(item.generation_status))
                << ",\"first_attempt_valid\":" << (item.first_attempt_valid ? "true" : "false")
@@ -330,29 +522,72 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"repair_attempts\":" << item.repair_attempts
                << ",\"total_latency_ms\":" << item.total_latency.count()
                << ",\"provider_identity\":";
-        if (item.provider_identity) {
-            output << "{\"provider\":" << json_string(item.provider_identity->provider)
-                   << ",\"model\":" << json_string(item.provider_identity->model) << '}';
-        } else output << "null";
+        write_provider_identity(output, item.provider_identity);
         output
                << ",\"provider_attempts\":[";
         for (std::size_t attempt = 0; attempt < item.provider_attempts.size(); ++attempt) {
             if (attempt != 0) output << ',';
-            if (!item.provider_attempts[attempt]) {
-                output << "null";
-                continue;
+            write_provider_metrics(output, item.provider_attempts[attempt]);
+        }
+        output << "],\"attempts\":[";
+        for (std::size_t attempt_index = 0;
+             attempt_index < item.attempts.size(); ++attempt_index) {
+            if (attempt_index != 0) output << ',';
+            const auto& attempt = item.attempts[attempt_index];
+            output << "{\"number\":" << attempt.number
+                   << ",\"purpose\":" << json_string(call_purpose_name(attempt.purpose))
+                   << ",\"prompt_size\":{\"total_utf8_bytes\":"
+                   << attempt.prompt_size.total_utf8_bytes << ",\"sections\":[";
+            for (std::size_t section = 0;
+                 section < attempt.prompt_size.sections.size(); ++section) {
+                if (section != 0) output << ',';
+                output << "{\"section\":"
+                       << json_string(attempt.prompt_size.sections[section].section)
+                       << ",\"utf8_bytes\":"
+                       << attempt.prompt_size.sections[section].utf8_bytes << '}';
             }
-            const auto& metrics = *item.provider_attempts[attempt];
-            output << "{\"model_load_duration_ns\":";
-            write_optional_duration(output, metrics.model_load_duration);
-            output << ",\"prompt_evaluation_duration_ns\":";
-            write_optional_duration(output, metrics.prompt_evaluation_duration);
-            output << ",\"generation_duration_ns\":";
-            write_optional_duration(output, metrics.generation_duration);
-            output << ",\"input_token_count\":";
-            write_optional_number(output, metrics.input_token_count);
-            output << ",\"output_token_count\":";
-            write_optional_number(output, metrics.output_token_count);
+            output << "]},\"structured_response_status\":"
+                   << json_string(structured_response_name(
+                          attempt.structured_response_status))
+                   << ",\"response_error\":";
+            if (attempt.response_error) output << json_string(*attempt.response_error);
+            else output << "null";
+            output << ",\"candidate_source\":";
+            if (attempt.candidate_source) output << json_string(*attempt.candidate_source);
+            else output << "null";
+            output << ",\"explanation\":";
+            if (attempt.explanation) output << json_string(*attempt.explanation);
+            else output << "null";
+            output << ",\"warnings\":[";
+            for (std::size_t warning = 0; warning < attempt.warnings.size(); ++warning) {
+                if (warning != 0) output << ',';
+                output << json_string(attempt.warnings[warning]);
+            }
+            output << "],\"compiler_valid\":";
+            if (attempt.compiler_valid) {
+                output << (*attempt.compiler_valid ? "true" : "false");
+            } else output << "null";
+            output << ",\"compiler_diagnostics\":[";
+            for (std::size_t diagnostic = 0;
+                 diagnostic < attempt.compiler_diagnostics.size(); ++diagnostic) {
+                if (diagnostic != 0) output << ',';
+                write_diagnostic(output, attempt.compiler_diagnostics[diagnostic]);
+            }
+            output << "],\"semantic_status\":"
+                   << json_string(semantic_name(attempt.semantic_status))
+                   << ",\"semantic_differences\":[";
+            for (std::size_t difference = 0;
+                 difference < attempt.semantic_differences.size(); ++difference) {
+                if (difference != 0) output << ',';
+                const auto& value = attempt.semantic_differences[difference];
+                output << "{\"path\":" << json_string(value.path)
+                       << ",\"expected\":" << json_string(value.expected)
+                       << ",\"actual\":" << json_string(value.actual) << '}';
+            }
+            output << "],\"provider_metrics\":";
+            write_provider_metrics(output, attempt.provider_metrics);
+            output << ",\"provider_identity\":";
+            write_provider_identity(output, attempt.provider_identity);
             output << '}';
         }
         output << "],\"error\":";
@@ -363,6 +598,12 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
         output << ",\"generated_source\":";
         if (item.generated_source) output << json_string(*item.generated_source);
         else output << "null";
+        output << ",\"final_warnings\":[";
+        for (std::size_t warning = 0; warning < item.final_warnings.size(); ++warning) {
+            if (warning != 0) output << ',';
+            output << json_string(item.final_warnings[warning]);
+        }
+        output << ']';
         output << '}';
     }
     output << "],\"summaries\":[";

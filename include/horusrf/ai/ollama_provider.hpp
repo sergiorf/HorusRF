@@ -3,6 +3,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -78,6 +79,7 @@ private:
 
     OllamaConfig config_;
     std::shared_ptr<ollama::Transport> transport_;
+    std::unordered_map<std::string, std::string> model_digests_;
 };
 
 } // namespace horusrf::ai

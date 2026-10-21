@@ -16,10 +16,47 @@
 namespace horusrf::ai {
 
 enum class EvaluationGenerationStatus { Completed, Failed, Cancelled };
+enum class EvaluationCallPurpose { Generation, CompilerRepair, RequirementCorrection };
+enum class StructuredResponseStatus {
+    Parsed,
+    MalformedJson,
+    SchemaViolation,
+    ProviderError,
+    ProviderException,
+};
+enum class WarmColdStatus { Cold, Warm, Unknown };
 
 struct EvaluationError final {
     AgentErrorCode code{AgentErrorCode::Internal};
     std::string message;
+};
+
+struct PromptSectionSize final {
+    std::string section;
+    std::size_t utf8_bytes{};
+};
+
+struct PromptSize final {
+    std::size_t total_utf8_bytes{};
+    std::vector<PromptSectionSize> sections;
+};
+
+struct EvaluationAttempt final {
+    std::size_t number{};
+    EvaluationCallPurpose purpose{EvaluationCallPurpose::Generation};
+    PromptSize prompt_size;
+    StructuredResponseStatus structured_response_status{
+        StructuredResponseStatus::ProviderError};
+    std::optional<std::string> response_error;
+    std::optional<std::string> candidate_source;
+    std::optional<std::string> explanation;
+    std::vector<std::string> warnings;
+    std::optional<bool> compiler_valid;
+    std::vector<ValidationDiagnostic> compiler_diagnostics;
+    SemanticComparisonStatus semantic_status{SemanticComparisonStatus::NotEvaluated};
+    std::vector<SemanticDifference> semantic_differences;
+    std::optional<ProviderMetrics> provider_metrics;
+    std::optional<ProviderIdentity> provider_identity;
 };
 
 struct CaseEvaluation final {
@@ -27,6 +64,8 @@ struct CaseEvaluation final {
     std::string category;
     std::string model;
     std::size_t repetition{1};
+    std::size_t run_order{};
+    WarmColdStatus warm_cold_status{WarmColdStatus::Unknown};
     bool expected_supported{};
     EvaluationGenerationStatus generation_status{EvaluationGenerationStatus::Failed};
     bool first_attempt_valid{};
@@ -36,9 +75,11 @@ struct CaseEvaluation final {
     std::size_t repair_attempts{};
     std::chrono::milliseconds total_latency{};
     std::vector<std::optional<ProviderMetrics>> provider_attempts;
+    std::vector<EvaluationAttempt> attempts;
     std::optional<ProviderIdentity> provider_identity;
     std::optional<EvaluationError> error;
     std::optional<std::string> generated_source;
+    std::vector<std::string> final_warnings;
 };
 
 struct ModelEvaluationSummary final {
@@ -61,6 +102,8 @@ struct ModelEvaluationSummary final {
 };
 
 struct EvaluationReport final {
+    std::string prompt_configuration_id;
+    std::string comparison_version;
     std::string dataset_version;
     std::string timestamp_utc;
     std::optional<std::string> git_revision;
@@ -81,6 +124,8 @@ struct EvaluationSettings final {
     std::size_t repetitions{1};
     std::string timestamp_utc;
     std::optional<std::string> git_revision;
+    std::string prompt_configuration_id{"direct-dsl-v1"};
+    std::string comparison_version{"semantic-ir-v1"};
 };
 
 using EvaluationClock =

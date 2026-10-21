@@ -453,6 +453,7 @@ ModelListResult OllamaProvider::list_models_checked(
     }
     std::vector<std::string> names;
     names.reserve(models->array.size());
+    std::unordered_map<std::string, std::string> digests;
     for (const auto& model : models->array) {
         const std::string* name = string_member(model, "name");
         if (name == nullptr || name->empty()) {
@@ -460,7 +461,12 @@ ModelListResult OllamaProvider::list_models_checked(
                                  "an Ollama model entry is missing its name"};
         }
         names.push_back(*name);
+        if (const std::string* digest = string_member(model, "digest");
+            digest != nullptr && !digest->empty()) {
+            digests.emplace(*name, *digest);
+        }
     }
+    model_digests_ = std::move(digests);
     return names;
 }
 
@@ -565,7 +571,15 @@ LlmResult OllamaProvider::generate_checked(const LlmRequest& request,
                              metrics.prompt_evaluation_duration ||
                              metrics.generation_duration || metrics.input_token_count ||
                              metrics.output_token_count;
-    return ProviderResponse{*content, {"ollama", *model},
+    std::optional<std::string> model_digest;
+    if (const auto found = model_digests_.find(*model);
+        found != model_digests_.end()) {
+        model_digest = found->second;
+    } else if (const auto requested = model_digests_.find(request.model);
+               requested != model_digests_.end()) {
+        model_digest = requested->second;
+    }
+    return ProviderResponse{*content, {"ollama", *model, std::move(model_digest)},
                             has_metrics ? std::optional{metrics} : std::nullopt};
 }
 

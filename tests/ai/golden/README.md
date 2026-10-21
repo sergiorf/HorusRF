@@ -54,3 +54,12 @@ then invokes `horusrf-ai-eval`. Reports default to timestamped JSON files under
 `-TimeoutSeconds`, `-MaxOutputTokens`, `-MaxRepairs`, or `-Endpoint` to override
 the corresponding evaluation setting. The script checks installed models but
 does not download them or start Ollama.
+
+Evaluation reports use `horusrf.ai-evaluation` schema version 2. They are
+write-only artifacts; the repository has no report reader, so no schema-v1
+reader is required. Version 2 retains every provider attempt, structured-response
+status, candidate, compiler diagnostics, strict semantic differences, prompt
+UTF-8 sizes, provider telemetry, run order, cold/warm classification, and model
+digest when Ollama reports one. The first evaluated case for each model is
+classified cold and subsequent cases warm; per-call model-load telemetry remains
+available to identify later reloads.

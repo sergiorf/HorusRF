@@ -227,6 +227,24 @@ void model_discovery_test() {
              ai::ProviderErrorCode::MalformedResponse);
 }
 
+void model_digest_test() {
+    auto transport = std::make_shared<FakeTransport>(
+        std::vector<ai::ollama::HttpResult>{
+            ai::ollama::HttpResponse{
+                200,
+                R"({"models":[{"name":"qwen2.5-coder:7b","digest":"sha256:abc123"}]})"},
+            ai::ollama::HttpResponse{
+                200,
+                R"({"model":"qwen2.5-coder:7b","message":{"role":"assistant","content":"proposal"},"done":true,"done_reason":"stop"})"},
+        });
+    ai::OllamaProvider provider{{}, transport};
+    CHECK(std::holds_alternative<std::vector<std::string>>(provider.list_models()));
+    const auto generated = provider.generate(request());
+    CHECK(std::holds_alternative<ai::ProviderResponse>(generated));
+    CHECK_EQ(std::get<ai::ProviderResponse>(generated).identity.model_digest,
+             std::optional<std::string>{"sha256:abc123"});
+}
+
 void transport_exception_test() {
     ai::OllamaProvider provider{{}, std::make_shared<ThrowingTransport>()};
     const ai::LlmResult result = provider.generate(request());
@@ -261,6 +279,7 @@ int main() {
         transport_error_mapping_test();
         cancellation_test();
         model_discovery_test();
+        model_digest_test();
         transport_exception_test();
         scripted_provider_test();
         std::cout << "All HorusRF AI provider tests passed\n";
