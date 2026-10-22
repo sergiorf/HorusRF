@@ -57,6 +57,17 @@ Studio provides editing, validation, execution, result visualization, and option
 local AI-assisted authoring through Ollama. On Windows, `scripts/run-studio.cmd`
 configures, builds, tests, and launches it.
 
+To start Ollama and preload the default Qwen model on Windows, run:
+
+```powershell
+.\scripts\start-ollama.cmd
+```
+
+The launcher defaults to GPU mode. If Ollama is already running, it restarts the
+local Ollama app and server so GPU selection is applied when the new server starts.
+Use `-Processor Auto` to reuse a running server and allow Ollama to select the
+processor, or `-Processor Cpu -RestartServer` for an explicit CPU-only restart.
+
 ## License
 
 The language, compiler, runtime, simulator, examples, and CLI are licensed under

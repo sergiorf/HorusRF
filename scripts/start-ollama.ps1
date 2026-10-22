@@ -148,8 +148,14 @@ if (-not $ollama) {
 
 $serverProcess = $null
 $serverWasRunning = Test-OllamaReady
-if ($serverWasRunning -and $RestartServer) {
-    Write-Host "Stopping the existing local Ollama app and server."
+if ($serverWasRunning -and ($Processor -eq "Gpu" -or $RestartServer)) {
+    $restartReason = if ($Processor -eq "Gpu") {
+        "GPU mode must be applied when the server starts"
+    }
+    else {
+        "a server restart was requested"
+    }
+    Write-Host "Stopping the existing local Ollama app and server because $restartReason."
     Stop-LocalOllama -Command $ollama
     $serverWasRunning = $false
 }
@@ -218,9 +224,6 @@ if (-not $loadedModel) {
 
 $gpuBytes = if ($null -eq $loadedModel.size_vram) { 0 } else { [Int64]$loadedModel.size_vram }
 if ($Processor -eq "Gpu" -and $gpuBytes -le 0) {
-    if ($serverWasRunning) {
-        throw "The existing Ollama server loaded '$Model' without GPU memory. GPU selection is fixed when the server starts; re-run with -Processor Gpu -RestartServer."
-    }
     throw "Model '$Model' loaded without GPU memory. Check Ollama's GPU compatibility and driver requirements, or use -Processor Auto or Cpu."
 }
 if ($Processor -eq "Cpu" -and $gpuBytes -gt 0) {
