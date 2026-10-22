@@ -1,0 +1,7 @@
+{
+  "schema":"horusrf.golden-case","version":3,"id":"negative_fractional_reference",
+  "description":"Spelled negative fractional reference power","category":"negative_values","difficulty":"basic",
+  "tags":["negative","fractional","fixed_frequency"],"expected_valid":true,"expected_support":"supported","comparison":"semantic",
+  "required_capabilities":["frequency_sweep","power_measurement","calibration"],
+  "requirements":[{"id":"reference-power","kind":"reference_power"},{"id":"frequency","kind":"sweep","dimension":"frequency","constrain_step":false},{"id":"power","kind":"measurement","operation":"power"},{"id":"calibration","kind":"calibration"}]
+}

@@ -1,0 +1,5 @@
+{
+  "schema":"horusrf.golden-case","version":3,"id":"calibration_sign_paraphrase","description":"Calibration sign convention expressed indirectly","category":"sign_convention","difficulty":"intermediate","tags":["sign","calibration","paraphrase"],"expected_valid":true,"expected_support":"supported","comparison":"semantic",
+  "required_capabilities":["frequency_sweep","power_measurement","calibration"],
+  "requirements":[{"id":"reference","kind":"reference_power"},{"id":"frequency","kind":"sweep","dimension":"frequency","constrain_step":false},{"id":"observed","kind":"measurement","operation":"power","require_name":true},{"id":"calibration","kind":"calibration"}]
+}

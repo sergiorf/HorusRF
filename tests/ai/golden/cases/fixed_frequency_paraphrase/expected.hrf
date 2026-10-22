@@ -1,0 +1,9 @@
+characterize fixed_frequency_paraphrase {
+  reference power = -3 dBm
+  sweep frequency 433.92 MHz .. 433.92 MHz step 1 MHz
+  measure received_power = power
+  derive calibration point_cal {
+    correction = reference.power - received_power
+    over frequency
+  }
+}

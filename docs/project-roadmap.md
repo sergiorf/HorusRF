@@ -154,7 +154,12 @@ from 2,048 to 512 tokens preserves correctness but does not consistently improve
 latency across both models, so defaults remain unchanged. The measurements and
 decision are recorded in the
 [M6Q.6 performance experiment](ai-generation-quality-performance-experiment.md).
-M6Q.7, dataset expansion and trend reporting, is next.
+M6Q.7 implementation was completed on 2026-10-23. Dataset 2.0.0 expands the
+curated suite from 17 to 30 cases while retaining the original cases as its
+baseline prefix. Evaluation now reports typed support matches, per-case persistence,
+success variability, repair/correction rates, and per-case median/P90 latency. Its
+offline acceptance gate passes; independent fixture review and the opt-in 3–5
+repetition live run and report review remain before the milestone can be closed.
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

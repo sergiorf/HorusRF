@@ -1,0 +1,10 @@
+characterize calibration_sign_paraphrase {
+  reference power = -20 dBm
+  sweep frequency 2 GHz .. 2 GHz step 1 MHz
+  measure observed = power
+  derive deviation = observed - reference.power
+  derive calibration cancel_deviation {
+    correction = -deviation
+    over frequency
+  }
+}

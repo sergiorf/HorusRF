@@ -1,0 +1,5 @@
+{
+  "schema":"horusrf.golden-case","version":3,"id":"negative_temperature_range","description":"Negative Celsius endpoints with positive delta step","category":"negative_values","difficulty":"intermediate","tags":["negative","temperature","combined"],"expected_valid":true,"expected_support":"supported","comparison":"semantic",
+  "required_capabilities":["frequency_sweep","temperature_sweep","power_measurement","calibration_surface"],
+  "requirements":[{"id":"reference","kind":"reference_power"},{"id":"frequency","kind":"sweep","dimension":"frequency"},{"id":"temperature","kind":"sweep","dimension":"temperature"},{"id":"power","kind":"measurement","operation":"power"},{"id":"calibration","kind":"calibration"}]
+}

@@ -1,0 +1,1 @@
+Characterize a -7 dBm reference from 2.4 GHz through 2500 MHz in 50 MHz increments. Measure output power and produce a frequency calibration.

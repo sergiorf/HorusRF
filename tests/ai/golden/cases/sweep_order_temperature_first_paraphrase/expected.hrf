@@ -1,0 +1,10 @@
+characterize sweep_order_temperature_first_paraphrase {
+  reference power = -6 dBm
+  sweep temperature 0 degC .. 20 degC step 10 deltaC
+  sweep frequency 1.8 GHz .. 1.9 GHz step 50 MHz
+  measure power
+  derive calibration ordered_surface {
+    correction = reference.power - power
+    over temperature, frequency
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "schema":"horusrf.golden-case","version":3,"id":"inclusive_frequency_error","description":"Inclusive frequency-error assertion","category":"strictness","difficulty":"intermediate","tags":["inclusive","frequency_error","assertion"],"expected_valid":true,"expected_support":"supported","comparison":"semantic",
+  "required_capabilities":["frequency_sweep","power_measurement","frequency_error_measurement","assertion","calibration"],
+  "requirements":[{"id":"reference","kind":"reference_power"},{"id":"frequency","kind":"sweep","dimension":"frequency","constrain_step":false},{"id":"power","kind":"measurement","operation":"power"},{"id":"offset","kind":"measurement","operation":"frequency_error","require_name":true},{"id":"offset-limit","kind":"assertion","ordinal":1},{"id":"calibration","kind":"calibration"}]
+}

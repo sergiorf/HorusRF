@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "horusrf/ai/golden_dataset.hpp"
+#include "horusrf/ai/support_assessment.hpp"
 
 namespace {
 
@@ -31,6 +32,15 @@ std::string manifest(std::string_view cases) {
     return std::string{"{\n  \"schema\": \"horusrf.golden-dataset\",\n"}
         + "  \"version\": 1,\n  \"dataset_version\": \"test\",\n"
         + "  \"cases\": [" + std::string{cases} + "]\n}\n";
+}
+
+std::string expanded_manifest(std::string_view cases,
+                              std::size_t baseline_case_count = 1) {
+    return std::string{"{\n  \"schema\": \"horusrf.golden-dataset\",\n"}
+        + "  \"version\": 2,\n  \"dataset_version\": \"2.0.0\",\n"
+        + "  \"baseline_dataset_version\": \"1.0.0\",\n"
+        + "  \"baseline_case_count\": " + std::to_string(baseline_case_count)
+        + ",\n  \"cases\": [" + std::string{cases} + "]\n}\n";
 }
 
 std::string metadata(std::string_view id) {
@@ -72,24 +82,51 @@ void checked_in_dataset_test() {
         throw std::runtime_error(result.diagnostics.front().path.string() + ": " +
                                  result.diagnostics.front().message);
     }
-    CHECK_EQ(result.dataset->dataset_version, "1.0.0");
-    CHECK_EQ(result.dataset->cases.size(), std::size_t{17});
+    CHECK_EQ(result.dataset->dataset_version, "2.0.0");
+    CHECK_EQ(result.dataset->baseline_dataset_version,
+             std::optional<std::string>{"1.0.0"});
+    CHECK_EQ(result.dataset->baseline_case_count, std::size_t{17});
+    CHECK_EQ(result.dataset->cases.size(), std::size_t{30});
     std::size_t supported{};
     std::size_t unsupported{};
+    std::size_t version_two{};
+    std::size_t version_three{};
+    std::size_t partially_supported{};
+    std::size_t uncertain{};
     for (const auto& test_case : result.dataset->cases) {
         CHECK(!test_case.prompt.empty());
         CHECK(!test_case.expected_source.empty());
-        CHECK_EQ(test_case.metadata.requirement_schema_version, std::size_t{2});
+        version_two += test_case.metadata.requirement_schema_version == 2 ? 1U : 0U;
+        version_three += test_case.metadata.requirement_schema_version == 3 ? 1U : 0U;
+        partially_supported += test_case.metadata.expected_support ==
+                                   ai::SupportAssessmentStatus::PartiallySupported
+                                   ? 1U : 0U;
+        uncertain += test_case.metadata.expected_support ==
+                         ai::SupportAssessmentStatus::Uncertain
+                         ? 1U : 0U;
         if (test_case.metadata.expected_valid) {
             ++supported;
             CHECK(!test_case.metadata.requirements.empty());
+            const auto facts = ai::compile_program_facts(test_case.expected_source);
+            CHECK(facts.has_value());
+            CHECK_EQ(ai::verify_requirements(test_case.metadata.requirements, *facts).status,
+                     ai::RequirementSatisfactionStatus::Satisfied);
         } else {
             ++unsupported;
             CHECK(test_case.metadata.requirements.empty());
         }
+        if (test_case.metadata.id == "mixed_supported_unsupported_sweeps" ||
+            test_case.metadata.id == "ambiguous_power_range") {
+            CHECK_EQ(ai::assess_instruction_support(test_case.prompt).status,
+                     test_case.metadata.expected_support);
+        }
     }
-    CHECK_EQ(supported, std::size_t{16});
-    CHECK_EQ(unsupported, std::size_t{1});
+    CHECK_EQ(supported, std::size_t{28});
+    CHECK_EQ(unsupported, std::size_t{2});
+    CHECK_EQ(version_two, std::size_t{17});
+    CHECK_EQ(version_three, std::size_t{13});
+    CHECK_EQ(partially_supported, std::size_t{1});
+    CHECK_EQ(uncertain, std::size_t{1});
 }
 
 void malformed_metadata_test() {
@@ -131,6 +168,34 @@ void unlisted_directory_test() {
     CHECK(has_message(result, "case directory is not listed in manifest"));
 }
 
+void manifest_migration_and_version_rejection_test() {
+    const auto migrated = fixture_root / "manifest-v2";
+    write(migrated / "manifest.json", expanded_manifest("\"case_one\""));
+    add_case(migrated, "case_one", "case_one");
+    const auto migrated_result = ai::load_golden_dataset(migrated);
+    CHECK(migrated_result.ok());
+    CHECK_EQ(migrated_result.dataset->baseline_dataset_version,
+             std::optional<std::string>{"1.0.0"});
+    CHECK_EQ(migrated_result.dataset->baseline_case_count, std::size_t{1});
+
+    const auto future = fixture_root / "manifest-future";
+    write(future / "manifest.json",
+          "{\"schema\":\"horusrf.golden-dataset\",\"version\":99,"
+          "\"dataset_version\":\"future\",\"cases\":[\"case_one\"]}\n");
+    const auto future_result = ai::load_golden_dataset(future);
+    CHECK(!future_result.ok());
+    CHECK(has_message(future_result, "unsupported manifest version"));
+
+    const auto invalid_count = fixture_root / "manifest-count";
+    write(invalid_count / "manifest.json",
+          expanded_manifest("\"case_one\"", 2));
+    add_case(invalid_count, "case_one", "case_one");
+    const auto invalid_count_result = ai::load_golden_dataset(invalid_count);
+    CHECK(!invalid_count_result.ok());
+    CHECK(has_message(invalid_count_result,
+                      "baseline_case_count exceeds the number of manifest cases"));
+}
+
 } // namespace
 
 int main() {
@@ -142,6 +207,7 @@ int main() {
         duplicate_identifier_test();
         invalid_expected_script_test();
         unlisted_directory_test();
+        manifest_migration_and_version_rejection_test();
         std::cout << "All HorusRF golden dataset tests passed\n";
         return 0;
     } catch (const std::exception& error) {

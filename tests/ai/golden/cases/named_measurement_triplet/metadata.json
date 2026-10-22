@@ -1,0 +1,5 @@
+{
+  "schema":"horusrf.golden-case","version":3,"id":"named_measurement_triplet","description":"All measurement operations with explicit names","category":"names","difficulty":"intermediate","tags":["names","measurements","combined"],"expected_valid":true,"expected_support":"supported","comparison":"semantic",
+  "required_capabilities":["frequency_sweep","power_measurement","evm_measurement","frequency_error_measurement","calibration"],
+  "requirements":[{"id":"reference","kind":"reference_power"},{"id":"frequency","kind":"sweep","dimension":"frequency"},{"id":"level","kind":"measurement","operation":"power","require_name":true},{"id":"quality","kind":"measurement","operation":"evm","require_name":true},{"id":"offset","kind":"measurement","operation":"frequency_error","require_name":true},{"id":"calibration","kind":"calibration"}]
+}

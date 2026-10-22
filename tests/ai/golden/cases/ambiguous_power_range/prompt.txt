@@ -1,0 +1,1 @@
+Characterize a power range suitable for a receiver sensitivity check.

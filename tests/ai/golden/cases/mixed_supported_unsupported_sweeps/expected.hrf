@@ -1,0 +1,9 @@
+characterize mixed_supported_unsupported_sweeps {
+  reference power = -10 dBm
+  sweep frequency 900 MHz .. 920 MHz step 10 MHz
+  measure power
+  derive calibration partial_cal {
+    correction = reference.power - power
+    over frequency
+  }
+}

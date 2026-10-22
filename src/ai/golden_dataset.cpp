@@ -429,14 +429,24 @@ ParsedMetadata parse_metadata(const std::string& source) {
     const auto object = require_object(JsonParser{source}.parse(), "metadata");
     const auto schema = object.find("schema");
     const bool version_two = schema != object.end();
+    std::size_t schema_version = 1;
     if (version_two) {
-        require_exact_members(object, {"schema", "version", "id", "description",
-                                       "category", "difficulty", "tags",
-                                       "expected_valid", "comparison",
-                                       "required_capabilities", "requirements"});
+        const auto version = require_number(object, "version");
         if (require_string(object, "schema") != "horusrf.golden-case" ||
-            require_number(object, "version") != 2.0) {
+            (version != 2.0 && version != 3.0)) {
             throw std::runtime_error("unsupported golden case schema version");
+        }
+        schema_version = static_cast<std::size_t>(version);
+        if (schema_version == 2) {
+            require_exact_members(object, {"schema", "version", "id", "description",
+                                           "category", "difficulty", "tags",
+                                           "expected_valid", "comparison",
+                                           "required_capabilities", "requirements"});
+        } else {
+            require_exact_members(object, {"schema", "version", "id", "description",
+                                           "category", "difficulty", "tags",
+                                           "expected_valid", "expected_support", "comparison",
+                                           "required_capabilities", "requirements"});
         }
     } else {
         require_exact_members(object, {"id", "description", "category", "difficulty",
@@ -452,9 +462,27 @@ ParsedMetadata parse_metadata(const std::string& source) {
         require_bool(object, "expected_valid"),
         require_string(object, "comparison"),
         require_string_array(object, "required_capabilities"),
-        version_two ? std::size_t{2} : std::size_t{1},
+        schema_version,
         {},
     };
+    if (schema_version == 3) {
+        const auto expected_support = require_string(object, "expected_support");
+        if (expected_support == "supported") {
+            metadata.expected_support = SupportAssessmentStatus::Supported;
+        } else if (expected_support == "partially_supported") {
+            metadata.expected_support = SupportAssessmentStatus::PartiallySupported;
+        } else if (expected_support == "unsupported") {
+            metadata.expected_support = SupportAssessmentStatus::Unsupported;
+        } else if (expected_support == "uncertain") {
+            metadata.expected_support = SupportAssessmentStatus::Uncertain;
+        } else {
+            throw std::runtime_error("unsupported expected_support '" + expected_support + "'");
+        }
+    } else {
+        metadata.expected_support = metadata.expected_valid
+                                        ? SupportAssessmentStatus::Supported
+                                        : SupportAssessmentStatus::Unsupported;
+    }
     const std::set<std::string_view> difficulties{"basic", "intermediate", "advanced"};
     if (!difficulties.contains(metadata.difficulty)) {
         throw std::runtime_error("unsupported difficulty '" + metadata.difficulty + "'");
@@ -465,6 +493,16 @@ ParsedMetadata parse_metadata(const std::string& source) {
     if (metadata.expected_valid != (metadata.comparison == "semantic")) {
         throw std::runtime_error(
             "expected_valid must be true for semantic cases and false for unsupported cases");
+    }
+    if (schema_version == 3) {
+        const bool expects_program =
+            metadata.expected_support == SupportAssessmentStatus::Supported ||
+            metadata.expected_support == SupportAssessmentStatus::PartiallySupported;
+        if (metadata.expected_valid != expects_program) {
+            throw std::runtime_error(
+                "expected_valid must be true for supported or partially supported "
+                "cases and false for unsupported or uncertain cases");
+        }
     }
     std::vector<RequirementSelector> selectors;
     if (version_two && metadata.expected_valid) {
@@ -521,20 +559,36 @@ std::vector<RequirementClause> materialize_requirements(
 struct Manifest final {
     std::string dataset_version;
     std::vector<std::string> cases;
+    std::optional<std::string> baseline_dataset_version;
+    std::size_t baseline_case_count{};
 };
 
 Manifest parse_manifest(const std::string& source) {
     const auto object = require_object(JsonParser{source}.parse(), "manifest");
-    require_exact_members(object, {"schema", "version", "dataset_version", "cases"});
     if (require_string(object, "schema") != "horusrf.golden-dataset") {
         throw std::runtime_error("unsupported manifest schema");
     }
     const auto* version = std::get_if<double>(&require_member(object, "version").value);
-    if (version == nullptr || *version != 1.0) {
+    if (version == nullptr || (*version != 1.0 && *version != 2.0)) {
         throw std::runtime_error("unsupported manifest version");
     }
+    if (*version == 1.0) {
+        require_exact_members(object, {"schema", "version", "dataset_version", "cases"});
+        return {require_string(object, "dataset_version"),
+                require_string_array(object, "cases"), std::nullopt, 0};
+    }
+    require_exact_members(object, {"schema", "version", "dataset_version",
+                                   "baseline_dataset_version", "baseline_case_count",
+                                   "cases"});
+    const auto baseline_count = require_number(object, "baseline_case_count");
+    if (baseline_count <= 0.0 ||
+        baseline_count != static_cast<double>(static_cast<std::size_t>(baseline_count))) {
+        throw std::runtime_error("baseline_case_count must be a positive integer");
+    }
     return {require_string(object, "dataset_version"),
-            require_string_array(object, "cases")};
+            require_string_array(object, "cases"),
+            require_string(object, "baseline_dataset_version"),
+            static_cast<std::size_t>(baseline_count)};
 }
 
 void add_diagnostic(GoldenDatasetResult& result, const std::filesystem::path& path,
@@ -561,7 +615,13 @@ GoldenDatasetResult load_golden_dataset(const std::filesystem::path& root) {
         return result;
     }
 
-    GoldenDataset dataset{manifest.dataset_version, {}};
+    GoldenDataset dataset{manifest.dataset_version, {},
+                          manifest.baseline_dataset_version,
+                          manifest.baseline_case_count};
+    if (dataset.baseline_case_count > manifest.cases.size()) {
+        add_diagnostic(result, manifest_path,
+                       "baseline_case_count exceeds the number of manifest cases");
+    }
     std::set<std::string, std::less<>> identifiers;
     std::set<std::string, std::less<>> manifest_directories;
     for (const auto& entry : manifest.cases) {

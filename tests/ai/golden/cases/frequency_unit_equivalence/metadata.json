@@ -1,0 +1,13 @@
+{
+  "schema": "horusrf.golden-case", "version": 3,
+  "id": "frequency_unit_equivalence", "description": "Equivalent frequency units in one sweep",
+  "category": "units", "difficulty": "basic", "tags": ["units", "frequency", "paraphrase"],
+  "expected_valid": true, "expected_support": "supported", "comparison": "semantic",
+  "required_capabilities": ["frequency_sweep", "power_measurement", "calibration"],
+  "requirements": [
+    {"id":"reference-power","kind":"reference_power"},
+    {"id":"frequency-sweep","kind":"sweep","dimension":"frequency"},
+    {"id":"power","kind":"measurement","operation":"power"},
+    {"id":"calibration","kind":"calibration"}
+  ]
+}

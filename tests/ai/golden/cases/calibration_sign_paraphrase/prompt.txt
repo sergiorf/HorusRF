@@ -1,0 +1,1 @@
+At 2 GHz and a nominal -20 dBm, measure output as observed. Define deviation as observed minus nominal, and make the correction cancel that deviation.

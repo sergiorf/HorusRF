@@ -1,0 +1,5 @@
+{
+  "schema":"horusrf.golden-case","version":3,"id":"fixed_frequency_paraphrase","description":"Paraphrased single frequency point","category":"paraphrase","difficulty":"basic","tags":["fixed_frequency","name","paraphrase"],"expected_valid":true,"expected_support":"supported","comparison":"semantic",
+  "required_capabilities":["frequency_sweep","power_measurement","calibration"],
+  "requirements":[{"id":"reference","kind":"reference_power"},{"id":"frequency","kind":"sweep","dimension":"frequency","constrain_step":false},{"id":"received","kind":"measurement","operation":"power","require_name":true},{"id":"calibration","kind":"calibration"}]
+}

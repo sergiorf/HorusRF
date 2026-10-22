@@ -1,0 +1,3 @@
+{
+  "schema":"horusrf.golden-case","version":3,"id":"ambiguous_power_range","description":"Ambiguous power range retained as uncertain","category":"ambiguity","difficulty":"basic","tags":["ambiguity","power_range","uncertain"],"expected_valid":false,"expected_support":"uncertain","comparison":"unsupported","required_capabilities":["uncertain_support_reporting"],"requirements":[]
+}

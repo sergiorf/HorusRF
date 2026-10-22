@@ -1,0 +1,1 @@
+With a -18 dBm reference, sweep 100 MHz to 120 MHz by 10 MHz, then temperature from 273.15 K to 293.15 K by 10 deltaK. Measure power and calibrate on frequency and temperature.

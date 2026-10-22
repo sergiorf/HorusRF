@@ -1,0 +1,11 @@
+characterize inclusive_frequency_error {
+  reference power = -8 dBm
+  sweep frequency 5.8 GHz .. 5.8 GHz step 1 MHz
+  measure power
+  measure offset = frequency_error
+  assert abs(offset) <= 25 kHz
+  derive calibration inclusive_cal {
+    correction = reference.power - power
+    over frequency
+  }
+}

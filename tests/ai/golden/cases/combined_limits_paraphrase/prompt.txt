@@ -1,0 +1,1 @@
+Check 2.3 to 2.5 GHz in 100 MHz increments at -25 dBm. Record output as actual and EVM as quality. The magnitude of actual's error must not exceed 1 dB, while quality must remain under 3 percent. Create the frequency calibration.

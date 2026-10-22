@@ -1,0 +1,1 @@
+Use a reference level of minus twelve and a half dBm at 915 MHz. Record power and calibrate it.

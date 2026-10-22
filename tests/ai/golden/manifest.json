@@ -1,7 +1,9 @@
 {
   "schema": "horusrf.golden-dataset",
-  "version": 1,
-  "dataset_version": "1.0.0",
+  "version": 2,
+  "dataset_version": "2.0.0",
+  "baseline_dataset_version": "1.0.0",
+  "baseline_case_count": 17,
   "cases": [
     "frequency_sweep_basic",
     "frequency_sweep_natural_language_variant",
@@ -19,6 +21,19 @@
     "derived_measurement_chain",
     "qualification_boolean_alias",
     "temperature_first_multidimensional",
-    "fixed_frequency_power_sweep_unsupported"
+    "fixed_frequency_power_sweep_unsupported",
+    "frequency_unit_equivalence",
+    "negative_fractional_reference",
+    "strict_power_limit",
+    "named_measurement_triplet",
+    "calibration_sign_paraphrase",
+    "fixed_frequency_paraphrase",
+    "mixed_supported_unsupported_sweeps",
+    "ambiguous_power_range",
+    "temperature_kelvin_units",
+    "inclusive_frequency_error",
+    "sweep_order_temperature_first_paraphrase",
+    "combined_limits_paraphrase",
+    "negative_temperature_range"
   ]
 }

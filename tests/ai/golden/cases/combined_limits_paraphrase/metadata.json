@@ -1,0 +1,5 @@
+{
+  "schema":"horusrf.golden-case","version":3,"id":"combined_limits_paraphrase","description":"Combined named measurements and mixed comparison strictness","category":"combined_clauses","difficulty":"advanced","tags":["combined","strictness","paraphrase"],"expected_valid":true,"expected_support":"supported","comparison":"semantic",
+  "required_capabilities":["frequency_sweep","power_measurement","evm_measurement","assertion","calibration"],
+  "requirements":[{"id":"reference","kind":"reference_power"},{"id":"frequency","kind":"sweep","dimension":"frequency"},{"id":"actual","kind":"measurement","operation":"power","require_name":true},{"id":"quality","kind":"measurement","operation":"evm","require_name":true},{"id":"power-limit","kind":"assertion","ordinal":1},{"id":"quality-limit","kind":"assertion","ordinal":2},{"id":"calibration","kind":"calibration"}]
+}

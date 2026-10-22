@@ -20,6 +20,7 @@ struct GoldenCaseMetadata final {
     std::vector<std::string> required_capabilities;
     std::size_t requirement_schema_version{1};
     std::vector<RequirementClause> requirements;
+    SupportAssessmentStatus expected_support{SupportAssessmentStatus::Supported};
 };
 
 struct GoldenCase final {
@@ -32,6 +33,8 @@ struct GoldenCase final {
 struct GoldenDataset final {
     std::string dataset_version;
     std::vector<GoldenCase> cases;
+    std::optional<std::string> baseline_dataset_version;
+    std::size_t baseline_case_count{};
 };
 
 struct GoldenDatasetDiagnostic final {

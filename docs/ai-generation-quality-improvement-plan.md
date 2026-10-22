@@ -1,6 +1,8 @@
 # HorusRF AI generation quality improvement plan
 
-**Status:** M6Q.0 through M6Q.6 completed on 2026-10-23; M6Q.7 is next
+**Status:** M6Q.0 through M6Q.6 completed on 2026-10-23; M6Q.7 implementation
+completed on 2026-10-23, with fixture review and the opt-in live acceptance run
+pending
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
 **Reviewed baseline artifact:** `build/ai-evaluation/results-20261021-193036.json`
@@ -521,6 +523,15 @@ on average. No performance variant is promoted.
 
 ### M6Q.7 — Dataset expansion and trend reporting
 
+**Status:** Implementation completed on 2026-10-23. Dataset 2.0.0 contains 30
+curated cases while preserving the 17 dataset-1.0.0 cases as an identified
+baseline prefix. Metadata v3 adds typed support expectations for partial and
+uncertain cases. Evaluation now emits versioned per-case persistence, success
+variability, repair/correction rates, typed support matches, and per-case
+median/P90 latency. Offline acceptance tests pass; the opt-in 3–5 repetition live
+run across both supported models and independent review of the new fixtures remain
+pending. No new model-quality claim is made until both are reviewed.
+
 **Changes**
 
 - Expand only after requirement metadata and reporting stabilize.
@@ -553,6 +564,10 @@ human review and never promote model output automatically.
 The suite contains roughly 30–40 reviewed cases, the original cases remain
 addressable, and reports compare revisions without conflating changes in dataset,
 oracle, prompt, or model.
+
+**Outcome:** Code and curated-data expansion are complete. The remaining exit-gate
+activities are independent fixture review plus live repeated evaluation and review
+of its durable trend report.
 
 ## 6. Dependencies and review boundaries
 

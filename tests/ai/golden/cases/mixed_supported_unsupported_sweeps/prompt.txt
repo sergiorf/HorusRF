@@ -1,0 +1,1 @@
+Sweep frequency from 900 MHz to 920 MHz in 10 MHz steps and also sweep transmit power from -20 dBm to 0 dBm. Use -10 dBm as the reference, measure power, and calibrate across frequency.

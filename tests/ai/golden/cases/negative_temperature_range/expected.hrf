@@ -1,0 +1,10 @@
+characterize negative_temperature_range {
+  reference power = -30 dBm
+  sweep frequency 750 MHz .. 760 MHz step 10 MHz
+  sweep temperature -30 degC .. -10 degC step 10 deltaC
+  measure power
+  derive calibration cold_surface {
+    correction = reference.power - power
+    over frequency, temperature
+  }
+}

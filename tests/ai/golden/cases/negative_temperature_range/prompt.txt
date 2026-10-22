@@ -1,0 +1,1 @@
+Sweep 750 MHz to 760 MHz by 10 MHz, and test from minus 30 degC to minus 10 degC in 10 deltaC steps. The reference is -30 dBm; measure power and make a two-axis calibration.

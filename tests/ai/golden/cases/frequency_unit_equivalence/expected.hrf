@@ -1,0 +1,9 @@
+characterize frequency_unit_equivalence {
+  reference power = -7 dBm
+  sweep frequency 2.4 GHz .. 2500 MHz step 50 MHz
+  measure power
+  derive calibration unit_equivalent_cal {
+    correction = reference.power - power
+    over frequency
+  }
+}

@@ -1,0 +1,11 @@
+characterize strict_power_limit {
+  reference power = -5 dBm
+  sweep frequency 800 MHz .. 820 MHz step 10 MHz
+  measure rx = power
+  derive error = rx - reference.power
+  assert abs(error) < 0.75 dB
+  derive calibration strict_cal {
+    correction = -error
+    over frequency
+  }
+}

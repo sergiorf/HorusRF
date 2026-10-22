@@ -55,6 +55,9 @@ ai::GoldenCase golden(std::string id, bool supported) {
             ? "Create the requested characterization."
             : "At a fixed 2.45 GHz, sweep transmit power from -20 dBm to 0 dBm.",
         supported ? valid_source : "// unsupported\n", {}};
+    result.metadata.expected_support = supported
+        ? ai::SupportAssessmentStatus::Supported
+        : ai::SupportAssessmentStatus::Unsupported;
     if (supported) {
         const auto facts = ai::compile_program_facts(valid_source);
         if (!facts) throw std::runtime_error("test golden source did not compile");
@@ -111,6 +114,8 @@ void supported_and_unsupported_report_test() {
     CHECK_EQ(report.cases[0].requirement_verification.status,
              ai::RequirementSatisfactionStatus::Satisfied);
     CHECK(report.cases[1].unsupported_recognized);
+    CHECK(report.cases[0].support_assessment_matches);
+    CHECK(report.cases[1].support_assessment_matches);
     CHECK_EQ(report.cases[1].generation_status,
              ai::EvaluationGenerationStatus::Unsupported);
     CHECK(report.cases[1].attempts.empty());
@@ -130,6 +135,10 @@ void supported_and_unsupported_report_test() {
     CHECK_EQ(report.summaries[0].semantic_matches, std::size_t{1});
     CHECK_EQ(report.summaries[0].requirement_satisfied, std::size_t{1});
     CHECK_EQ(report.summaries[0].unsupported_recognized, std::size_t{1});
+    CHECK_EQ(report.summaries[0].support_assessment_matches, std::size_t{2});
+    CHECK_EQ(report.summaries[0].distinct_cases, std::size_t{2});
+    CHECK_EQ(report.summaries[0].repetition_count, std::size_t{1});
+    CHECK_EQ(report.case_trends.size(), std::size_t{2});
     CHECK_EQ(report.summaries[0].cold_latency.sample_count, std::size_t{1});
     CHECK_EQ(report.summaries[0].cold_latency.median,
              std::chrono::milliseconds{100});
@@ -154,6 +163,9 @@ void supported_and_unsupported_report_test() {
           std::string::npos);
     CHECK(json.str().find("\"unsupported_recognized\":true") !=
           std::string::npos);
+    CHECK(json.str().find("\"scoring_version\":\"evaluation-trends-v1\"") !=
+          std::string::npos);
+    CHECK(json.str().find("\"case_trends\":[{") != std::string::npos);
     CHECK(json.str().find("\"support_assessment\":{\"status\":\"unsupported\"") !=
           std::string::npos);
     CHECK(json.str().find("\"generated_source\":") != std::string::npos);
@@ -173,6 +185,66 @@ void supported_and_unsupported_report_test() {
     CHECK(table.str().find("test-model") != std::string::npos);
     CHECK(table.str().find("Prompt configuration: direct-dsl-v1") !=
           std::string::npos);
+}
+
+void repetition_trend_test() {
+    ai::testing::FakeLlmProvider provider{{
+        response(valid_source),
+        ai::ProviderError{ai::ProviderErrorCode::Unavailable, "offline"},
+        response(valid_source),
+    }};
+    ai::GoldenDataset dataset{"2.0.0", {golden("trend", true)}};
+    ai::EvaluationSettings settings{{"test-model"}, 0.0, 512,
+                                    std::chrono::seconds{10}, 3, 3, {}, {}};
+    const auto report = ai::evaluate_golden_dataset(
+        dataset, provider, settings, {}, fixed_clock());
+
+    CHECK_EQ(report.case_trends.size(), std::size_t{1});
+    const auto& trend = report.case_trends.front();
+    CHECK_EQ(trend.repetitions, std::size_t{3});
+    CHECK_EQ(trend.requirement_satisfied, std::size_t{2});
+    CHECK_EQ(trend.final_valid, std::size_t{2});
+    CHECK(!trend.persistent_requirement_failure);
+    CHECK_EQ(trend.latency.sample_count, std::size_t{3});
+    CHECK_EQ(report.summaries[0].repetition_count, std::size_t{3});
+    CHECK_NEAR(report.summaries[0].median_case_requirement_success_rate,
+               2.0 / 3.0, 1e-9);
+    CHECK(report.summaries[0].repetition_success_rate_standard_deviation > 0.0);
+
+    std::ostringstream json;
+    ai::write_evaluation_json(json, report);
+    CHECK(json.str().find("\"repetitions\":3") != std::string::npos);
+    CHECK(json.str().find("\"persistent_requirement_failure\":false") !=
+          std::string::npos);
+    std::ostringstream table;
+    ai::write_evaluation_table(table, report);
+    CHECK(table.str().find("Per-case persistence") != std::string::npos);
+}
+
+void typed_support_denominator_test() {
+    auto partial = golden("partial", true);
+    partial.prompt = "Sweep frequency and also sweep transmit power from -20 dBm "
+                     "to 0 dBm.";
+    partial.metadata.expected_support = ai::SupportAssessmentStatus::PartiallySupported;
+    auto uncertain = golden("uncertain", false);
+    uncertain.prompt = "Characterize a power range suitable for a receiver.";
+    uncertain.metadata.expected_support = ai::SupportAssessmentStatus::Uncertain;
+    ai::testing::FakeLlmProvider provider{{response(valid_source),
+                                           response(valid_source)}};
+    ai::GoldenDataset dataset{"2.0.0", {std::move(partial), std::move(uncertain)}};
+    const ai::EvaluationSettings settings{{"test-model"}, 0.0, 512,
+                                          std::chrono::seconds{10}, 3, 1, {}, {}};
+    const auto report = ai::evaluate_golden_dataset(
+        dataset, provider, settings, {}, fixed_clock());
+    const auto& summary = report.summaries.front();
+    CHECK_EQ(summary.total_cases, std::size_t{2});
+    CHECK_EQ(summary.applicable_cases, std::size_t{1});
+    CHECK_EQ(summary.supported_cases, std::size_t{0});
+    CHECK_EQ(summary.partially_supported_cases, std::size_t{1});
+    CHECK_EQ(summary.unsupported_cases, std::size_t{0});
+    CHECK_EQ(summary.uncertain_cases, std::size_t{1});
+    CHECK_EQ(summary.support_assessment_matches, std::size_t{2});
+    CHECK_EQ(summary.unsupported_recognized, std::size_t{0});
 }
 
 void repair_and_failure_test() {
@@ -391,6 +463,8 @@ void invalid_settings_test() {
 int main() {
     try {
         supported_and_unsupported_report_test();
+        repetition_trend_test();
+        typed_support_denominator_test();
         repair_and_failure_test();
         requirement_correction_is_observable_test();
         schema_v2_diagnostics_and_differences_test();

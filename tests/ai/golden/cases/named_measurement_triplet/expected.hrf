@@ -1,0 +1,11 @@
+characterize named_measurement_triplet {
+  reference power = -15 dBm
+  sweep frequency 1 GHz .. 1.1 GHz step 50 MHz
+  measure level = power
+  measure modulation_quality = evm
+  measure carrier_offset = frequency_error
+  derive calibration named_cal {
+    correction = reference.power - level
+    over frequency
+  }
+}

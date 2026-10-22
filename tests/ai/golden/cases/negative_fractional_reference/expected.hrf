@@ -1,0 +1,9 @@
+characterize negative_fractional_reference {
+  reference power = -12.5 dBm
+  sweep frequency 915 MHz .. 915 MHz step 1 MHz
+  measure power
+  derive calibration negative_reference_cal {
+    correction = reference.power - power
+    over frequency
+  }
+}

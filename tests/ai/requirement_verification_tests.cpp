@@ -54,14 +54,21 @@ ai::RequirementVerificationResult verify(const ai::GoldenCase& golden,
 
 void projection_and_checked_in_metadata_test(const ai::GoldenDataset& dataset) {
     std::size_t supported{};
+    std::size_t baseline_supported{};
+    std::size_t expanded_supported{};
     for (const auto& item : dataset.cases) {
         if (!item.metadata.expected_valid) continue;
         ++supported;
-        CHECK_EQ(item.metadata.requirement_schema_version, std::size_t{2});
+        CHECK(item.metadata.requirement_schema_version == 2 ||
+              item.metadata.requirement_schema_version == 3);
+        baseline_supported += item.metadata.requirement_schema_version == 2 ? 1U : 0U;
+        expanded_supported += item.metadata.requirement_schema_version == 3 ? 1U : 0U;
         CHECK(!item.metadata.requirements.empty());
         CHECK(verify(item, item.expected_source).satisfied());
     }
-    CHECK_EQ(supported, std::size_t{16});
+    CHECK_EQ(supported, std::size_t{28});
+    CHECK_EQ(baseline_supported, std::size_t{16});
+    CHECK_EQ(expanded_supported, std::size_t{12});
 }
 
 void required_mismatch_tests(const ai::GoldenDataset& dataset) {

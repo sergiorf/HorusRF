@@ -1,0 +1,5 @@
+{
+  "schema":"horusrf.golden-case","version":3,"id":"mixed_supported_unsupported_sweeps","description":"Supported frequency sweep mixed with unsupported power sweep","category":"partial_support","difficulty":"intermediate","tags":["partial_support","frequency","power_sweep"],"expected_valid":true,"expected_support":"partially_supported","comparison":"semantic",
+  "required_capabilities":["frequency_sweep","power_measurement","calibration","partial_support_warning"],
+  "requirements":[{"id":"reference","kind":"reference_power"},{"id":"frequency","kind":"sweep","dimension":"frequency"},{"id":"power","kind":"measurement","operation":"power"},{"id":"calibration","kind":"calibration"}]
+}

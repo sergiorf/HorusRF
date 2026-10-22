@@ -1,0 +1,1 @@
+Take one characterization point at 433.92 MHz using -3 dBm as the reference. Call the power result received_power and generate its calibration.

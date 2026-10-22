@@ -161,8 +161,8 @@ void checked_in_golden_dataset_test() {
         }
         ++compared;
     }
-    CHECK_EQ(compared, std::size_t{16});
-    CHECK_EQ(unsupported, std::size_t{1});
+    CHECK_EQ(compared, std::size_t{28});
+    CHECK_EQ(unsupported, std::size_t{2});
 }
 
 } // namespace

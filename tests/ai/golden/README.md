@@ -10,8 +10,16 @@ HorusRF cases. `manifest.json` defines the ordered dataset. Each directory under
 - `metadata.json`: the case ID, category, difficulty, tags, validity expectation,
   comparison mode, required language capabilities, and curated requirements.
 
-Checked-in metadata uses `horusrf.golden-case` schema version 2. Version-1 metadata
-remains loader-compatible for migration, but has no requirement oracle. `comparison`
+The expanded manifest is dataset 2.0.0 and retains all 17 dataset-1.0.0 cases as
+its ordered baseline prefix. It records the baseline version and case count so a
+report can distinguish fixture growth from scoring changes. The suite contains 30
+cases: 28 compiler-valid proposals, one known-unsupported request, and one
+intentionally ambiguous request.
+
+Checked-in metadata uses `horusrf.golden-case` schema versions 2 and 3. Version 3
+adds the curated `expected_support` value (`supported`, `partially_supported`,
+`unsupported`, or `uncertain`) without changing requirement scoring. Version-1
+metadata remains loader-compatible for migration, but has no requirement oracle. `comparison`
 is `semantic` for supported requests and `unsupported` for requests the current
 language cannot express. Semantic cases must set `expected_valid` to `true` and
 contain uniquely identified requirement selectors; unsupported cases must set it
@@ -96,6 +104,14 @@ M6Q.6 reports cold and warm latency summaries independently. Attempt records als
 include compiler and requirement-verification durations in nanoseconds. Provider
 failures retain their typed code, so an `output_limit` result is reported
 separately from malformed responses, timeouts, and other provider failures.
+
+M6Q.7 adds `scoring_version: evaluation-trends-v1`, typed support-expectation
+matches, and `case_trends`. Each model/case trend reports successes per repetition,
+repair and requirement-correction incidence, persistent requirement failure, and
+median/P90 latency. Model summaries additionally report the median per-case
+requirement-success rate, variability across repetition success rates, and repair
+and correction rates. Use `-Repeat 3` through `-Repeat 5` for a trend run; a
+single repetition remains useful only as a smoke test.
 
 M6Q.2 prompt experiments use `-PromptConfiguration` with one of these stable IDs:
 

@@ -1,0 +1,1 @@
+From 1 GHz to 1.1 GHz in 50 MHz steps at -15 dBm, collect power as level, EVM as modulation_quality, and frequency error as carrier_offset. Build the calibration from level.

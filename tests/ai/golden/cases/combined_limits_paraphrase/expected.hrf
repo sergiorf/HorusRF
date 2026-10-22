@@ -1,0 +1,13 @@
+characterize combined_limits_paraphrase {
+  reference power = -25 dBm
+  sweep frequency 2.3 GHz .. 2.5 GHz step 100 MHz
+  measure actual = power
+  measure quality = evm
+  derive error = actual - reference.power
+  assert abs(error) <= 1 dB
+  assert quality < 3 %
+  derive calibration combined_cal {
+    correction = -error
+    over frequency
+  }
+}

@@ -462,10 +462,25 @@ ModelEvaluationSummary summarize(std::string model,
     std::size_t total_repairs{};
     double output_tokens{};
     double generation_seconds{};
+    std::set<std::string, std::less<>> distinct_cases;
+    std::map<std::string, std::pair<std::size_t, std::size_t>, std::less<>> case_success;
+    std::map<std::size_t, std::pair<std::size_t, std::size_t>> repetition_success;
+    std::size_t runs_with_repair{};
+    std::size_t runs_with_requirement_correction{};
     for (const auto& item : cases) {
         if (item.model != result.model) continue;
+        distinct_cases.insert(item.case_id);
+        result.repetition_count = std::max(result.repetition_count, item.repetition);
         ++result.total_cases;
-        item.expected_supported ? ++result.supported_cases : ++result.unsupported_cases;
+        result.applicable_cases += item.expected_supported ? 1U : 0U;
+        switch (item.expected_support) {
+        case SupportAssessmentStatus::Supported: ++result.supported_cases; break;
+        case SupportAssessmentStatus::PartiallySupported:
+            ++result.partially_supported_cases;
+            break;
+        case SupportAssessmentStatus::Unsupported: ++result.unsupported_cases; break;
+        case SupportAssessmentStatus::Uncertain: ++result.uncertain_cases; break;
+        }
         if (item.generation_status == EvaluationGenerationStatus::Completed) {
             ++result.generation_completed;
         }
@@ -486,6 +501,25 @@ ModelEvaluationSummary summarize(std::string model,
         result.requirement_not_evaluated +=
             item.requirement_verification.status == RequirementSatisfactionStatus::NotEvaluated ? 1U : 0U;
         result.unsupported_recognized += item.unsupported_recognized ? 1U : 0U;
+        result.support_assessment_matches += item.support_assessment_matches ? 1U : 0U;
+        runs_with_repair += item.repair_attempts != 0 ? 1U : 0U;
+        bool corrected_requirements = false;
+        for (const auto& attempt : item.attempts) {
+            corrected_requirements = corrected_requirements ||
+                attempt.purpose == EvaluationCallPurpose::RequirementCorrection;
+        }
+        runs_with_requirement_correction += corrected_requirements ? 1U : 0U;
+        if (item.expected_supported) {
+            auto& by_case = case_success[item.case_id];
+            ++by_case.second;
+            auto& by_repetition = repetition_success[item.repetition];
+            ++by_repetition.second;
+            if (item.requirement_verification.status ==
+                RequirementSatisfactionStatus::Satisfied) {
+                ++by_case.first;
+                ++by_repetition.first;
+            }
+        }
         if (item.error) {
             const std::string category{error_name(item.error->code)};
             const auto found = std::ranges::find(result.failure_categories, category,
@@ -519,6 +553,43 @@ ModelEvaluationSummary summarize(std::string model,
     if (result.total_cases != 0) {
         result.average_repair_attempts =
             static_cast<double>(total_repairs) / static_cast<double>(result.total_cases);
+        result.repair_rate = static_cast<double>(runs_with_repair) /
+                             static_cast<double>(result.total_cases);
+        result.requirement_correction_rate =
+            static_cast<double>(runs_with_requirement_correction) /
+            static_cast<double>(result.total_cases);
+    }
+    result.distinct_cases = distinct_cases.size();
+    std::vector<double> case_rates;
+    for (const auto& [unused, counts] : case_success) {
+        static_cast<void>(unused);
+        case_rates.push_back(static_cast<double>(counts.first) /
+                             static_cast<double>(counts.second));
+    }
+    std::ranges::sort(case_rates);
+    if (!case_rates.empty()) {
+        const auto middle = case_rates.size() / 2;
+        result.median_case_requirement_success_rate = case_rates.size() % 2 == 0
+            ? (case_rates[middle - 1] + case_rates[middle]) / 2.0
+            : case_rates[middle];
+    }
+    std::vector<double> repetition_rates;
+    for (const auto& [unused, counts] : repetition_success) {
+        static_cast<void>(unused);
+        repetition_rates.push_back(static_cast<double>(counts.first) /
+                                   static_cast<double>(counts.second));
+    }
+    if (!repetition_rates.empty()) {
+        const auto mean = std::accumulate(repetition_rates.begin(),
+                                          repetition_rates.end(), 0.0) /
+                          static_cast<double>(repetition_rates.size());
+        double squared_difference_sum{};
+        for (const auto rate : repetition_rates) {
+            squared_difference_sum += (rate - mean) * (rate - mean);
+        }
+        result.repetition_success_rate_standard_deviation =
+            std::sqrt(squared_difference_sum /
+                      static_cast<double>(repetition_rates.size()));
     }
     const auto aggregate_latency = latency_statistics(std::move(latencies));
     result.median_latency = aggregate_latency.median;
@@ -530,6 +601,48 @@ ModelEvaluationSummary summarize(std::string model,
     }
     std::ranges::sort(result.failure_categories, {},
                       &std::pair<std::string, std::size_t>::first);
+    return result;
+}
+
+std::vector<CaseEvaluationTrend> build_case_trends(
+    const std::vector<CaseEvaluation>& cases) {
+    std::vector<CaseEvaluationTrend> result;
+    std::map<std::pair<std::string, std::string>, std::size_t> indexes;
+    std::vector<std::vector<std::chrono::milliseconds>> latencies;
+    for (const auto& item : cases) {
+        const auto key = std::pair{item.model, item.case_id};
+        auto found = indexes.find(key);
+        if (found == indexes.end()) {
+            found = indexes.emplace(key, result.size()).first;
+            result.push_back({item.case_id, item.category, item.model,
+                              item.expected_support});
+            latencies.emplace_back();
+        }
+        auto& trend = result[found->second];
+        ++trend.repetitions;
+        trend.final_valid += item.final_valid ? 1U : 0U;
+        trend.requirement_satisfied +=
+            item.requirement_verification.status ==
+                    RequirementSatisfactionStatus::Satisfied
+                ? 1U : 0U;
+        trend.semantic_matches +=
+            item.semantic_status == SemanticComparisonStatus::Match ? 1U : 0U;
+        trend.support_assessment_matches += item.support_assessment_matches ? 1U : 0U;
+        trend.runs_with_repair += item.repair_attempts != 0 ? 1U : 0U;
+        trend.runs_with_requirement_correction += std::ranges::any_of(
+            item.attempts, [](const EvaluationAttempt& attempt) {
+                return attempt.purpose == EvaluationCallPurpose::RequirementCorrection;
+            }) ? 1U : 0U;
+        latencies[found->second].push_back(item.total_latency);
+    }
+    for (std::size_t index = 0; index < result.size(); ++index) {
+        auto& trend = result[index];
+        trend.persistent_requirement_failure =
+            (trend.expected_support == SupportAssessmentStatus::Supported ||
+             trend.expected_support == SupportAssessmentStatus::PartiallySupported) &&
+            trend.requirement_satisfied == 0;
+        trend.latency = latency_statistics(std::move(latencies[index]));
+    }
     return result;
 }
 
@@ -575,17 +688,18 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
         }
     }
 
-    EvaluationReport report{settings.prompt_configuration_id,
-                            settings.comparison_version,
-                            "golden-requirements-v2",
-                            dataset.dataset_version,
-                            settings.timestamp_utc,
-                            settings.git_revision,
-                            settings.temperature,
-                            settings.max_output_tokens,
-                            settings.timeout,
-                            settings.maximum_repair_attempts,
-                            {}, {}};
+    EvaluationReport report;
+    report.prompt_configuration_id = settings.prompt_configuration_id;
+    report.comparison_version = settings.comparison_version;
+    report.requirement_schema_version = "golden-requirements-v2";
+    report.scoring_version = "evaluation-trends-v1";
+    report.dataset_version = dataset.dataset_version;
+    report.timestamp_utc = settings.timestamp_utc;
+    report.git_revision = settings.git_revision;
+    report.temperature = settings.temperature;
+    report.max_output_tokens = settings.max_output_tokens;
+    report.timeout = settings.timeout;
+    report.maximum_repair_attempts = settings.maximum_repair_attempts;
     const auto total_runs = settings.models.size() * settings.repetitions *
                             dataset.cases.size();
     std::size_t run_order{};
@@ -603,6 +717,7 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                                                         : WarmColdStatus::Warm;
                 first_model_run = false;
                 item.expected_supported = golden.metadata.expected_valid;
+                item.expected_support = golden.metadata.expected_support;
                 if (progress) {
                     progress(EvaluationProgressStage::Started, item,
                              run_order - 1, total_runs);
@@ -643,7 +758,8 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                                std::get_if<UnsupportedRequest>(&agent_result)) {
                     item.generation_status = EvaluationGenerationStatus::Unsupported;
                     item.support_assessment = unsupported->assessment;
-                    item.unsupported_recognized = !item.expected_supported;
+                    item.unsupported_recognized =
+                        item.expected_support == SupportAssessmentStatus::Unsupported;
                 } else {
                     const auto& failure = std::get<AgentFailure>(agent_result);
                     item.generation_status = failure.error.code == AgentErrorCode::Cancelled
@@ -670,6 +786,10 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                         }
                     }
                 }
+                item.support_assessment_matches =
+                    item.generation_status != EvaluationGenerationStatus::Failed &&
+                    item.generation_status != EvaluationGenerationStatus::Cancelled &&
+                    item.support_assessment.status == item.expected_support;
                 report.cases.push_back(std::move(item));
                 if (progress) {
                     progress(EvaluationProgressStage::Completed,
@@ -681,6 +801,7 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
         }
         if (cancellation.stop_requested()) break;
     }
+    report.case_trends = build_case_trends(report.cases);
     for (const auto& model : settings.models) {
         report.summaries.push_back(summarize(model, report.cases));
     }
@@ -693,6 +814,7 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
            << ",\"comparison_version\":" << json_string(report.comparison_version)
            << ",\"requirement_schema_version\":"
            << json_string(report.requirement_schema_version)
+           << ",\"scoring_version\":" << json_string(report.scoring_version)
            << ",\"prompt_configuration_id\":"
            << json_string(report.prompt_configuration_id)
            << ",\"timestamp_utc\":" << json_string(report.timestamp_utc)
@@ -715,6 +837,8 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"warm_cold_status\":"
                << json_string(warm_cold_name(item.warm_cold_status))
                << ",\"expected_supported\":" << (item.expected_supported ? "true" : "false")
+               << ",\"expected_support\":"
+               << json_string(support_status_name(item.expected_support))
                << ",\"generation_status\":" << json_string(generation_name(item.generation_status))
                << ",\"first_attempt_valid\":" << (item.first_attempt_valid ? "true" : "false")
                << ",\"final_valid\":" << (item.final_valid ? "true" : "false")
@@ -724,6 +848,8 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
         output << ",\"support_assessment\":";
         write_support_assessment(output, item.support_assessment);
         output << ",\"unsupported_recognized\":" << (item.unsupported_recognized ? "true" : "false")
+               << ",\"support_assessment_matches\":"
+               << (item.support_assessment_matches ? "true" : "false")
                << ",\"repair_attempts\":" << item.repair_attempts
                << ",\"total_latency_ms\":" << item.total_latency.count()
                << ",\"provider_identity\":";
@@ -835,14 +961,42 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
         output << ']';
         output << '}';
     }
+    output << "],\"case_trends\":[";
+    for (std::size_t index = 0; index < report.case_trends.size(); ++index) {
+        if (index != 0) output << ',';
+        const auto& item = report.case_trends[index];
+        output << "{\"case_id\":" << json_string(item.case_id)
+               << ",\"category\":" << json_string(item.category)
+               << ",\"model\":" << json_string(item.model)
+               << ",\"expected_support\":"
+               << json_string(support_status_name(item.expected_support))
+               << ",\"repetitions\":" << item.repetitions
+               << ",\"final_valid\":" << item.final_valid
+               << ",\"requirement_satisfied\":" << item.requirement_satisfied
+               << ",\"semantic_matches\":" << item.semantic_matches
+               << ",\"support_assessment_matches\":"
+               << item.support_assessment_matches
+               << ",\"runs_with_repair\":" << item.runs_with_repair
+               << ",\"runs_with_requirement_correction\":"
+               << item.runs_with_requirement_correction
+               << ",\"persistent_requirement_failure\":"
+               << (item.persistent_requirement_failure ? "true" : "false")
+               << ",\"latency\":{\"sample_count\":" << item.latency.sample_count
+               << ",\"median_ms\":" << item.latency.median.count()
+               << ",\"p90_ms\":" << item.latency.p90.count() << "}}";
+    }
     output << "],\"summaries\":[";
     for (std::size_t index = 0; index < report.summaries.size(); ++index) {
         if (index != 0) output << ',';
         const auto& item = report.summaries[index];
         output << "{\"model\":" << json_string(item.model)
                << ",\"total_cases\":" << item.total_cases
+               << ",\"applicable_cases\":" << item.applicable_cases
                << ",\"supported_cases\":" << item.supported_cases
+               << ",\"partially_supported_cases\":"
+               << item.partially_supported_cases
                << ",\"unsupported_cases\":" << item.unsupported_cases
+               << ",\"uncertain_cases\":" << item.uncertain_cases
                << ",\"generation_completed\":" << item.generation_completed
                << ",\"first_attempt_valid\":" << item.first_attempt_valid
                << ",\"final_valid\":" << item.final_valid
@@ -854,6 +1008,16 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"requirement_unknown\":" << item.requirement_unknown
                << ",\"requirement_not_evaluated\":" << item.requirement_not_evaluated
                << ",\"unsupported_recognized\":" << item.unsupported_recognized
+               << ",\"support_assessment_matches\":" << item.support_assessment_matches
+               << ",\"distinct_cases\":" << item.distinct_cases
+               << ",\"repetition_count\":" << item.repetition_count
+               << ",\"median_case_requirement_success_rate\":"
+               << item.median_case_requirement_success_rate
+               << ",\"repetition_success_rate_standard_deviation\":"
+               << item.repetition_success_rate_standard_deviation
+               << ",\"repair_rate\":" << item.repair_rate
+               << ",\"requirement_correction_rate\":"
+               << item.requirement_correction_rate
                << ",\"average_repair_attempts\":" << item.average_repair_attempts
                << ",\"median_latency_ms\":" << item.median_latency.count()
                << ",\"p90_latency_ms\":" << item.p90_latency.count()
@@ -876,12 +1040,15 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"denominator\":" << item.total_cases
                << "},\"requirement_satisfied\":{\"numerator\":"
                << item.requirement_satisfied << ",\"denominator\":"
-               << item.supported_cases
+               << item.applicable_cases
                << "},\"semantic_matches\":{\"numerator\":" << item.semantic_matches
-               << ",\"denominator\":" << item.supported_cases
+               << ",\"denominator\":" << item.applicable_cases
                << "},\"unsupported_recognized\":{\"numerator\":"
                << item.unsupported_recognized << ",\"denominator\":"
-               << item.unsupported_cases << "}},\"failure_categories\":{";
+               << item.unsupported_cases
+               << "},\"support_assessment_matches\":{\"numerator\":"
+               << item.support_assessment_matches << ",\"denominator\":"
+               << item.total_cases << "}},\"failure_categories\":{";
         for (std::size_t failure = 0; failure < item.failure_categories.size(); ++failure) {
             if (failure != 0) output << ',';
             output << json_string(item.failure_categories[failure].first) << ':'
@@ -909,6 +1076,23 @@ void write_evaluation_table(std::ostream& output, const EvaluationReport& report
                << item.output_limit_errors << '\n';
     }
     output << "Required is explicit requirement satisfaction; Semantic is strict full-program comparison.\n";
+    if (!report.case_trends.empty()) {
+        output << "\nPer-case persistence (successes/repetitions):\n";
+        output << "Model                       Case                                      Required  Support  Repair  Correct  Median ms  P90 ms\n";
+        output << "-----------------------------------------------------------------------------------------------------------------------------\n";
+        for (const auto& item : report.case_trends) {
+            output << std::left << std::setw(27) << item.model
+                   << std::setw(42) << item.case_id << std::right
+                   << std::setw(4) << item.requirement_satisfied << '/'
+                   << std::left << std::setw(5) << item.repetitions << std::right
+                   << std::setw(4) << item.support_assessment_matches << '/'
+                   << std::left << std::setw(5) << item.repetitions << std::right
+                   << std::setw(7) << item.runs_with_repair
+                   << std::setw(9) << item.runs_with_requirement_correction
+                   << std::setw(11) << item.latency.median.count()
+                   << std::setw(8) << item.latency.p90.count() << '\n';
+        }
+    }
 }
 
 } // namespace horusrf::ai

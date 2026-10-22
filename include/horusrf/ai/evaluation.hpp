@@ -81,6 +81,7 @@ struct CaseEvaluation final {
     std::size_t run_order{};
     WarmColdStatus warm_cold_status{WarmColdStatus::Unknown};
     bool expected_supported{};
+    SupportAssessmentStatus expected_support{SupportAssessmentStatus::Supported};
     EvaluationGenerationStatus generation_status{EvaluationGenerationStatus::Failed};
     bool first_attempt_valid{};
     bool final_valid{};
@@ -88,6 +89,7 @@ struct CaseEvaluation final {
     RequirementVerificationResult requirement_verification;
     SupportAssessment support_assessment;
     bool unsupported_recognized{};
+    bool support_assessment_matches{};
     std::size_t repair_attempts{};
     std::chrono::milliseconds total_latency{};
     std::vector<std::optional<ProviderMetrics>> provider_attempts;
@@ -98,11 +100,30 @@ struct CaseEvaluation final {
     std::vector<std::string> final_warnings;
 };
 
+struct CaseEvaluationTrend final {
+    std::string case_id;
+    std::string category;
+    std::string model;
+    SupportAssessmentStatus expected_support{SupportAssessmentStatus::Supported};
+    std::size_t repetitions{};
+    std::size_t final_valid{};
+    std::size_t requirement_satisfied{};
+    std::size_t semantic_matches{};
+    std::size_t support_assessment_matches{};
+    std::size_t runs_with_repair{};
+    std::size_t runs_with_requirement_correction{};
+    bool persistent_requirement_failure{};
+    LatencyStatistics latency;
+};
+
 struct ModelEvaluationSummary final {
     std::string model;
     std::size_t total_cases{};
+    std::size_t applicable_cases{};
     std::size_t supported_cases{};
+    std::size_t partially_supported_cases{};
     std::size_t unsupported_cases{};
+    std::size_t uncertain_cases{};
     std::size_t generation_completed{};
     std::size_t first_attempt_valid{};
     std::size_t final_valid{};
@@ -114,6 +135,13 @@ struct ModelEvaluationSummary final {
     std::size_t requirement_unknown{};
     std::size_t requirement_not_evaluated{};
     std::size_t unsupported_recognized{};
+    std::size_t support_assessment_matches{};
+    std::size_t distinct_cases{};
+    std::size_t repetition_count{};
+    double median_case_requirement_success_rate{};
+    double repetition_success_rate_standard_deviation{};
+    double repair_rate{};
+    double requirement_correction_rate{};
     double average_repair_attempts{};
     std::chrono::milliseconds median_latency{};
     std::chrono::milliseconds p90_latency{};
@@ -128,6 +156,7 @@ struct EvaluationReport final {
     std::string prompt_configuration_id;
     std::string comparison_version;
     std::string requirement_schema_version;
+    std::string scoring_version;
     std::string dataset_version;
     std::string timestamp_utc;
     std::optional<std::string> git_revision;
@@ -136,6 +165,7 @@ struct EvaluationReport final {
     std::chrono::milliseconds timeout{};
     std::size_t maximum_repair_attempts{};
     std::vector<CaseEvaluation> cases;
+    std::vector<CaseEvaluationTrend> case_trends;
     std::vector<ModelEvaluationSummary> summaries;
 };
 

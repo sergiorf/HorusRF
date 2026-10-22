@@ -1,0 +1,1 @@
+At 5.8 GHz with reference -8 dBm, measure power and carrier error as offset. Require absolute offset to be at most 25 kHz. Calibrate the power result.

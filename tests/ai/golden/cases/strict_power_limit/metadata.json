@@ -1,0 +1,5 @@
+{
+  "schema":"horusrf.golden-case","version":3,"id":"strict_power_limit","description":"Strict comparison and requested power name","category":"strictness","difficulty":"intermediate","tags":["strictness","name","assertion"],"expected_valid":true,"expected_support":"supported","comparison":"semantic",
+  "required_capabilities":["frequency_sweep","power_measurement","assertion","calibration"],
+  "requirements":[{"id":"reference","kind":"reference_power"},{"id":"frequency","kind":"sweep","dimension":"frequency"},{"id":"rx","kind":"measurement","operation":"power","require_name":true},{"id":"limit","kind":"assertion","ordinal":1},{"id":"calibration","kind":"calibration"}]
+}

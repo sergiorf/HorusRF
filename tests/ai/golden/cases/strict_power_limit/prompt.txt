@@ -1,0 +1,1 @@
+Sweep 800 MHz to 820 MHz by 10 MHz with a -5 dBm reference. Name the power reading rx. Require the absolute power error to be strictly below 0.75 dB, then calibrate over frequency.

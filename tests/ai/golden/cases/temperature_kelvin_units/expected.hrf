@@ -1,0 +1,10 @@
+characterize temperature_kelvin_units {
+  reference power = -18 dBm
+  sweep frequency 100 MHz .. 120 MHz step 10 MHz
+  sweep temperature 273.15 K .. 293.15 K step 10 deltaK
+  measure power
+  derive calibration kelvin_surface {
+    correction = reference.power - power
+    over frequency, temperature
+  }
+}

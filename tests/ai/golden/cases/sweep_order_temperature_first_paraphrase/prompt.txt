@@ -1,0 +1,1 @@
+Vary temperature first from 0 degC through 20 degC every 10 deltaC, with frequency nested from 1.8 GHz through 1.9 GHz every 50 MHz. Use -6 dBm, measure power, and preserve that axis order in the calibration.
