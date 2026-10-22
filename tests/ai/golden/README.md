@@ -61,6 +61,11 @@ repository root on Windows, run both comparison models with:
   -Models "qwen2.5-coder:3b,qwen2.5-coder:7b"
 ```
 
+Add `-Archive` only for a completed gate, milestone, or release-candidate run
+that should become durable repository history. This writes a compact immutable
+snapshot under `evaluation/history/`; the full attempt-level report remains
+under ignored `build/ai-evaluation/`.
+
 For a fast single-case run:
 
 ```powershell

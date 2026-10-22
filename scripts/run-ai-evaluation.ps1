@@ -31,7 +31,9 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$Endpoint = "http://127.0.0.1:11434",
 
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$Archive,
+    [string]$ArchiveDirectory
 )
 
 $ErrorActionPreference = "Stop"
@@ -111,6 +113,16 @@ try {
     }
 
     Invoke-CheckedCommand $executable $arguments
+
+    if ($Archive) {
+        $archiveArguments = @{
+            ReportPath = $OutputPath
+        }
+        if ($ArchiveDirectory) {
+            $archiveArguments.OutputDirectory = $ArchiveDirectory
+        }
+        & (Join-Path $PSScriptRoot "archive-ai-evaluation.ps1") @archiveArguments
+    }
 }
 finally {
     Pop-Location

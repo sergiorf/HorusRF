@@ -31,6 +31,10 @@ The local, ignored report artifacts are:
 | B | `direct-dsl-compact-v1` | `build/ai-evaluation/m6q2-abc-direct-dsl-compact-v1-r3.json` | `64d38b715ca19137488743624a66204ae84621d0` |
 | C | `direct-dsl-relevant-v1` | `build/ai-evaluation/m6q2-abc-direct-dsl-relevant-v1-r3.json` | `64d38b715ca19137488743624a66204ae84621d0` |
 
+Compact aggregate and per-case snapshots of these three reports are retained in
+`evaluation/history/`. The snapshots include the raw reports' SHA-256 hashes;
+the attempt-level reports themselves remain local build artifacts.
+
 The A revision contains the prompt-experiment implementation. The later B/C
 revision adds the local Ollama launcher and evaluator progress reporting; it does
 not change prompt construction, model settings, the dataset, or the requirement

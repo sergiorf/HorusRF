@@ -310,7 +310,14 @@ maintained. The checked-in
 evaluation tests inject scripted providers and a deterministic clock. Live model
 evaluation is invoked explicitly through the executable or
 `scripts/run-ai-evaluation.ps1`, writes under `build/` by default, and is not a
-CTest dependency. The evaluator accepts three versioned prompt configurations:
+CTest dependency. Selected gate and milestone runs are archived as compact,
+immutable `horusrf.ai-evaluation-history` version-1 snapshots under
+`evaluation/history/`; they retain aggregate and per-case trend data plus the
+full report's SHA-256, while attempt-level raw reports remain ignored build
+artifacts. `scripts/archive-ai-evaluation.ps1` creates a snapshot from a
+schema-v1 or schema-v2 report, preserving unavailable legacy fields as `null`,
+and the live runner's `-Archive` switch performs that step after a successful
+run. The evaluator accepts three versioned prompt configurations:
 the unchanged `direct-dsl-v1` default, `direct-dsl-compact-v1` with compact
 comment-free examples, and `direct-dsl-relevant-v1` with deterministic
 feature-tag selection. Prompt configuration is evaluation input and remains

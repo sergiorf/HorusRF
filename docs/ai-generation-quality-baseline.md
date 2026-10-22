@@ -2,7 +2,13 @@
 
 **Baseline:** `build/ai-evaluation/results-20261021-193036.json`  
 **Dataset:** 1.0.0 (17 cases)  
-**Revision:** `66e692f5d76db7e91273ca59fa8fdfa963e97c1d`  
+**Revision:** `66e692f5d76db7e91273ca59fa8fdfa963e97c1d`
+
+Compact snapshots of this report and the earlier comparison run are retained in
+`evaluation/history/m6q0-20261021-193036-schema-v1.json` and
+`evaluation/history/m6q0-20261021-190949-schema-v1.json`. The snapshots record
+the raw artifacts' SHA-256 hashes. Requirement-oracle fields are `null` because
+schema-v1 evaluation predates that oracle.
 **Models:** `qwen2.5-coder:3b`, `qwen2.5-coder:7b`  
 **Repetitions:** one
 
