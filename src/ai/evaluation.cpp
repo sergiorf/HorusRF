@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <iomanip>
 #include <map>
 #include <numeric>
@@ -19,6 +20,42 @@
 namespace horusrf::ai {
 namespace {
 
+EvaluationCallPurpose evaluation_purpose(LlmCallPurpose purpose) {
+    switch (purpose) {
+    case LlmCallPurpose::Generation: return EvaluationCallPurpose::Generation;
+    case LlmCallPurpose::CompilerRepair: return EvaluationCallPurpose::CompilerRepair;
+    case LlmCallPurpose::RequirementCorrection:
+        return EvaluationCallPurpose::RequirementCorrection;
+    }
+    return EvaluationCallPurpose::Generation;
+}
+
+std::string stable_source_hash(std::string_view source) {
+    std::uint64_t value = 14695981039346656037ULL;
+    for (const unsigned char byte : source) {
+        value ^= byte;
+        value *= 1099511628211ULL;
+    }
+    std::ostringstream output;
+    output << std::hex << std::setfill('0') << std::setw(16) << value;
+    return output.str();
+}
+
+std::vector<std::string> diagnostic_set(
+    const std::vector<ValidationDiagnostic>& diagnostics) {
+    std::vector<std::string> result;
+    result.reserve(diagnostics.size());
+    for (const auto& diagnostic : diagnostics) {
+        result.push_back(diagnostic.code + "\n" + diagnostic.message + "\n" +
+                         std::to_string(diagnostic.span.begin.line) + ":" +
+                         std::to_string(diagnostic.span.begin.column) + "-" +
+                         std::to_string(diagnostic.span.end.line) + ":" +
+                         std::to_string(diagnostic.span.end.column));
+    }
+    std::ranges::sort(result);
+    return result;
+}
+
 class ObservingProvider final : public LlmProvider {
 public:
     explicit ObservingProvider(LlmProvider& provider) : provider_(provider) {}
@@ -27,8 +64,7 @@ public:
                        CancellationToken cancellation) override {
         EvaluationAttempt attempt;
         attempt.number = attempts.size() + 1;
-        attempt.purpose = attempts.empty() ? EvaluationCallPurpose::Generation
-                                           : EvaluationCallPurpose::CompilerRepair;
+        attempt.purpose = evaluation_purpose(request.purpose);
         for (std::size_t index = 0; index < request.messages.size(); ++index) {
             const auto& message = request.messages[index];
             std::string section = "message[" + std::to_string(index) + "].";
@@ -81,6 +117,8 @@ public:
 
     void finalize(std::string_view expected_source, bool compare_semantics,
                   const std::vector<RequirementClause>& requirements) {
+        std::set<std::string, std::less<>> seen_candidates;
+        std::optional<std::vector<std::string>> previous_diagnostics;
         for (std::size_t index = 0; index < attempts.size(); ++index) {
             if (index >= response_texts_.size() || !response_texts_[index]) continue;
             auto& attempt = attempts[index];
@@ -96,12 +134,21 @@ public:
             attempt.structured_response_status = StructuredResponseStatus::Parsed;
             const auto& payload = std::get<ProposalPayload>(parsed);
             attempt.candidate_source = payload.script.text();
+            attempt.candidate_hash = stable_source_hash(payload.script.text());
+            attempt.repeated_candidate =
+                !seen_candidates.insert(payload.script.text()).second;
             attempt.explanation = payload.explanation;
             attempt.warnings = payload.warnings;
             if (payload.script.text().empty()) continue;
             const auto validation = validate_script(payload.script.text());
             attempt.compiler_valid = validation.ok();
             attempt.compiler_diagnostics = validation.diagnostics();
+            const auto current_diagnostics = diagnostic_set(validation.diagnostics());
+            if (previous_diagnostics) {
+                attempt.diagnostic_set_changed =
+                    current_diagnostics != *previous_diagnostics;
+            }
+            previous_diagnostics = current_diagnostics;
             if (compare_semantics && validation.ok()) {
                 const auto comparison = compare_script_semantics(
                     expected_source, payload.script.text());
@@ -228,6 +275,7 @@ std::string_view error_name(AgentErrorCode code) {
     case AgentErrorCode::ProviderFailure: return "provider_failure";
     case AgentErrorCode::ValidationFailure: return "validation_failure";
     case AgentErrorCode::RepairLimitReached: return "repair_limit_reached";
+    case AgentErrorCode::NoProgress: return "no_progress";
     case AgentErrorCode::Cancelled: return "cancelled";
     case AgentErrorCode::Internal: return "internal";
     }
@@ -637,6 +685,17 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
             output << ",\"candidate_source\":";
             if (attempt.candidate_source) output << json_string(*attempt.candidate_source);
             else output << "null";
+            output << ",\"candidate_hash\":";
+            if (attempt.candidate_hash) output << json_string(*attempt.candidate_hash);
+            else output << "null";
+            output << ",\"repeated_candidate\":"
+                   << (attempt.repeated_candidate ? "true" : "false")
+                   << ",\"diagnostic_set_changed\":";
+            if (attempt.diagnostic_set_changed) {
+                output << (*attempt.diagnostic_set_changed ? "true" : "false");
+            } else {
+                output << "null";
+            }
             output << ",\"explanation\":";
             if (attempt.explanation) output << json_string(*attempt.explanation);
             else output << "null";

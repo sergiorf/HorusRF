@@ -12,6 +12,7 @@
 namespace horusrf::ai {
 
 enum class LlmRole { System, User, Assistant };
+enum class LlmCallPurpose { Generation, CompilerRepair, RequirementCorrection };
 
 struct LlmMessage final {
     LlmRole role{LlmRole::User};
@@ -27,6 +28,7 @@ struct LlmRequest final {
     std::size_t max_output_tokens{2048};
     std::chrono::milliseconds timeout{std::chrono::minutes{2}};
     std::optional<std::string> json_schema;
+    LlmCallPurpose purpose{LlmCallPurpose::Generation};
 };
 
 enum class ProviderErrorCode {

@@ -118,7 +118,7 @@ void invalid_candidate_is_repaired_test() {
     ai::testing::FakeLlmProvider provider{{proposal(invalid_source), proposal(valid_source)}};
     ai::AgentSession session{provider};
     const std::string instruction =
-        "Use -10 dBm and sweep 1 GHz to 2 GHz in 5 MHz steps.";
+        "Use -10 dBm and sweep 1 GHz to 2 GHz in 1 GHz steps.";
     const auto result = session.generate(
         {ai::NaturalLanguageInstruction{instruction}});
 
@@ -131,18 +131,15 @@ void invalid_candidate_is_repaired_test() {
     CHECK(request_contains(provider.requests()[1], "semantic.unexpected_quantity_type"));
     CHECK(value.warnings().empty());
     CHECK_EQ(value.requirement_verification().status,
-             ai::RequirementSatisfactionStatus::Violated);
+             ai::RequirementSatisfactionStatus::Satisfied);
     CHECK(!value.requirement_verification().outcomes.empty());
 }
 
 void repair_limit_retains_last_candidate_test() {
-    const std::string second_invalid =
-        std::string{invalid_source}.replace(std::string{invalid_source}.find("-10 dB"), 6,
-                                            "-9 dB");
-    const std::string third_invalid =
-        std::string{invalid_source}.replace(std::string{invalid_source}.find("-10 dB"), 6,
-                                            "-8 dB");
-    ai::testing::FakeLlmProvider provider{{proposal(invalid_source),
+    const std::string first_invalid = "characterize broken {";
+    const std::string second_invalid{invalid_source};
+    const std::string third_invalid = "characterize broken {}";
+    ai::testing::FakeLlmProvider provider{{proposal(first_invalid),
                                            proposal(second_invalid),
                                            proposal(third_invalid)}};
     ai::AgentSession session{provider, ai::PromptBuilder{}, {2}};
@@ -166,10 +163,82 @@ void unchanged_invalid_candidate_stops_test() {
         {ai::NaturalLanguageInstruction{"Create a characterization."}});
 
     const auto& failure = failed(result);
-    CHECK_EQ(failure.error.code, ai::AgentErrorCode::RepairLimitReached);
-    CHECK(failure.error.message.find("unchanged") != std::string::npos);
+    CHECK_EQ(failure.error.code, ai::AgentErrorCode::NoProgress);
+    CHECK(failure.error.message.find("no progress") != std::string::npos);
     CHECK(failure.proposal.has_value());
     CHECK_EQ(failure.proposal->attempt_count(), std::size_t{2});
+    CHECK_EQ(provider.requests().size(), std::size_t{2});
+}
+
+void changed_candidate_with_unchanged_diagnostics_stops_test() {
+    const std::string changed =
+        std::string{invalid_source}.replace(std::string{invalid_source}.find("generated"), 9,
+                                            "renamed");
+    ai::testing::FakeLlmProvider provider{{proposal(invalid_source), proposal(changed)}};
+    ai::AgentSession session{provider};
+    const auto result = session.generate(
+        {ai::NaturalLanguageInstruction{"Create a characterization."}});
+
+    const auto& failure = failed(result);
+    CHECK_EQ(failure.error.code, ai::AgentErrorCode::NoProgress);
+    CHECK(failure.error.message.find("diagnostic set did not change") !=
+          std::string::npos);
+    CHECK_EQ(failure.proposal->candidate_source().text(), changed);
+    CHECK_EQ(provider.requests().size(), std::size_t{2});
+}
+
+void requirement_violation_is_corrected_test() {
+    const std::string wrong = std::string{valid_source};
+    const std::string corrected =
+        std::string{valid_source}.replace(std::string{valid_source}.find("-10 dBm"), 7,
+                                          "-5 dBm");
+    ai::testing::FakeLlmProvider provider{{proposal(wrong), proposal(corrected)}};
+    ai::AgentSession session{provider};
+    const auto result = session.generate(
+        {ai::NaturalLanguageInstruction{"Use reference power -5 dBm."}});
+
+    const auto& value = completed(result);
+    CHECK_EQ(value.attempt_count(), std::size_t{2});
+    CHECK_EQ(value.requirement_verification().status,
+             ai::RequirementSatisfactionStatus::Satisfied);
+    CHECK_EQ(provider.requests()[1].purpose,
+             ai::LlmCallPurpose::RequirementCorrection);
+    CHECK(request_contains(provider.requests()[1], "<requirement_violations>"));
+    CHECK(request_contains(provider.requests()[1], "reference_power_mismatch"));
+}
+
+void unchanged_requirement_violation_stops_test() {
+    const std::string changed = std::string{valid_source} + "// still wrong\n";
+    ai::testing::FakeLlmProvider provider{{proposal(valid_source), proposal(changed)}};
+    ai::AgentSession session{provider};
+    const auto result = session.generate(
+        {ai::NaturalLanguageInstruction{"Use reference power -5 dBm."}});
+
+    const auto& failure = failed(result);
+    CHECK_EQ(failure.error.code, ai::AgentErrorCode::NoProgress);
+    CHECK(failure.error.message.find("verified violations did not change") !=
+          std::string::npos);
+    CHECK_EQ(provider.requests().size(), std::size_t{2});
+    CHECK_EQ(provider.requests()[1].purpose,
+             ai::LlmCallPurpose::RequirementCorrection);
+}
+
+void repair_and_correction_share_budget_test() {
+    const std::string corrected =
+        std::string{valid_source}.replace(std::string{valid_source}.find("-10 dBm"), 7,
+                                          "-5 dBm");
+    ai::testing::FakeLlmProvider provider{{proposal(invalid_source),
+                                           proposal(valid_source),
+                                           proposal(corrected)}};
+    ai::AgentSession session{provider, ai::PromptBuilder{}, {1}};
+    const auto result = session.generate(
+        {ai::NaturalLanguageInstruction{"Use reference power -5 dBm."}});
+
+    const auto& failure = failed(result);
+    CHECK_EQ(failure.error.code, ai::AgentErrorCode::RepairLimitReached);
+    CHECK(failure.error.message.find("shared") != std::string::npos);
+    CHECK(failure.proposal.has_value());
+    CHECK(failure.proposal->validation().ok());
     CHECK_EQ(provider.requests().size(), std::size_t{2});
 }
 
@@ -257,6 +326,10 @@ int main() {
         invalid_candidate_is_repaired_test();
         repair_limit_retains_last_candidate_test();
         unchanged_invalid_candidate_stops_test();
+        changed_candidate_with_unchanged_diagnostics_stops_test();
+        requirement_violation_is_corrected_test();
+        unchanged_requirement_violation_stops_test();
+        repair_and_correction_share_budget_test();
         unusable_and_provider_failures_test();
         cancellation_and_invalid_request_test();
         modification_repair_preserves_context_test();

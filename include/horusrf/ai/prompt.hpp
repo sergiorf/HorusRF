@@ -50,6 +50,13 @@ struct RepairPromptRequest final {
     std::optional<ScriptSource> original_source;
 };
 
+struct RequirementCorrectionPromptRequest final {
+    NaturalLanguageInstruction original_instruction;
+    ScriptSource previous_candidate;
+    RequirementVerificationResult verification;
+    std::optional<ScriptSource> original_source;
+};
+
 struct PromptExample final {
     std::string name;
     NaturalLanguageInstruction instruction;
@@ -72,6 +79,8 @@ public:
     [[nodiscard]] LlmRequest build_generation(const GenerationRequest& request) const;
     [[nodiscard]] LlmRequest build_modification(const ModificationRequest& request) const;
     [[nodiscard]] LlmRequest build_repair(const RepairPromptRequest& request) const;
+    [[nodiscard]] LlmRequest build_requirement_correction(
+        const RequirementCorrectionPromptRequest& request) const;
 
 private:
     [[nodiscard]] LlmRequest base_request() const;

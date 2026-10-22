@@ -166,6 +166,11 @@ void repair_and_failure_test() {
              ai::EvaluationCallPurpose::Generation);
     CHECK_EQ(repaired.cases[0].attempts[1].purpose,
              ai::EvaluationCallPurpose::CompilerRepair);
+    CHECK(repaired.cases[0].attempts[0].candidate_hash.has_value());
+    CHECK(repaired.cases[0].attempts[1].candidate_hash.has_value());
+    CHECK(!repaired.cases[0].attempts[1].repeated_candidate);
+    CHECK_EQ(repaired.cases[0].attempts[1].diagnostic_set_changed,
+             std::optional<bool>{true});
     CHECK_EQ(repaired.cases[0].attempts[0].structured_response_status,
              ai::StructuredResponseStatus::Parsed);
     CHECK_EQ(repaired.cases[0].attempts[0].compiler_valid,
@@ -190,6 +195,36 @@ void repair_and_failure_test() {
     CHECK_EQ(failure.cases[0].attempts.size(), std::size_t{1});
     CHECK_EQ(failure.cases[0].attempts[0].structured_response_status,
              ai::StructuredResponseStatus::ProviderError);
+}
+
+void requirement_correction_is_observable_test() {
+    std::string wrong_source = valid_source;
+    wrong_source.replace(wrong_source.find("3 dBm"), 5, "4 dBm");
+    auto correction_case = golden("correction", true);
+    correction_case.prompt = "Use reference power 3 dBm.";
+    ai::testing::FakeLlmProvider provider{{response(wrong_source),
+                                           response(valid_source)}};
+    const ai::GoldenDataset dataset{"1.0.0", {std::move(correction_case)}};
+    const ai::EvaluationSettings settings{{"test-model"}, 0.0, 512,
+                                          std::chrono::seconds{10}, 3, 1, {}, {}};
+    const auto report = ai::evaluate_golden_dataset(
+        dataset, provider, settings, {}, fixed_clock());
+
+    CHECK_EQ(report.cases[0].generation_status,
+             ai::EvaluationGenerationStatus::Completed);
+    CHECK_EQ(report.cases[0].attempts.size(), std::size_t{2});
+    CHECK_EQ(report.cases[0].attempts[1].purpose,
+             ai::EvaluationCallPurpose::RequirementCorrection);
+    CHECK_EQ(report.cases[0].requirement_verification.status,
+             ai::RequirementSatisfactionStatus::Satisfied);
+
+    std::ostringstream json;
+    ai::write_evaluation_json(json, report);
+    CHECK(json.str().find("\"purpose\":\"requirement_correction\"") !=
+          std::string::npos);
+    CHECK(json.str().find("\"candidate_hash\":") != std::string::npos);
+    CHECK(json.str().find("\"diagnostic_set_changed\":") !=
+          std::string::npos);
 }
 
 void schema_v2_diagnostics_and_differences_test() {
@@ -311,6 +346,7 @@ int main() {
     try {
         supported_and_unsupported_report_test();
         repair_and_failure_test();
+        requirement_correction_is_observable_test();
         schema_v2_diagnostics_and_differences_test();
         malformed_response_and_cancellation_test();
         invalid_settings_test();

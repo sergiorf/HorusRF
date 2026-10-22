@@ -212,6 +212,7 @@ enum class AgentErrorCode {
     ProviderFailure,
     ValidationFailure,
     RepairLimitReached,
+    NoProgress,
     Cancelled,
     Internal,
 };

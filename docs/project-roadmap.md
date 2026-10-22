@@ -132,7 +132,15 @@ temperature sweeps, fixed frequency, measurements and requested names, simple
 assertions, sweep order, and calibration indexes. It verifies them against
 compiler-backed program facts and reports satisfied, violated, unknown, and
 unsupported outcomes separately from compiler validity in the proposal contract
-and Studio. M6Q.4, targeted correction and repair observability, is next.
+and Studio.
+
+M6Q.4 was completed on 2026-10-22. Compiler repairs now carry exact spans, nearby
+source context, and relevant compiler-owned language metadata. Generation,
+compiler repair, and high-confidence requirement correction are distinguished in
+one bounded call flow. Repeated candidates, unchanged diagnostics, and unchanged
+verified violations stop as `no_progress`; evaluation records stable candidate
+hashes and diagnostic-set changes. M6Q.5, unsupported and partial-support
+handling, is next.
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

@@ -10,7 +10,16 @@
 
 namespace horusrf::ai {
 
-enum class AgentState { Idle, Generating, Validating, Repairing, Completed, Failed, Cancelled };
+enum class AgentState {
+    Idle,
+    Generating,
+    Validating,
+    Repairing,
+    CorrectingRequirements,
+    Completed,
+    Failed,
+    Cancelled
+};
 
 struct AgentSettings final {
     std::size_t maximum_repair_attempts{3};

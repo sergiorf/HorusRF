@@ -73,7 +73,7 @@ void usage(std::ostream& output) {
               "  --temperature VALUE        Inference temperature\n"
               "  --max-output-tokens COUNT  Provider output limit\n"
               "  --timeout-seconds COUNT    Per-provider-call timeout\n"
-              "  --max-repairs COUNT        Bounded compiler repair attempts\n"
+              "  --max-repairs COUNT        Shared compiler-repair/correction limit\n"
               "  --prompt-configuration ID Prompt: direct-dsl-v1, direct-dsl-compact-v1, or direct-dsl-relevant-v1\n"
               "  --endpoint URL             Local Ollama HTTP endpoint\n"
               "  --git-revision REVISION    Source revision recorded in the report\n";

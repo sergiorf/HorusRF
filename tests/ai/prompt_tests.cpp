@@ -216,7 +216,7 @@ void repair_context_test() {
         ai::DiagnosticCategory::Semantic,
         "semantic.unexpected_quantity_type",
         "expected Power, got PowerDelta",
-        {{3, 21, 42}, {3, 25, 46}},
+        {{1, 21, 20}, {1, 25, 24}},
     };
     const ai::RepairPromptRequest input{
         ai::NaturalLanguageInstruction{"Create a basic power sweep."},
@@ -229,8 +229,11 @@ void repair_context_test() {
     CHECK(contains(request, input.original_instruction.text()));
     CHECK(contains(request, input.previous_candidate.text()));
     CHECK(contains(request, input.original_source->text()));
-    CHECK(contains(request, "semantic semantic.unexpected_quantity_type at 3:21"));
+    CHECK(contains(request, "semantic semantic.unexpected_quantity_type at 1:21"));
     CHECK(contains(request, diagnostic.message));
+    CHECK(contains(request, "1 |"));
+    CHECK(contains(request, "Compiler context: Compiler quantity types:"));
+    CHECK_EQ(request.purpose, ai::LlmCallPurpose::CompilerRepair);
     CHECK(!contains(request, "Example request:"));
 
     bool threw = false;
@@ -242,6 +245,59 @@ void repair_context_test() {
         threw = true;
     }
     CHECK(threw);
+}
+
+void requirement_correction_context_test() {
+    ai::RequirementOutcome violation;
+    violation.requirement_id = "reference-power-1";
+    violation.status = ai::RequirementOutcomeStatus::Violated;
+    violation.code = "reference_power_mismatch";
+    violation.expected = "-5 dBm";
+    violation.actual = "-10 dBm";
+    violation.explanation = "reference power differs";
+    violation.source_text = "reference power -5 dBm";
+    const ai::RequirementCorrectionPromptRequest input{
+        ai::NaturalLanguageInstruction{"Use reference power -5 dBm."},
+        ai::ScriptSource{std::string{valid_source}},
+        {ai::RequirementSatisfactionStatus::Violated, {violation}},
+        std::nullopt,
+    };
+    const ai::PromptBuilder builder;
+    const auto request = builder.build_requirement_correction(input);
+    CHECK_EQ(request.purpose, ai::LlmCallPurpose::RequirementCorrection);
+    CHECK(contains(request, "<requirement_violations>"));
+    CHECK(contains(request, violation.code));
+    CHECK(contains(request, violation.expected));
+    CHECK(contains(request, "Preserve every unaffected statement"));
+
+    violation.confidence = ai::RequirementConfidence::Ambiguous;
+    bool threw = false;
+    try {
+        static_cast<void>(builder.build_requirement_correction(
+            {input.original_instruction, input.previous_candidate,
+             {ai::RequirementSatisfactionStatus::Unknown, {violation}},
+             std::nullopt}));
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    CHECK(threw);
+}
+
+void parser_repair_context_test() {
+    const ai::ValidationDiagnostic diagnostic{
+        ai::DiagnosticCategory::Syntax,
+        "parse.unexpected_token",
+        "unexpected token",
+        {{1, 23, 22}, {1, 24, 23}},
+    };
+    const ai::PromptBuilder builder;
+    const auto request = builder.build_repair(
+        {ai::NaturalLanguageInstruction{"Create a basic characterization."},
+         ai::ScriptSource{"characterize broken { @ }"},
+         ai::ValidationResult::invalid({diagnostic}), std::nullopt});
+    CHECK(contains(request, "parse.unexpected_token at 1:23-1:24"));
+    CHECK(contains(request, "Compiler context: Compiler syntax tokens:"));
+    CHECK(contains(request, "Nearby candidate lines:"));
 }
 
 void structured_response_test() {
@@ -291,6 +347,8 @@ int main() {
         capability_relevant_selection_test();
         modification_context_test();
         repair_context_test();
+        requirement_correction_context_test();
+        parser_repair_context_test();
         structured_response_test();
         structured_response_rejection_test();
         std::cout << "All HorusRF AI prompt tests passed\n";

@@ -50,6 +50,9 @@ struct EvaluationAttempt final {
         StructuredResponseStatus::ProviderError};
     std::optional<std::string> response_error;
     std::optional<std::string> candidate_source;
+    std::optional<std::string> candidate_hash;
+    bool repeated_candidate{};
+    std::optional<bool> diagnostic_set_changed;
     std::optional<std::string> explanation;
     std::vector<std::string> warnings;
     std::optional<bool> compiler_valid;

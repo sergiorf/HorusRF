@@ -332,8 +332,8 @@ void AssistantPanel::requestFinished() {
         if (failure.proposal) {
             proposal = &*failure.proposal;
             attempt_count = failure.proposal->attempt_count();
+            proposal_valid_ = failure.proposal->eligible_to_apply();
         }
-        proposal_valid_ = false;
     }
     finishRequestTimer(attempt_count, completed);
     if (proposal != nullptr) {

@@ -78,23 +78,26 @@ serialization and response decoding, structured error mapping, cancellation,
 and the scripted fake provider. A fake transport keeps the suite independent of
 Ollama, Qwen, sockets, internet access, GPUs, and wall-clock timing.
 
-`horusrf_ai_prompt_tests` covers deterministic generation, modification, and
-repair messages, compiler-owned capability context, request bounds, curated
+`horusrf_ai_prompt_tests` covers deterministic generation, modification, repair,
+and requirement-correction messages, compiler-owned diagnostic context and source
+excerpts, request bounds, curated
 examples through complete compiler validation, strict proposal-schema parsing,
 and malformed response rejection. It does not invoke a provider or network.
 
 `horusrf_ai_agent_tests` combines the scripted fake provider with the real
 in-memory compiler validation adapter. It covers first-pass completion,
-diagnostic-directed repair, retry exhaustion, unchanged invalid output, provider
-and structured-response failures, cancellation, invalid requests, modification
-context preservation, retained invalid proposals, and conservative typed
-requirement verification. It does not invoke Ollama, the network, runtime,
+diagnostic-directed repair, shared-budget exhaustion, repeated candidates,
+unchanged diagnostic and requirement outcomes, provider and structured-response
+failures, cancellation, invalid requests, modification context preservation,
+retained proposals, and conservative typed requirement correction. It does not
+invoke Ollama, the network, runtime,
 simulator, or hardware.
 
 `horusrf_ai_evaluation_tests` runs supported, repaired, unsupported, and failed
 golden-style cases through the real agent, compiler validation, and semantic
 comparison using scripted providers and an injected deterministic clock. It
-checks aggregate denominators, provider-neutral telemetry, JSON report
+checks distinct call purposes, stable candidate hashes, diagnostic-set changes,
+aggregate denominators, provider-neutral telemetry, JSON report
 serialization, and the human-readable summary without contacting Ollama. The
 live `horusrf-ai-eval` executable is intentionally not registered with CTest.
 

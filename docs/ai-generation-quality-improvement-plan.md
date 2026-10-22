@@ -1,6 +1,6 @@
 # HorusRF AI generation quality improvement plan
 
-**Status:** M6Q.0 through M6Q.3 completed on 2026-10-22; M6Q.4 is next
+**Status:** M6Q.0 through M6Q.4 completed on 2026-10-22; M6Q.5 is next
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
 **Reviewed baseline artifact:** `build/ai-evaluation/results-20261021-193036.json`
@@ -375,6 +375,15 @@ reviewed expected programs.
 
 ### M6Q.4 — Targeted correction and repair observability
 
+**Status:** Completed on 2026-10-22. Repair prompts now include exact diagnostic
+spans, nearby numbered source lines, and compact context projected from compiler
+language metadata. Provider calls carry an explicit generation, compiler-repair,
+or requirement-correction purpose. High-confidence violations use a distinct
+correction prompt within the shared bounded call allowance. Exact candidate
+repetition, unchanged compiler diagnostics, and unchanged verified violations
+stop with a separate `no_progress` result. Evaluation attempt history records
+stable candidate hashes, repetition, and diagnostic-set changes.
+
 **Changes**
 
 - Map stable compiler diagnostic codes to compact compiler-owned syntax/semantic
@@ -409,6 +418,12 @@ templates may bias models; begin with the few recurring stable diagnostics.
 
 No unbounded loop is possible, all calls have a recorded purpose, and the saved
 repeated-invalid cases stop or improve for an explainable reason.
+
+**Outcome:** Complete. Deterministic tests cover parser and semantic repair
+context, preservation instructions, exact and diagnostic-equivalent repetition,
+requirement correction and stagnation, the shared call allowance, cancellation,
+malformed responses, and retained final diagnostics. The full offline CTest suite
+remains the acceptance gate; live provider evaluation is unchanged and opt-in.
 
 ### M6Q.5 — Unsupported and partial-support handling
 
