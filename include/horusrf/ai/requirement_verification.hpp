@@ -6,6 +6,7 @@
 #include <string_view>
 #include <vector>
 
+#include "horusrf/ai/contracts.hpp"
 #include "horusrf/domain/quantity.hpp"
 #include "horusrf/ir/ir.hpp"
 
@@ -79,6 +80,7 @@ struct RequirementClause final {
     std::string id;
     RequirementKind kind{RequirementKind::ReferencePower};
     std::string provenance{"curated"};
+    RequirementConfidence confidence{RequirementConfidence::High};
     std::optional<domain::Power> reference_power;
     std::optional<SweepFact> sweep;
     std::optional<MeasurementFact> measurement;
@@ -87,40 +89,28 @@ struct RequirementClause final {
     // A missing one-point step means the representation's positive step was
     // not explicitly requested and must not affect satisfaction.
     bool constrain_sweep_step{true};
+    bool constrain_sweep_bounds{true};
     bool constrain_sweep_order{true};
     bool constrain_measurement_name{false};
+    bool constrain_assertion_left{true};
+    bool constrain_calibration_correction{true};
+    std::size_t source_begin{};
+    std::size_t source_end{};
+    std::string source_text;
+    std::string extraction_code;
+    std::string extraction_explanation;
 };
 
-enum class RequirementOutcomeStatus { Satisfied, Violated, Unknown, Unsupported };
-enum class RequirementSatisfactionStatus {
-    Satisfied,
-    Violated,
-    Unknown,
-    Unsupported,
-    NotEvaluated,
-};
-
-struct RequirementOutcome final {
-    std::string requirement_id;
-    RequirementOutcomeStatus status{RequirementOutcomeStatus::Unknown};
-    std::string code;
-    std::string expected;
-    std::string actual;
-    std::string explanation;
-};
-
-struct RequirementVerificationResult final {
-    RequirementSatisfactionStatus status{
-        RequirementSatisfactionStatus::NotEvaluated};
-    std::vector<RequirementOutcome> outcomes;
-
-    [[nodiscard]] bool satisfied() const noexcept {
-        return status == RequirementSatisfactionStatus::Satisfied;
-    }
-};
+// Extracts only explicit, high-confidence interactive requirements. Ambiguous
+// or recognized-but-uncheckable text is retained as an incomplete clause and
+// therefore verifies as unknown rather than being silently treated as satisfied.
+[[nodiscard]] std::vector<RequirementClause> extract_requirements(
+    std::string_view instruction);
 
 [[nodiscard]] RequirementVerificationResult verify_requirements(
     const std::vector<RequirementClause>& requirements,
     const ProgramFacts& facts);
+[[nodiscard]] RequirementVerificationResult verify_instruction_requirements(
+    std::string_view instruction, const ProgramFacts& facts);
 
 } // namespace horusrf::ai

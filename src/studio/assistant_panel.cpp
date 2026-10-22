@@ -77,6 +77,27 @@ QString diagnosticCategory(ai::DiagnosticCategory category) {
     return QStringLiteral("validation");
 }
 
+QString requirementStatus(ai::RequirementSatisfactionStatus status) {
+    switch (status) {
+    case ai::RequirementSatisfactionStatus::Satisfied: return QStringLiteral("satisfied");
+    case ai::RequirementSatisfactionStatus::Violated: return QStringLiteral("violated");
+    case ai::RequirementSatisfactionStatus::Unknown: return QStringLiteral("unknown");
+    case ai::RequirementSatisfactionStatus::Unsupported: return QStringLiteral("unsupported");
+    case ai::RequirementSatisfactionStatus::NotEvaluated: return QStringLiteral("not evaluated");
+    }
+    return QStringLiteral("unknown");
+}
+
+QString requirementStatus(ai::RequirementOutcomeStatus status) {
+    switch (status) {
+    case ai::RequirementOutcomeStatus::Satisfied: return QStringLiteral("satisfied");
+    case ai::RequirementOutcomeStatus::Violated: return QStringLiteral("violated");
+    case ai::RequirementOutcomeStatus::Unknown: return QStringLiteral("unknown");
+    case ai::RequirementOutcomeStatus::Unsupported: return QStringLiteral("unsupported");
+    }
+    return QStringLiteral("unknown");
+}
+
 } // namespace
 
 AssistantPanel::AssistantPanel(DslEditor* editor, AssistantService* service,
@@ -325,6 +346,20 @@ void AssistantPanel::requestFinished() {
         }
         for (const auto& warning : proposal->warnings()) {
             detail_lines.append(tr("Warning: %1").arg(fromUtf8(warning)));
+        }
+        const auto& verification = proposal->requirement_verification();
+        detail_lines.append(
+            tr("Requirement verification: %1.")
+                .arg(requirementStatus(verification.status)));
+        for (const auto& outcome : verification.outcomes) {
+            const QString requirement_source = outcome.source_text.empty()
+                ? QString{}
+                : tr(" for '%1'").arg(fromUtf8(outcome.source_text));
+            detail_lines.append(
+                tr("Requirement %1%2: %3 (%4): %5")
+                    .arg(fromUtf8(outcome.requirement_id),
+                         requirement_source, requirementStatus(outcome.status),
+                         fromUtf8(outcome.code), fromUtf8(outcome.explanation)));
         }
         for (const auto& diagnostic : proposal->validation().diagnostics()) {
             detail_lines.append(

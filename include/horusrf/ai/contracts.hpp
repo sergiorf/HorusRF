@@ -98,6 +98,39 @@ struct ValidationDiagnostic final {
                            const ValidationDiagnostic&) = default;
 };
 
+enum class RequirementOutcomeStatus { Satisfied, Violated, Unknown, Unsupported };
+enum class RequirementConfidence { High, Ambiguous };
+enum class RequirementSatisfactionStatus {
+    Satisfied,
+    Violated,
+    Unknown,
+    Unsupported,
+    NotEvaluated,
+};
+
+struct RequirementOutcome final {
+    std::string requirement_id;
+    RequirementOutcomeStatus status{RequirementOutcomeStatus::Unknown};
+    std::string code;
+    std::string expected;
+    std::string actual;
+    std::string explanation;
+    RequirementConfidence confidence{RequirementConfidence::High};
+    std::size_t source_begin{};
+    std::size_t source_end{};
+    std::string source_text;
+};
+
+struct RequirementVerificationResult final {
+    RequirementSatisfactionStatus status{
+        RequirementSatisfactionStatus::NotEvaluated};
+    std::vector<RequirementOutcome> outcomes;
+
+    [[nodiscard]] bool satisfied() const noexcept {
+        return status == RequirementSatisfactionStatus::Satisfied;
+    }
+};
+
 class ValidationResult final {
 public:
     [[nodiscard]] static ValidationResult valid();
@@ -141,7 +174,8 @@ class ScriptProposal final {
 public:
     ScriptProposal(ScriptSource candidate_source, ValidationResult validation,
                    std::string explanation, std::size_t attempt_count,
-                   ProviderIdentity provider, std::vector<std::string> warnings = {});
+                   ProviderIdentity provider, std::vector<std::string> warnings = {},
+                   RequirementVerificationResult requirement_verification = {});
 
     [[nodiscard]] const ScriptSource& candidate_source() const noexcept {
         return candidate_source_;
@@ -157,6 +191,10 @@ public:
     [[nodiscard]] const std::vector<std::string>& warnings() const noexcept {
         return warnings_;
     }
+    [[nodiscard]] const RequirementVerificationResult& requirement_verification()
+        const noexcept {
+        return requirement_verification_;
+    }
     [[nodiscard]] bool eligible_to_apply() const noexcept { return validation_.ok(); }
 
 private:
@@ -166,6 +204,7 @@ private:
     const std::size_t attempt_count_;
     const ProviderIdentity provider_;
     const std::vector<std::string> warnings_;
+    const RequirementVerificationResult requirement_verification_;
 };
 
 enum class AgentErrorCode {

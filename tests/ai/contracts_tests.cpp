@@ -91,6 +91,11 @@ void proposal_contract_test() {
         "Generated a characterization.",
         1,
         {"ollama", "qwen2.5-coder:7b"},
+        {},
+        {ai::RequirementSatisfactionStatus::Satisfied,
+         {{"reference-power", ai::RequirementOutcomeStatus::Satisfied,
+           "reference_power_match", "-10 dBm", "-10 dBm",
+           "reference power matches"}}},
     };
     CHECK(valid_proposal.eligible_to_apply());
     CHECK_EQ(valid_proposal.candidate_source().text(), "characterize proposed {}");
@@ -98,6 +103,9 @@ void proposal_contract_test() {
     CHECK_EQ(valid_proposal.attempt_count(), std::size_t{1});
     CHECK_EQ(valid_proposal.provider().model, "qwen2.5-coder:7b");
     CHECK(valid_proposal.warnings().empty());
+    CHECK(valid_proposal.requirement_verification().satisfied());
+    CHECK_EQ(valid_proposal.requirement_verification().outcomes.size(),
+             std::size_t{1});
 
     const ai::ScriptProposal invalid_proposal{
         ai::ScriptSource{"characterize broken { @ }"},

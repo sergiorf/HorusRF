@@ -1,9 +1,11 @@
 #include "horusrf/ai/requirement_verification.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <iomanip>
 #include <locale>
 #include <map>
+#include <regex>
 #include <set>
 #include <sstream>
 #include <type_traits>
@@ -11,6 +13,7 @@
 #include <variant>
 
 #include "horusrf/frontend/language_services.hpp"
+#include "horusrf/domain/units.hpp"
 #include "horusrf/ir/lowering.hpp"
 
 namespace horusrf::ai {
@@ -21,6 +24,101 @@ std::string number(double value) {
     output.imbue(std::locale::classic());
     output << std::setprecision(17) << value;
     return output.str();
+}
+
+std::string lowercase(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
+}
+
+struct NormalizedInstruction final {
+    std::string text;
+    std::vector<std::size_t> original_offsets;
+};
+
+NormalizedInstruction normalize_punctuation(std::string_view input) {
+    NormalizedInstruction result;
+    for (std::size_t index = 0; index < input.size();) {
+        const bool dash = index + 2 < input.size() &&
+            static_cast<unsigned char>(input[index]) == 0xe2 &&
+            static_cast<unsigned char>(input[index + 1]) == 0x80 &&
+            (static_cast<unsigned char>(input[index + 2]) == 0x92 ||
+             static_cast<unsigned char>(input[index + 2]) == 0x93 ||
+             static_cast<unsigned char>(input[index + 2]) == 0x94);
+        result.original_offsets.push_back(index);
+        if (dash) {
+            result.text.push_back('-');
+            index += 3;
+        } else {
+            result.text.push_back(input[index++]);
+        }
+    }
+    result.original_offsets.push_back(input.size());
+    return result;
+}
+
+std::pair<std::size_t, std::size_t> original_span(
+    const NormalizedInstruction& normalized, std::size_t begin, std::size_t end) {
+    return {normalized.original_offsets.at(begin), normalized.original_offsets.at(end)};
+}
+
+constexpr std::string_view decimal_pattern =
+    R"([+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+))";
+
+std::optional<domain::CanonicalQuantity> quantity(std::string_view value,
+                                                   std::string_view unit) {
+    if (lowercase(std::string{unit}) == "mdbm") {
+        const auto converted = domain::convert_quantity(value, "dBm");
+        if (!converted.value) return std::nullopt;
+        return domain::CanonicalQuantity{domain::Power::from_dbm(
+            std::get<domain::Power>(*converted.value).dbm() / 1000.0)};
+    }
+    std::string canonical_unit{unit};
+    const std::string lowered = lowercase(canonical_unit);
+    if (lowered == "hz") canonical_unit = "Hz";
+    else if (lowered == "khz") canonical_unit = "kHz";
+    else if (lowered == "mhz") canonical_unit = "MHz";
+    else if (lowered == "ghz") canonical_unit = "GHz";
+    else if (lowered == "dbm") canonical_unit = "dBm";
+    else if (lowered == "db") canonical_unit = "dB";
+    else if (lowered == "degc") canonical_unit = "degC";
+    else if (lowered == "deltac") canonical_unit = "deltaC";
+    else if (lowered == "deltak") canonical_unit = "deltaK";
+    const auto converted = domain::convert_quantity(value, canonical_unit);
+    return converted.value;
+}
+
+RequirementClause extracted_clause(std::string id, RequirementKind kind,
+                                    std::string_view original,
+                                    const NormalizedInstruction& normalized,
+                                    std::size_t begin, std::size_t end) {
+    const auto [source_begin, source_end] = original_span(normalized, begin, end);
+    RequirementClause clause;
+    clause.id = std::move(id);
+    clause.kind = kind;
+    clause.provenance = "interactive-high-confidence";
+    clause.source_begin = source_begin;
+    clause.source_end = source_end;
+    clause.source_text = std::string{original.substr(source_begin,
+                                                     source_end - source_begin)};
+    return clause;
+}
+
+std::string threshold_identity(ir::ValueType type,
+                               const domain::CanonicalQuantity& value) {
+    if (type == ir::ValueType::PowerDelta) {
+        return "linear(1*PowerDelta{power_delta:" +
+               number(std::get<domain::PowerDelta>(value).db()) + "})";
+    }
+    if (type == ir::ValueType::Ratio) {
+        return "linear(1*Ratio{ratio:" +
+               number(std::get<domain::Ratio>(value).ratio()) + "})";
+    }
+    const auto frequency = std::get<domain::Frequency>(value);
+    return "linear(1*FrequencyDelta{frequency_delta:" +
+           number(frequency.hertz()) + "})";
 }
 
 std::string dimension_name(ir::SweepDimension value) {
@@ -221,10 +319,364 @@ RequirementOutcome outcome(const RequirementClause& requirement,
                            std::string expected, std::string actual,
                            std::string explanation) {
     return {requirement.id, status, std::move(code), std::move(expected),
-            std::move(actual), std::move(explanation)};
+            std::move(actual), std::move(explanation), requirement.confidence,
+            requirement.source_begin, requirement.source_end,
+            requirement.source_text};
 }
 
 } // namespace
+
+std::vector<RequirementClause> extract_requirements(std::string_view instruction) {
+    const auto normalized = normalize_punctuation(instruction);
+    const std::string lowered = lowercase(normalized.text);
+    std::vector<RequirementClause> result;
+    std::size_t identifier{};
+    auto next_id = [&](std::string_view prefix) {
+        return std::string{prefix} + '-' + std::to_string(++identifier);
+    };
+
+    struct PositionedSweep final {
+        std::size_t position{};
+        RequirementClause clause;
+    };
+    std::vector<PositionedSweep> sweeps;
+    const auto extract_ranges = [&](const std::regex& pattern,
+                                    ir::SweepDimension dimension) {
+        for (std::sregex_iterator match{normalized.text.begin(), normalized.text.end(),
+                                        pattern}, end;
+             match != end; ++match) {
+            const std::string start_unit = (*match)[2].matched
+                                               ? (*match)[2].str()
+                                               : (*match)[4].str();
+            auto start = quantity((*match)[1].str(), start_unit);
+            auto finish = quantity((*match)[3].str(), (*match)[4].str());
+            std::string step_unit = (*match)[6].str();
+            if (lowercase(step_unit).starts_with("degree")) {
+                step_unit = lowercase((*match)[4].str()) == "degc" ? "deltaC"
+                                                                    : "deltaK";
+            }
+            auto step = quantity((*match)[5].str(), step_unit);
+            if (!start || !finish || !step) continue;
+            auto clause = extracted_clause(next_id("sweep"), RequirementKind::Sweep,
+                                           instruction, normalized,
+                                           static_cast<std::size_t>(match->position()),
+                                           static_cast<std::size_t>(match->position() +
+                                                                    match->length()));
+            std::optional<SweepFact> fact;
+            if (dimension == ir::SweepDimension::Frequency &&
+                std::holds_alternative<domain::Frequency>(*start) &&
+                std::holds_alternative<domain::Frequency>(*finish) &&
+                std::holds_alternative<domain::Frequency>(*step)) {
+                fact.emplace(SweepFact{
+                    dimension, std::get<domain::Frequency>(*start),
+                    std::get<domain::Frequency>(*finish),
+                    std::get<domain::Frequency>(*step), 0, 0});
+            } else if (dimension == ir::SweepDimension::Temperature &&
+                       std::holds_alternative<domain::Temperature>(*start) &&
+                       std::holds_alternative<domain::Temperature>(*finish) &&
+                       std::holds_alternative<domain::TemperatureDelta>(*step)) {
+                fact.emplace(SweepFact{
+                    dimension, std::get<domain::Temperature>(*start),
+                    std::get<domain::Temperature>(*finish),
+                    std::get<domain::TemperatureDelta>(*step), 0, 0});
+            } else {
+                continue;
+            }
+            clause.sweep = std::move(*fact);
+            clause.constrain_sweep_order = false;
+            sweeps.push_back({static_cast<std::size_t>(match->position()),
+                              std::move(clause)});
+        }
+    };
+
+    const std::string number_pattern{decimal_pattern};
+    const std::regex frequency_range{
+        "(" + number_pattern + ")\\s*(Hz|kHz|MHz|GHz)?\\s*"
+        "(?:\\.\\.|to|through|and)\\s*(" + number_pattern +
+        ")\\s*(Hz|kHz|MHz|GHz)\\s*(?:(?:in|by|every|at)\\s*)?(" +
+        number_pattern + ")\\s*(Hz|kHz|MHz|GHz)(?:\\s*(?:steps?|spacing|increments?))?",
+        std::regex_constants::icase};
+    const std::regex temperature_range{
+        "(" + number_pattern + ")\\s*(K|degC)?\\s*"
+        "(?:\\.\\.|to|through|and)\\s*(" + number_pattern +
+        ")\\s*(K|degC)\\s*(?:(?:in|by|every|at)\\s*)?(" +
+        number_pattern + ")\\s*(deltaK|deltaC|degrees?)(?:\\s*(?:steps?|spacing|increments?))?",
+        std::regex_constants::icase};
+    extract_ranges(frequency_range, ir::SweepDimension::Frequency);
+    extract_ranges(temperature_range, ir::SweepDimension::Temperature);
+
+    const bool has_frequency_range = std::ranges::any_of(sweeps, [](const auto& item) {
+        return item.clause.sweep->dimension == ir::SweepDimension::Frequency;
+    });
+    if (!has_frequency_range) {
+        const std::regex fixed_frequency{
+            "(?:fixed\\s+|once\\s+)?at\\s+(" + number_pattern +
+            ")\\s*(Hz|kHz|MHz|GHz)\\b",
+            std::regex_constants::icase};
+        std::smatch match;
+        if (std::regex_search(normalized.text, match, fixed_frequency)) {
+            if (auto value = quantity(match[1].str(), match[2].str()); value &&
+                std::holds_alternative<domain::Frequency>(*value)) {
+                auto clause = extracted_clause(
+                    next_id("fixed-frequency"), RequirementKind::Sweep, instruction,
+                    normalized, static_cast<std::size_t>(match.position()),
+                    static_cast<std::size_t>(match.position() + match.length()));
+                const auto frequency = std::get<domain::Frequency>(*value);
+                clause.sweep = SweepFact{ir::SweepDimension::Frequency, frequency,
+                                         frequency, frequency, 1, 0};
+                clause.constrain_sweep_step = false;
+                clause.constrain_sweep_order = false;
+                sweeps.push_back({static_cast<std::size_t>(match.position()),
+                                  std::move(clause)});
+            }
+        }
+    }
+    if (!has_frequency_range) {
+        const std::regex frequency_step{
+            "frequency\\s+step(?:\\s+to)?\\s+(" + number_pattern +
+            ")\\s*(Hz|kHz|MHz|GHz)\\b",
+            std::regex_constants::icase};
+        std::smatch match;
+        if (std::regex_search(normalized.text, match, frequency_step)) {
+            if (auto value = quantity(match[1].str(), match[2].str()); value &&
+                std::holds_alternative<domain::Frequency>(*value)) {
+                auto clause = extracted_clause(
+                    next_id("frequency-step"), RequirementKind::Sweep,
+                    instruction, normalized,
+                    static_cast<std::size_t>(match.position()),
+                    static_cast<std::size_t>(match.position() + match.length()));
+                const auto step = std::get<domain::Frequency>(*value);
+                const auto placeholder = domain::Frequency::from_hertz(0.0);
+                clause.sweep = SweepFact{ir::SweepDimension::Frequency,
+                                         placeholder, placeholder, step, 0, 0};
+                clause.constrain_sweep_bounds = false;
+                clause.constrain_sweep_order = false;
+                sweeps.push_back({static_cast<std::size_t>(match.position()),
+                                  std::move(clause)});
+            }
+        }
+    }
+    std::ranges::sort(sweeps, {}, &PositionedSweep::position);
+    const bool explicit_order = lowered.find("then sweep") != std::string::npos ||
+                                lowered.find("outer sweep") != std::string::npos ||
+                                lowered.find("sweep order") != std::string::npos ||
+                                lowered.find("first") != std::string::npos;
+    for (std::size_t order = 0; order < sweeps.size(); ++order) {
+        sweeps[order].clause.sweep->order = order;
+        sweeps[order].clause.constrain_sweep_order = explicit_order;
+        result.push_back(std::move(sweeps[order].clause));
+    }
+
+    const std::regex absolute_power{"(" + number_pattern +
+                                        ")\\s*(mdBm|dBm)\\b",
+                                    std::regex_constants::icase};
+    std::vector<std::smatch> powers;
+    for (std::sregex_iterator match{normalized.text.begin(), normalized.text.end(),
+                                    absolute_power}, end;
+         match != end; ++match) {
+        powers.push_back(*match);
+    }
+    bool equivalent_repeated_power = powers.size() > 1;
+    std::optional<domain::Power> repeated_power;
+    for (const auto& match : powers) {
+        const auto value = quantity(match[1].str(), match[2].str());
+        if (!value || !std::holds_alternative<domain::Power>(*value)) {
+            equivalent_repeated_power = false;
+            break;
+        }
+        const auto power = std::get<domain::Power>(*value);
+        if (repeated_power && power != *repeated_power) equivalent_repeated_power = false;
+        repeated_power = power;
+    }
+    if (powers.size() == 1 || equivalent_repeated_power) {
+        const auto& match = powers.front();
+        if (auto value = quantity(match[1].str(), match[2].str()); value &&
+            std::holds_alternative<domain::Power>(*value)) {
+            auto clause = extracted_clause(
+                next_id("reference-power"), RequirementKind::ReferencePower,
+                instruction, normalized, static_cast<std::size_t>(match.position()),
+                static_cast<std::size_t>(match.position() + match.length()));
+            clause.reference_power = std::get<domain::Power>(*value);
+            result.push_back(std::move(clause));
+        }
+    } else if (powers.size() > 1) {
+        auto clause = extracted_clause(next_id("ambiguous-power"),
+                                       RequirementKind::ReferencePower, instruction,
+                                       normalized, 0, normalized.text.size());
+        clause.extraction_code = "ambiguous_absolute_power";
+        clause.confidence = RequirementConfidence::Ambiguous;
+        clause.extraction_explanation =
+            "multiple absolute power values were present and their roles are ambiguous";
+        result.push_back(std::move(clause));
+    }
+
+    const bool measurement_context =
+        lowered.find("measure") != std::string::npos ||
+        lowered.find("record") != std::string::npos ||
+        lowered.find("collect") != std::string::npos ||
+        lowered.find("reading") != std::string::npos ||
+        lowered.find("output power") != std::string::npos;
+    const auto add_measurement = [&](ir::MeasurementOperation operation,
+                                     std::string_view operation_text,
+                                     ir::ValueType type) {
+        const auto position = lowered.find(operation_text);
+        if (!measurement_context || position == std::string::npos) return;
+        auto clause = extracted_clause(next_id("measurement"),
+                                       RequirementKind::Measurement, instruction,
+                                       normalized, position,
+                                       position + operation_text.size());
+        MeasurementFact fact{"", operation, type, false};
+        const std::string operation_pattern = operation == ir::MeasurementOperation::Power
+            ? R"((?:power(?:\s+measurement|\s+reading)?|measured\s+result))"
+            : operation == ir::MeasurementOperation::Evm
+                ? R"(EVM)"
+                : R"((?:carrier\s+(?:frequency\s+)?error|frequency\s+error))";
+        const std::regex named_after{operation_pattern +
+            R"(\s+(?:as|named)\s+([A-Za-z_][A-Za-z0-9_]*))",
+            std::regex_constants::icase};
+        const std::regex named_result{
+            R"(name\s+(?:the\s+)?(?:measured\s+result|power\s+reading)\s+([A-Za-z_][A-Za-z0-9_]*))",
+            std::regex_constants::icase};
+        std::smatch name_match;
+        if (std::regex_search(normalized.text, name_match, named_after) ||
+            (operation == ir::MeasurementOperation::Power &&
+             std::regex_search(normalized.text, name_match, named_result))) {
+            fact.name = name_match[1].str();
+            clause.constrain_measurement_name = true;
+            const auto span = original_span(normalized,
+                static_cast<std::size_t>(name_match.position()),
+                static_cast<std::size_t>(name_match.position() + name_match.length()));
+            clause.source_begin = span.first;
+            clause.source_end = span.second;
+            clause.source_text = std::string{instruction.substr(span.first,
+                                                                 span.second - span.first)};
+        }
+        clause.measurement = std::move(fact);
+        result.push_back(std::move(clause));
+    };
+    add_measurement(ir::MeasurementOperation::Power, "power", ir::ValueType::Power);
+    add_measurement(ir::MeasurementOperation::Evm, "evm", ir::ValueType::Ratio);
+    if (lowered.find("frequency error") != std::string::npos) {
+        add_measurement(ir::MeasurementOperation::FrequencyError, "frequency error",
+                        ir::ValueType::FrequencyDelta);
+    } else {
+        add_measurement(ir::MeasurementOperation::FrequencyError, "carrier error",
+                        ir::ValueType::FrequencyDelta);
+    }
+
+    std::vector<ir::SweepDimension> calibration_indexes;
+    std::size_t calibration_begin{};
+    std::size_t calibration_end{};
+    const std::regex calibration_over{
+        R"((calibrate|calibration|correction(?:\s+table)?|surface|table)[^.]{0,100}(?:over|indexed\s+by)\s+(frequency\s*(?:,|and)\s*temperature|temperature\s*(?:,|and)\s*frequency|both\s+dimensions|frequency|temperature))",
+        std::regex_constants::icase};
+    std::smatch calibration_match;
+    if (std::regex_search(normalized.text, calibration_match, calibration_over)) {
+        const std::string dimensions = lowercase(calibration_match[2].str());
+        calibration_begin = static_cast<std::size_t>(calibration_match.position());
+        calibration_end = calibration_begin +
+                          static_cast<std::size_t>(calibration_match.length());
+        if (dimensions == "both dimensions") {
+            for (const auto& clause : result) {
+                if (clause.sweep) calibration_indexes.push_back(clause.sweep->dimension);
+            }
+        } else {
+            const auto frequency = dimensions.find("frequency");
+            const auto temperature = dimensions.find("temperature");
+            if (frequency != std::string::npos &&
+                (temperature == std::string::npos || frequency < temperature)) {
+                calibration_indexes.push_back(ir::SweepDimension::Frequency);
+            }
+            if (temperature != std::string::npos) {
+                calibration_indexes.push_back(ir::SweepDimension::Temperature);
+            }
+            if (frequency != std::string::npos && temperature != std::string::npos &&
+                temperature < frequency) {
+                calibration_indexes.push_back(ir::SweepDimension::Frequency);
+            }
+        }
+    } else {
+        const std::regex frequency_indexed{R"(frequency-indexed)",
+                                           std::regex_constants::icase};
+        if (std::regex_search(normalized.text, calibration_match,
+                              frequency_indexed)) {
+            calibration_begin = static_cast<std::size_t>(calibration_match.position());
+            calibration_end = calibration_begin +
+                              static_cast<std::size_t>(calibration_match.length());
+            calibration_indexes.push_back(ir::SweepDimension::Frequency);
+        }
+    }
+    if (!calibration_indexes.empty()) {
+        auto clause = extracted_clause(next_id("calibration"),
+                                       RequirementKind::Calibration, instruction,
+                                       normalized, calibration_begin,
+                                       calibration_end);
+        clause.calibration = CalibrationFact{"", "", std::move(calibration_indexes)};
+        clause.constrain_calibration_correction = false;
+        result.push_back(std::move(clause));
+    }
+
+    const std::regex assertion{
+        "(absolute\\s+)?(output[- ]power|power|evm|quality|carrier(?:\\s+frequency)?\\s+error|frequency\\s+error|offset)"
+        "(?:\\s+error)?(?:\\s+to\\s+be)?\\s+"
+        "(within|at\\s+most|no\\s+more\\s+than|no\\s+greater\\s+than|below|less\\s+than|"
+        "at\\s+least|no\\s+less\\s+than|above|greater\\s+than)\\s+(" +
+        number_pattern + ")\\s*(dB|%|Hz|kHz|MHz)\\b",
+        std::regex_constants::icase};
+    for (std::sregex_iterator match{normalized.text.begin(), normalized.text.end(),
+                                    assertion}, end;
+         match != end; ++match) {
+        const std::string subject = lowercase((*match)[2].str());
+        const std::string comparison = lowercase((*match)[3].str());
+        ir::ValueType type = ir::ValueType::PowerDelta;
+        if (subject == "evm" || subject == "quality") type = ir::ValueType::Ratio;
+        else if (subject.find("frequency") != std::string::npos || subject == "offset" ||
+                 subject.find("carrier") != std::string::npos) {
+            type = ir::ValueType::FrequencyDelta;
+        }
+        auto converted = quantity((*match)[4].str(), (*match)[5].str());
+        if (!converted) continue;
+        const bool compatible =
+            (type == ir::ValueType::PowerDelta &&
+             std::holds_alternative<domain::PowerDelta>(*converted)) ||
+            (type == ir::ValueType::Ratio &&
+             std::holds_alternative<domain::Ratio>(*converted)) ||
+            (type == ir::ValueType::FrequencyDelta &&
+             std::holds_alternative<domain::Frequency>(*converted));
+        if (!compatible) continue;
+        auto clause = extracted_clause(
+            next_id("assertion"), RequirementKind::Assertion, instruction,
+            normalized, static_cast<std::size_t>(match->position()),
+            static_cast<std::size_t>(match->position() + match->length()));
+        AssertionFact fact;
+        fact.operand_type = type;
+        fact.right = threshold_identity(type, *converted);
+        if (comparison == "below" || comparison == "less than")
+            fact.op = ir::ComparisonOperator::Less;
+        else if (comparison == "above" || comparison == "greater than")
+            fact.op = ir::ComparisonOperator::Greater;
+        else if (comparison == "at least" || comparison == "no less than")
+            fact.op = ir::ComparisonOperator::GreaterEqual;
+        else
+            fact.op = ir::ComparisonOperator::LessEqual;
+        if ((*match)[1].matched || comparison == "within") fact.left = "absolute";
+        clause.constrain_assertion_left = false;
+        clause.assertion = std::move(fact);
+        result.push_back(std::move(clause));
+    }
+
+    if (lowered.find("power range") != std::string::npos && powers.empty()) {
+        auto clause = extracted_clause(next_id("ambiguous-power-range"),
+                                       RequirementKind::Sweep, instruction,
+                                       normalized, 0, normalized.text.size());
+        clause.extraction_code = "ambiguous_power_range";
+        clause.confidence = RequirementConfidence::Ambiguous;
+        clause.extraction_explanation =
+            "'power range' does not unambiguously request a supported sweep or a limit";
+        result.push_back(std::move(clause));
+    }
+    return result;
+}
 
 std::optional<std::string> normalize_expression(const ir::Program& program,
                                                 ir::ValueId value) {
@@ -299,7 +751,8 @@ RequirementVerificationResult verify_requirements(
                                                  &SweepFact::dimension);
             bool match = found != facts.sweeps.end();
             if (match) {
-                match = found->start == expected.start && found->end == expected.end;
+                if (requirement.constrain_sweep_bounds)
+                    match = found->start == expected.start && found->end == expected.end;
                 if (requirement.constrain_sweep_step) match = match && found->step == expected.step;
                 if (requirement.constrain_sweep_order) match = match && found->order == expected.order;
             }
@@ -327,8 +780,12 @@ RequirementVerificationResult verify_requirements(
         } else if (requirement.kind == RequirementKind::Assertion && requirement.assertion) {
             const auto& expected = *requirement.assertion;
             const auto found = std::ranges::find_if(facts.assertions, [&](const AssertionFact& value) {
+                const bool left_matches = requirement.constrain_assertion_left
+                    ? value.left == expected.left
+                    : expected.left != "absolute" ||
+                          value.left.find("absolute(") != std::string::npos;
                 return value.op == expected.op && value.operand_type == expected.operand_type &&
-                       value.left == expected.left && value.right == expected.right;
+                       left_matches && value.right == expected.right;
             });
             const bool match = found != facts.assertions.end();
             item = outcome(requirement, match ? RequirementOutcomeStatus::Satisfied
@@ -339,7 +796,8 @@ RequirementVerificationResult verify_requirements(
                                                                   : "assertion is missing or differs");
         } else if (requirement.kind == RequirementKind::Calibration && requirement.calibration) {
             const auto& expected = *requirement.calibration;
-            const bool match = facts.calibration.correction == expected.correction &&
+            const bool match = (!requirement.constrain_calibration_correction ||
+                                facts.calibration.correction == expected.correction) &&
                                facts.calibration.indexes == expected.indexes;
             item = outcome(requirement, match ? RequirementOutcomeStatus::Satisfied
                                               : RequirementOutcomeStatus::Violated,
@@ -348,9 +806,16 @@ RequirementVerificationResult verify_requirements(
                            match ? "calibration requirement matches"
                                  : "calibration correction or indexes differ");
         } else {
-            item = outcome(requirement, RequirementOutcomeStatus::Unknown,
-                           "requirement_incomplete", "typed requirement", "unavailable",
-                           "the requirement does not contain the typed fields needed for verification");
+            item = outcome(
+                requirement, RequirementOutcomeStatus::Unknown,
+                requirement.extraction_code.empty() ? "requirement_incomplete"
+                                                    : requirement.extraction_code,
+                requirement.source_text.empty() ? "typed requirement"
+                                                : requirement.source_text,
+                "unavailable",
+                requirement.extraction_explanation.empty()
+                    ? "the requirement does not contain the typed fields needed for verification"
+                    : requirement.extraction_explanation);
         }
         if (item.status == RequirementOutcomeStatus::Unsupported)
             result.status = RequirementSatisfactionStatus::Unsupported;
@@ -364,6 +829,11 @@ RequirementVerificationResult verify_requirements(
     }
     if (requirements.empty()) result.status = RequirementSatisfactionStatus::NotEvaluated;
     return result;
+}
+
+RequirementVerificationResult verify_instruction_requirements(
+    std::string_view instruction, const ProgramFacts& facts) {
+    return verify_requirements(extract_requirements(instruction), facts);
 }
 
 } // namespace horusrf::ai

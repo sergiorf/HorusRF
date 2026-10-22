@@ -129,8 +129,10 @@ void invalid_candidate_is_repaired_test() {
     CHECK(request_contains(provider.requests()[1], instruction));
     CHECK(request_contains(provider.requests()[1], invalid_source));
     CHECK(request_contains(provider.requests()[1], "semantic.unexpected_quantity_type"));
-    CHECK_EQ(value.warnings().size(), std::size_t{1});
-    CHECK(value.warnings().front().find("5 MHz") != std::string::npos);
+    CHECK(value.warnings().empty());
+    CHECK_EQ(value.requirement_verification().status,
+             ai::RequirementSatisfactionStatus::Violated);
+    CHECK(!value.requirement_verification().outcomes.empty());
 }
 
 void repair_limit_retains_last_candidate_test() {

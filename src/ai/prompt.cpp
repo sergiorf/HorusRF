@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cctype>
-#include <regex>
-#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -281,72 +279,11 @@ std::string with_frequency_step(std::string_view source, std::string_view step) 
     return result;
 }
 
-std::string regex_escape(std::string_view value) {
-    std::string result;
-    for (const char ch : value) {
-        if (std::string_view{R"(\.^$|()[]{}*+?)"}.find(ch) != std::string_view::npos) {
-            result.push_back('\\');
-        }
-        result.push_back(ch);
-    }
-    return result;
-}
-
-std::string normalized_decimal(std::string value) {
-    bool negative = false;
-    if (!value.empty() && (value.front() == '+' || value.front() == '-')) {
-        negative = value.front() == '-';
-        value.erase(value.begin());
-    }
-    const auto decimal = value.find('.');
-    std::string integer = decimal == std::string::npos ? value : value.substr(0, decimal);
-    std::string fraction = decimal == std::string::npos ? "" : value.substr(decimal + 1);
-    const auto nonzero = integer.find_first_not_of('0');
-    integer = nonzero == std::string::npos ? "0" : integer.substr(nonzero);
-    while (!fraction.empty() && fraction.back() == '0') fraction.pop_back();
-    std::string result = integer + (fraction.empty() ? "" : "." + fraction);
-    if (negative && result != "0") result.insert(result.begin(), '-');
-    return result;
-}
-
 std::string lowercase(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
         return static_cast<char>(std::tolower(ch));
     });
     return value;
-}
-
-struct ExplicitQuantity final {
-    std::string key;
-    std::string written;
-};
-
-std::vector<ExplicitQuantity> explicit_quantities(std::string_view text) {
-    std::vector<std::string> units;
-    for (const auto& unit : frontend::get_language_capabilities().units) {
-        units.push_back(unit.spelling);
-    }
-    std::sort(units.begin(), units.end(), [](const auto& left, const auto& right) {
-        return left.size() > right.size();
-    });
-    std::ostringstream alternatives;
-    for (std::size_t index = 0; index < units.size(); ++index) {
-        if (index != 0) alternatives << '|';
-        alternatives << regex_escape(units[index]);
-    }
-    const std::regex pattern{
-        "([-+]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+))\\s*(" +
-            alternatives.str() + ")\\b",
-        std::regex_constants::icase};
-    const std::string owned{text};
-    std::vector<ExplicitQuantity> result;
-    for (std::sregex_iterator match{owned.begin(), owned.end(), pattern}, end;
-         match != end; ++match) {
-        const std::string number = normalized_decimal((*match)[1].str());
-        const std::string unit = lowercase((*match)[2].str());
-        result.push_back({number + " " + unit, match->str()});
-    }
-    return result;
 }
 
 } // namespace
@@ -424,25 +361,6 @@ PromptBuilder::PromptBuilder(PromptSettings settings) : settings_(std::move(sett
     if (settings_.timeout <= std::chrono::milliseconds::zero()) {
         throw std::invalid_argument("timeout must be positive");
     }
-}
-
-std::vector<std::string> numeric_fidelity_warnings(
-    const NaturalLanguageInstruction& instruction, const ScriptSource& candidate) {
-    const auto required = explicit_quantities(instruction.text());
-    const auto present = explicit_quantities(candidate.text());
-    std::set<std::string> present_keys;
-    for (const auto& quantity : present) present_keys.insert(quantity.key);
-
-    std::set<std::string> already_reported;
-    std::vector<std::string> warnings;
-    for (const auto& quantity : required) {
-        if (present_keys.contains(quantity.key) || !already_reported.insert(quantity.key).second) {
-            continue;
-        }
-        warnings.push_back("Review numeric requirement '" + quantity.written +
-                           "': the same value and unit do not appear in the candidate.");
-    }
-    return warnings;
 }
 
 LlmRequest PromptBuilder::base_request() const {

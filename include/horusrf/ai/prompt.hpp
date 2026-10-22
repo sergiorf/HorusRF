@@ -98,10 +98,4 @@ using ProposalResponseResult = std::variant<ProposalPayload, ProposalResponseErr
 // This verifies provider output shape only; callers must still validate the script.
 [[nodiscard]] ProposalResponseResult parse_proposal_response(std::string_view response);
 
-// Conservatively reports explicit number-and-unit requirements that do not appear
-// in a candidate. These warnings require user review; they do not override the
-// compiler's validity decision and equivalent unit conversions may be acceptable.
-[[nodiscard]] std::vector<std::string> numeric_fidelity_warnings(
-    const NaturalLanguageInstruction& instruction, const ScriptSource& candidate);
-
 } // namespace horusrf::ai

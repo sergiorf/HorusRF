@@ -124,8 +124,15 @@ regresses 3B correctness, while the feature-selected variant improves 3B but
 materially regresses 7B. The unchanged baseline therefore remains the product
 default; both variants remain explicit evaluator options. The measurements and
 decision are recorded in the
-[M6Q.2 prompt experiment](ai-generation-quality-prompt-experiment.md). M6Q.3,
-conservative interactive requirement extraction, is next.
+[M6Q.2 prompt experiment](ai-generation-quality-prompt-experiment.md).
+
+M6Q.3 was completed on 2026-10-22. The interactive authoring path now extracts
+conservative typed requirements for explicit reference power, frequency and
+temperature sweeps, fixed frequency, measurements and requested names, simple
+assertions, sweep order, and calibration indexes. It verifies them against
+compiler-backed program facts and reports satisfied, violated, unknown, and
+unsupported outcomes separately from compiler validity in the proposal contract
+and Studio. M6Q.4, targeted correction and repair observability, is next.
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

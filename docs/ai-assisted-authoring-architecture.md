@@ -137,8 +137,9 @@ The implemented target dependencies are:
 horusrf_ai_ollama --> horusrf_ai
 horusrf_ai_prompt --> horusrf_ai + horusrf_frontend
 horusrf_ai_validation --> horusrf_ai + horusrf_frontend + horusrf_ir
+horusrf_ai_requirements --> horusrf_ai + horusrf_domain + horusrf_frontend + horusrf_ir
 horusrf_ai_semantic_comparison --> horusrf_frontend + horusrf_ir
-horusrf_ai_agent --> horusrf_ai + horusrf_ai_prompt + horusrf_ai_validation
+horusrf_ai_agent --> horusrf_ai + horusrf_ai_prompt + horusrf_ai_validation + horusrf_ai_requirements
 horusrf_ai_evaluation --> horusrf_ai_agent + horusrf_ai_golden + horusrf_ai_semantic_comparison
 horusrf-ai-eval --> horusrf_ai_evaluation + horusrf_ai_ollama
 ```
@@ -189,10 +190,14 @@ apply. A failure carries the last validated-invalid proposal when one exists, so
 source and diagnostics remain reviewable without becoming applicable.
 
 The original instruction and, for modification, original source remain in every
-repair request. Provider warnings are preserved. A compiler-capability-derived,
-conservative check also warns when an explicit number-and-unit requirement does
-not appear in the final candidate; this is a review aid rather than a validity
-decision because equivalent unit conversions may still satisfy the request.
+repair request. Provider warnings are preserved. After compiler success, a
+conservative interactive extractor converts explicit supported requirements to
+typed clauses, retaining source text and offsets, and verifies them against a
+read-only projection of the lowered IR. Canonical quantities accept equivalent
+unit spellings. Recognized ambiguity remains unknown rather than becoming an
+invented requirement. The immutable proposal reports requirement satisfaction
+separately from compiler validity; this is a review diagnostic and does not alter
+Apply eligibility in M6Q.3.
 
 ## CLI compatibility
 
@@ -232,7 +237,8 @@ the configured timeout while Ollama, validation, and any bounded repair attempts
 run. As the deadline approaches, the display switches to a timeout countdown. It
 then retains the completed end-to-end response time and model-attempt count.
 It displays the complete proposal, a line-oriented change view, explanation,
-warnings, and validation diagnostics without modifying the editor. Apply is
+warnings, compiler diagnostics, and per-clause requirement verification without
+modifying the editor. Apply is
 enabled only for a compiler-valid proposal whose snapshot is still current. It
 replaces the editor in one undoable edit block, does not save, and does not invoke
 `ExperimentRunner`. Discard and retry are explicit. Endpoint, installed-model

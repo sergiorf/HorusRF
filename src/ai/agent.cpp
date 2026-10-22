@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "horusrf/ai/validation.hpp"
+#include "horusrf/ai/requirement_verification.hpp"
 
 namespace horusrf::ai {
 namespace {
@@ -22,12 +23,19 @@ bool has_text(std::string_view value) {
     return value.find_first_not_of(" \t\r\n") != std::string_view::npos;
 }
 
-std::vector<std::string> combined_warnings(
-    const Candidate& candidate, const NaturalLanguageInstruction& instruction) {
-    auto warnings = candidate.payload.warnings;
-    auto fidelity = numeric_fidelity_warnings(instruction, candidate.payload.script);
-    warnings.insert(warnings.end(), fidelity.begin(), fidelity.end());
-    return warnings;
+RequirementVerificationResult requirement_verification(
+    const Candidate& candidate, const ValidationResult& validation,
+    const NaturalLanguageInstruction& instruction) {
+    if (!validation.ok()) return {};
+    const auto facts = compile_program_facts(candidate.payload.script.text());
+    if (!facts) {
+        return {RequirementSatisfactionStatus::Unknown,
+                {{"interactive-verification", RequirementOutcomeStatus::Unknown,
+                  "program_facts_unavailable", "compiler-backed program facts",
+                  "unavailable",
+                  "the valid proposal could not be projected for requirement verification"}}};
+    }
+    return verify_instruction_requirements(instruction.text(), *facts);
 }
 
 ScriptProposal proposal_from(const Candidate& candidate,
@@ -36,7 +44,8 @@ ScriptProposal proposal_from(const Candidate& candidate,
                              const NaturalLanguageInstruction& instruction) {
     return {candidate.payload.script, validation, candidate.payload.explanation,
             attempt_count, candidate.provider,
-            combined_warnings(candidate, instruction)};
+            candidate.payload.warnings,
+            requirement_verification(candidate, validation, instruction)};
 }
 
 AgentResult failure_without_proposal(AgentErrorCode code, std::string message) {

@@ -87,9 +87,9 @@ and malformed response rejection. It does not invoke a provider or network.
 in-memory compiler validation adapter. It covers first-pass completion,
 diagnostic-directed repair, retry exhaustion, unchanged invalid output, provider
 and structured-response failures, cancellation, invalid requests, modification
-context preservation, retained invalid proposals, and conservative numeric
-fidelity warnings. It does not invoke Ollama, the network, runtime, simulator, or
-hardware.
+context preservation, retained invalid proposals, and conservative typed
+requirement verification. It does not invoke Ollama, the network, runtime,
+simulator, or hardware.
 
 `horusrf_ai_evaluation_tests` runs supported, repaired, unsupported, and failed
 golden-style cases through the real agent, compiler validation, and semantic

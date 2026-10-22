@@ -1,6 +1,6 @@
 # HorusRF AI generation quality improvement plan
 
-**Status:** M6Q.0 through M6Q.2 completed on 2026-10-22; M6Q.3 is next
+**Status:** M6Q.0 through M6Q.3 completed on 2026-10-22; M6Q.4 is next
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
 **Reviewed baseline artifact:** `build/ai-evaluation/results-20261021-193036.json`
@@ -327,6 +327,14 @@ correctness. A remains the default; B and C remain explicit experiment options.
 
 ### M6Q.3 — Conservative interactive requirement extraction
 
+**Status:** Completed on 2026-10-22. Interactive instructions now produce
+high-confidence typed clauses with source text and spans. Canonical quantities,
+including the explicit `mdBm` compatibility spelling, are verified against the
+same compiler-backed `ProgramFacts` used by evaluation. Proposal contracts and
+Studio present requirement verification separately from compiler validity;
+unknown or violated requirements do not masquerade as compiler errors and do not
+automatically disable Apply.
+
 **Changes**
 
 - Replace spelling-only numeric fidelity checks with typed high-confidence clauses
@@ -357,6 +365,13 @@ overreach is the main risk; prefer `unknown` and narrow patterns.
 The six required mismatch classes are detected with no known false positive in
 the original suite, and Studio distinguishes compiler validity from requirement
 verification.
+
+**Outcome:** Complete. Deterministic tests cover reference values, sweep ranges,
+steps and order, fixed-frequency representation, measurement operations and
+names, assertion thresholds and strictness, equivalent units, signs, repeated
+values, Unicode dash punctuation, ambiguity, and false-positive controls. All 16
+supported original prompts verify without a false violation against their
+reviewed expected programs.
 
 ### M6Q.4 — Targeted correction and repair observability
 

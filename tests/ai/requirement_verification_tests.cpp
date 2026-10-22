@@ -1,5 +1,6 @@
 #include "test_support.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
@@ -35,6 +36,13 @@ bool has_code(const ai::RequirementVerificationResult& result,
         if (outcome.code == code) return true;
     }
     return false;
+}
+
+bool has_kind(const std::vector<ai::RequirementClause>& clauses,
+              ai::RequirementKind kind) {
+    return std::ranges::any_of(clauses, [kind](const auto& clause) {
+        return clause.kind == kind;
+    });
 }
 
 ai::RequirementVerificationResult verify(const ai::GoldenCase& golden,
@@ -131,6 +139,139 @@ void equivalence_regressions_test(const ai::GoldenDataset& dataset) {
     CHECK(verify(temperature, source).satisfied());
 }
 
+void interactive_extraction_test(const ai::GoldenDataset& dataset) {
+    const auto& units = find_case(dataset, "unit_conversions");
+    auto facts = ai::compile_program_facts(units.expected_source);
+    CHECK(facts.has_value());
+    auto result = ai::verify_instruction_requirements(
+        "Use \xe2\x80\x93"
+        "10000 mdBm twice: -10000 mdBm. Sweep 2400000 kHz to "
+        "2500000 kHz in 10000 kHz steps and measure power.",
+        *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Satisfied);
+    const auto extracted_units = ai::extract_requirements(
+        "Use -10000 mdBm and sweep 2400000 kHz to 2500000 kHz in 10000 kHz steps.");
+    CHECK(!extracted_units.empty());
+    CHECK(std::ranges::all_of(extracted_units, [](const auto& clause) {
+        return clause.confidence == ai::RequirementConfidence::High &&
+               !clause.source_text.empty() && clause.source_end > clause.source_begin;
+    }));
+
+    const auto& one_point = find_case(dataset, "single_frequency_point");
+    facts = ai::compile_program_facts(one_point.expected_source);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(
+        "Measure output power once at 915 MHz with a 3 dBm reference.", *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Satisfied);
+    auto changed = replace_once(one_point.expected_source, "915 MHz .. 915 MHz",
+                                "916 MHz .. 916 MHz");
+    facts = ai::compile_program_facts(changed);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(
+        "Measure output power once at 915 MHz with a 3 dBm reference.", *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+    CHECK(!result.outcomes.front().source_text.empty());
+    CHECK(result.outcomes.front().source_end > result.outcomes.front().source_begin);
+
+    const auto& basic = find_case(dataset, "frequency_sweep_basic");
+    facts = ai::compile_program_facts(basic.expected_source);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(
+        "Change only the frequency step to 10 MHz.", *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Satisfied);
+
+    const auto& named = find_case(dataset, "frequency_sweep_named_power");
+    facts = ai::compile_program_facts(named.expected_source);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(
+        "Record the power measurement as output_power.", *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Satisfied);
+    changed = replace_once(named.expected_source, "output_power", "other_power");
+    changed = replace_once(std::move(changed), "output_power", "other_power");
+    facts = ai::compile_program_facts(changed);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(
+        "Record the power measurement as output_power.", *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+
+    const auto& assertion = find_case(dataset, "frequency_sweep_power_assertion");
+    facts = ai::compile_program_facts(assertion.expected_source);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(
+        "Require absolute power error at most 1.5 dB.", *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Satisfied);
+    result = ai::verify_instruction_requirements(
+        "Require absolute power error below 1.5 dB.", *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+
+    auto wrong_step = replace_once(assertion.expected_source, "step 25 MHz",
+                                   "step 20 MHz");
+    facts = ai::compile_program_facts(wrong_step);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(
+        "Sweep 2.4 GHz to 2.5 GHz every 25 MHz with a -10 dBm reference.",
+        *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+
+    const auto& measurements = find_case(dataset, "frequency_sweep_multiple_measurements");
+    auto missing_operation = replace_once(measurements.expected_source,
+                                          "  measure modulation_evm = evm\n", "");
+    facts = ai::compile_program_facts(missing_operation);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements("Collect power and EVM.", *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+
+    const auto& ordered = find_case(dataset, "temperature_first_multidimensional");
+    auto wrong_order = replace_once(
+        ordered.expected_source,
+        "  sweep temperature 10 degC .. 30 degC step 10 deltaC\n"
+        "  sweep frequency 2 GHz .. 2.1 GHz step 50 MHz\n",
+        "  sweep frequency 2 GHz .. 2.1 GHz step 50 MHz\n"
+        "  sweep temperature 10 degC .. 30 degC step 10 deltaC\n");
+    wrong_order = replace_once(std::move(wrong_order),
+                               "over temperature, frequency",
+                               "over frequency, temperature");
+    facts = ai::compile_program_facts(wrong_order);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(
+        "Make temperature the outer sweep from 10 to 30 degC by 10 deltaC, "
+        "then sweep frequency from 2 GHz to 2.1 GHz by 50 MHz and calibrate "
+        "over temperature and frequency.",
+        *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+
+    const auto ambiguous = ai::extract_requirements(
+        "Document the power range when it becomes known.");
+    CHECK_EQ(ambiguous.size(), std::size_t{1});
+    CHECK(ambiguous.front().extraction_code == "ambiguous_power_range");
+    CHECK_EQ(ambiguous.front().confidence, ai::RequirementConfidence::Ambiguous);
+    CHECK_EQ(ambiguous.front().source_text,
+             "Document the power range when it becomes known.");
+
+    const auto none = ai::extract_requirements(
+        "Make a useful characterization and retain the existing comments.");
+    CHECK(none.empty());
+}
+
+void original_suite_false_positive_test(const ai::GoldenDataset& dataset) {
+    for (const auto& item : dataset.cases) {
+        if (!item.metadata.expected_valid) continue;
+        const auto facts = ai::compile_program_facts(item.expected_source);
+        CHECK(facts.has_value());
+        const auto clauses = ai::extract_requirements(item.prompt);
+        CHECK(!clauses.empty());
+        CHECK(has_kind(clauses, ai::RequirementKind::ReferencePower) ||
+              has_kind(clauses, ai::RequirementKind::Sweep) ||
+              has_kind(clauses, ai::RequirementKind::Measurement));
+        const auto result = ai::verify_requirements(clauses, *facts);
+        if (result.status == ai::RequirementSatisfactionStatus::Violated ||
+            result.status == ai::RequirementSatisfactionStatus::Unsupported) {
+            throw std::runtime_error("interactive false positive for " +
+                                     item.metadata.id);
+        }
+    }
+}
+
 } // namespace
 
 int main() {
@@ -141,6 +282,8 @@ int main() {
         projection_and_checked_in_metadata_test(*loaded.dataset);
         required_mismatch_tests(*loaded.dataset);
         equivalence_regressions_test(*loaded.dataset);
+        interactive_extraction_test(*loaded.dataset);
+        original_suite_false_positive_test(*loaded.dataset);
         std::cout << "All HorusRF requirement verification tests passed\n";
         return 0;
     } catch (const std::exception& error) {

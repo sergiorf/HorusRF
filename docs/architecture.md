@@ -328,6 +328,7 @@ The target-level dependency rules are:
 | `horusrf_semantic` | domain, parser/AST |
 | `horusrf_ai` | none; Qt-free AI-assisted authoring value contracts |
 | `horusrf_ai_validation` | AI contracts, frontend, IR; no runtime or device dependency |
+| `horusrf_ai_requirements` | AI contracts, domain quantities, frontend, IR; compiler-backed read-only facts and requirement verification |
 | `horusrf_ir` | domain; semantic only while lowering |
 | `horusrf_device` | domain |
 | `horusrf_runtime` | IR, device, domain |
@@ -362,8 +363,11 @@ The strict legacy CSV parser and original frequency charts remain compatibility
 presentation paths; Studio never recomputes domain values or calibration results.
 The most recent valid results remain visible if a later run or result load fails.
 The dockable assistant runs inference and compiler-directed repair on one
-cancellable worker, presents complete source and a change preview, and applies a
-compiler-valid proposal only after explicit approval. An editor revision/source
+cancellable worker, presents complete source, a change preview, compiler validity,
+and interactive requirement-verification outcomes, and applies a compiler-valid
+proposal only after explicit approval. Requirement violations and unknown clauses
+remain review diagnostics in this release rather than changing Apply eligibility.
+An editor revision/source
 snapshot prevents stale proposals from overwriting newer edits. Applying is one
 undoable editor operation and cannot save or execute the source.
 The GPL-3.0-only desktop application may consume the Apache-2.0 parser library while

@@ -182,7 +182,10 @@ target_compile_features(horusrf_ai_requirements PUBLIC cxx_std_20)
 target_include_directories(horusrf_ai_requirements PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
-target_link_libraries(horusrf_ai_requirements PRIVATE horusrf_frontend horusrf_ir)
+target_link_libraries(horusrf_ai_requirements
+    PUBLIC horusrf_ai
+    PRIVATE horusrf_frontend horusrf_ir horusrf_domain
+)
 horusrf_enable_warnings(horusrf_ai_requirements)
 
 add_library(horusrf_ai_golden STATIC
@@ -219,7 +222,7 @@ target_include_directories(horusrf_ai_agent PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 target_link_libraries(horusrf_ai_agent
-    PUBLIC horusrf_ai horusrf_ai_prompt horusrf_ai_validation
+    PUBLIC horusrf_ai horusrf_ai_prompt horusrf_ai_validation horusrf_ai_requirements
 )
 horusrf_enable_warnings(horusrf_ai_agent)
 
