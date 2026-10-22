@@ -145,8 +145,16 @@ M6Q.5 was completed on 2026-10-22. A conservative preflight now resolves explici
 sweep operations against compiler-owned capability metadata. Entirely unsupported
 requests return a typed outcome without invoking the provider; mixed and
 ambiguous clauses remain explicit in proposals, Studio, and evaluation reports.
-The evaluator no longer infers unsupported recognition from model prose. M6Q.6,
-performance tuning after correctness gates, is next.
+The evaluator no longer infers unsupported recognition from model prose.
+
+M6Q.6 was completed on 2026-10-23. Evaluation now separates cold and warm
+latency, times compiler and requirement verification, and reports output-limit
+failures explicitly. Three-repetition runs showed that reducing the output limit
+from 2,048 to 512 tokens preserves correctness but does not consistently improve
+latency across both models, so defaults remain unchanged. The measurements and
+decision are recorded in the
+[M6Q.6 performance experiment](ai-generation-quality-performance-experiment.md).
+M6Q.7, dataset expansion and trend reporting, is next.
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

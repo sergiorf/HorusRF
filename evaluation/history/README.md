@@ -46,10 +46,10 @@ interpret unavailable requirement results as failures or zero successes.
 
 ## Retained runs
 
-The initial history includes the two single-repetition M6Q.0 baseline runs and
-the three-configuration M6Q.2 gate. M6Q.2 results are based on 17 cases repeated
-three times per model. Requirement and semantic denominators exclude the
-unsupported case.
+The initial history includes the two single-repetition M6Q.0 baseline runs, the
+three-configuration M6Q.2 gate, and the two-limit M6Q.6 performance gate. M6Q.2
+and M6Q.6 results are based on 17 cases repeated three times per model.
+Requirement and semantic denominators exclude the unsupported case.
 
 | Snapshot | Model | Final valid | Requirements | Semantic match | Median / P90 latency |
 |---|---|---:|---:|---:|---:|
@@ -63,6 +63,10 @@ unsupported case.
 | `m6q2-direct-dsl-compact-v1-r3.json` | 7B | 36/51 | 27/48 | 21/48 | 9.212 / 33.332 s |
 | `m6q2-direct-dsl-relevant-v1-r3.json` | 3B | 33/51 | 24/48 | 21/48 | 3.870 / 12.069 s |
 | `m6q2-direct-dsl-relevant-v1-r3.json` | 7B | 27/51 | 21/48 | 15/48 | 20.695 / 36.388 s |
+| `m6q6-direct-dsl-v1-t2048-r3.json` | 3B | 30/51 | 21/48 | 18/48 | 13.544 / 28.940 s |
+| `m6q6-direct-dsl-v1-t2048-r3.json` | 7B | 36/51 | 30/48 | 30/48 | 18.807 / 53.328 s |
+| `m6q6-direct-dsl-v1-t512-r3.json` | 3B | 30/51 | 21/48 | 18/48 | 16.038 / 32.646 s |
+| `m6q6-direct-dsl-v1-t512-r3.json` | 7B | 36/51 | 30/48 | 30/48 | 18.197 / 53.266 s |
 
 The baseline prompt is `direct-dsl-v1`. The compact and relevant configurations
 are experimental comparisons, not successive improvements.

@@ -1,6 +1,6 @@
 # HorusRF AI generation quality improvement plan
 
-**Status:** M6Q.0 through M6Q.5 completed on 2026-10-22; M6Q.6 is in progress
+**Status:** M6Q.0 through M6Q.6 completed on 2026-10-23; M6Q.7 is next
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
 **Reviewed baseline artifact:** `build/ai-evaluation/results-20261021-193036.json`
@@ -474,9 +474,14 @@ opt-in.
 
 ### M6Q.6 — Performance tuning after correctness gates
 
-**Status:** In progress. The first implementation slice adds separate cold/warm
-latency summaries, per-attempt compiler and requirement-verification timing, and
-typed output-limit reporting. Live optimization A/B runs remain pending.
+**Status:** Completed on 2026-10-23. Evaluation now separates cold and warm
+latency, records per-attempt compiler and requirement-verification timing, and
+reports typed output-limit failures. Three-repetition live A/B runs compared the
+2,048-token default with a 512-token limit for both supported models. Correctness
+was identical and neither limit produced an output-limit failure, but the lower
+limit did not provide a consistent latency improvement, so the default remains
+unchanged. See the
+[M6Q.6 performance experiment](ai-generation-quality-performance-experiment.md).
 
 **Changes**
 
@@ -506,6 +511,13 @@ risk; output-limit experiments must report output-limit errors distinctly.
 
 Warm median and P90 are reproducible, and no accepted optimization materially
 reduces supported-case requirement satisfaction.
+
+**Outcome:** Complete. The retained reports use the same dataset, oracle,
+comparison, prompt, model digests, and revision. The 512-token run preserved all
+correctness results, but increased 3B warm median and P90 latency while changing
+7B latency only marginally. Compact prompt variants remain rejected by the
+M6Q.2 correctness gate, and compiler plus verification time is sub-millisecond
+on average. No performance variant is promoted.
 
 ### M6Q.7 — Dataset expansion and trend reporting
 
