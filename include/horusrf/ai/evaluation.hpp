@@ -17,6 +17,7 @@ namespace horusrf::ai {
 
 enum class EvaluationGenerationStatus { Completed, Failed, Cancelled };
 enum class EvaluationCallPurpose { Generation, CompilerRepair, RequirementCorrection };
+enum class EvaluationProgressStage { Started, Completed };
 enum class StructuredResponseStatus {
     Parsed,
     MalformedJson,
@@ -137,13 +138,17 @@ struct EvaluationSettings final {
 
 using EvaluationClock =
     std::function<std::chrono::steady_clock::time_point()>;
+using EvaluationProgressCallback = std::function<void(
+    EvaluationProgressStage stage, const CaseEvaluation& item,
+    std::size_t completed, std::size_t total)>;
 
 // Runs authoring only: generated scripts are compiled and compared but never
 // executed through runtime, simulator, or hardware layers.
 [[nodiscard]] EvaluationReport evaluate_golden_dataset(
     const GoldenDataset& dataset, LlmProvider& provider,
     const EvaluationSettings& settings, CancellationToken cancellation = {},
-    EvaluationClock clock = [] { return std::chrono::steady_clock::now(); });
+    EvaluationClock clock = [] { return std::chrono::steady_clock::now(); },
+    EvaluationProgressCallback progress = {});
 
 void write_evaluation_json(std::ostream& output, const EvaluationReport& report);
 void write_evaluation_table(std::ostream& output, const EvaluationReport& report);

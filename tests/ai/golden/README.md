@@ -73,7 +73,9 @@ then invokes `horusrf-ai-eval`. Reports default to timestamped JSON files under
 `build/ai-evaluation/`. Use `-OutputPath`, `-Repeat`, `-Temperature`,
 `-TimeoutSeconds`, `-MaxOutputTokens`, `-MaxRepairs`, or `-Endpoint` to override
 the corresponding evaluation setting. The script checks installed models but
-does not download them or start Ollama.
+does not download them or start Ollama. During a run, the evaluator prints a
+starting and finished line for every model/repetition/case combination, including
+the total position, validity, requirement status, repairs, and elapsed time.
 
 Evaluation reports use `horusrf.ai-evaluation` schema version 2. They are
 write-only artifacts; the repository has no report reader, so no schema-v1

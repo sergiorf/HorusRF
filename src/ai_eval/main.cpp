@@ -140,6 +140,30 @@ std::string utc_timestamp() {
     return output.str();
 }
 
+std::string_view generation_status_name(
+    horusrf::ai::EvaluationGenerationStatus status) {
+    using horusrf::ai::EvaluationGenerationStatus;
+    switch (status) {
+    case EvaluationGenerationStatus::Completed: return "completed";
+    case EvaluationGenerationStatus::Failed: return "failed";
+    case EvaluationGenerationStatus::Cancelled: return "cancelled";
+    }
+    return "unknown";
+}
+
+std::string_view requirement_status_name(
+    horusrf::ai::RequirementSatisfactionStatus status) {
+    using horusrf::ai::RequirementSatisfactionStatus;
+    switch (status) {
+    case RequirementSatisfactionStatus::Satisfied: return "satisfied";
+    case RequirementSatisfactionStatus::Violated: return "violated";
+    case RequirementSatisfactionStatus::Unknown: return "unknown";
+    case RequirementSatisfactionStatus::Unsupported: return "unsupported";
+    case RequirementSatisfactionStatus::NotEvaluated: return "not-evaluated";
+    }
+    return "unknown";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -185,8 +209,35 @@ int main(int argc, char** argv) {
             options.models, options.temperature, options.max_output_tokens,
             options.timeout, options.maximum_repairs, options.repetitions,
             utc_timestamp(), options.git_revision, options.prompt_configuration_id};
+        const auto total_runs = options.models.size() * options.repetitions *
+                                dataset.cases.size();
+        std::clog << "Evaluating " << total_runs << " runs with prompt configuration '"
+                  << options.prompt_configuration_id << "'.\n" << std::flush;
+        const auto progress = [&](horusrf::ai::EvaluationProgressStage stage,
+                                  const horusrf::ai::CaseEvaluation& item,
+                                  std::size_t completed, std::size_t total) {
+            if (stage == horusrf::ai::EvaluationProgressStage::Started) {
+                std::clog << '[' << item.run_order << '/' << total << "] Starting "
+                          << item.model << ", repetition " << item.repetition << '/'
+                          << options.repetitions << ", case " << item.case_id << "...\n";
+            } else {
+                std::clog << '[' << completed << '/' << total << "] Finished "
+                          << item.model << ", repetition " << item.repetition << '/'
+                          << options.repetitions << ", case " << item.case_id
+                          << ": " << generation_status_name(item.generation_status)
+                          << ", valid=" << (item.final_valid ? "yes" : "no")
+                          << ", requirements="
+                          << requirement_status_name(item.requirement_verification.status)
+                          << ", repairs=" << item.repair_attempts
+                          << ", elapsed=" << std::fixed << std::setprecision(1)
+                          << static_cast<double>(item.total_latency.count()) / 1000.0
+                          << "s\n";
+            }
+            std::clog << std::flush;
+        };
         const auto report = horusrf::ai::evaluate_golden_dataset(
-            dataset, provider, settings);
+            dataset, provider, settings, {},
+            [] { return std::chrono::steady_clock::now(); }, progress);
 
         if (!options.output.parent_path().empty()) {
             std::filesystem::create_directories(options.output.parent_path());

@@ -421,7 +421,8 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                                          LlmProvider& provider,
                                          const EvaluationSettings& settings,
                                          CancellationToken cancellation,
-                                         EvaluationClock clock) {
+                                         EvaluationClock clock,
+                                         EvaluationProgressCallback progress) {
     if (dataset.cases.empty()) throw std::invalid_argument("at least one golden case is required");
     if (settings.models.empty()) throw std::invalid_argument("at least one model is required");
     if (settings.repetitions == 0) throw std::invalid_argument("repetitions must be positive");
@@ -467,6 +468,8 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                             settings.timeout,
                             settings.maximum_repair_attempts,
                             {}, {}};
+    const auto total_runs = settings.models.size() * settings.repetitions *
+                            dataset.cases.size();
     std::size_t run_order{};
     for (const auto& model : settings.models) {
         bool first_model_run = true;
@@ -482,6 +485,10 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                                                         : WarmColdStatus::Warm;
                 first_model_run = false;
                 item.expected_supported = golden.metadata.expected_valid;
+                if (progress) {
+                    progress(EvaluationProgressStage::Started, item,
+                             run_order - 1, total_runs);
+                }
 
                 ObservingProvider observed{provider};
                 PromptBuilder prompts{{model, settings.temperature,
@@ -543,6 +550,10 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                     }
                 }
                 report.cases.push_back(std::move(item));
+                if (progress) {
+                    progress(EvaluationProgressStage::Completed,
+                             report.cases.back(), run_order, total_runs);
+                }
                 if (cancellation.stop_requested()) break;
             }
             if (cancellation.stop_requested()) break;

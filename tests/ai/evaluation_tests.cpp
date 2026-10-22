@@ -89,8 +89,19 @@ void supported_and_unsupported_report_test() {
     const ai::EvaluationSettings settings{{"test-model"}, 0.0, 512,
                                           std::chrono::seconds{10}, 3, 1,
                                           "2026-10-21T12:00:00Z", "abc123"};
+    struct ProgressEvent final {
+        ai::EvaluationProgressStage stage;
+        std::string case_id;
+        std::size_t completed;
+        std::size_t total;
+    };
+    std::vector<ProgressEvent> progress_events;
     const auto report = ai::evaluate_golden_dataset(
-        dataset, provider, settings, {}, fixed_clock());
+        dataset, provider, settings, {}, fixed_clock(),
+        [&](ai::EvaluationProgressStage stage, const ai::CaseEvaluation& item,
+            std::size_t completed, std::size_t total) {
+            progress_events.push_back({stage, item.case_id, completed, total});
+        });
 
     CHECK_EQ(report.cases.size(), std::size_t{2});
     CHECK(report.cases[0].first_attempt_valid);
@@ -112,6 +123,15 @@ void supported_and_unsupported_report_test() {
     CHECK_EQ(report.summaries[0].unsupported_recognized, std::size_t{1});
     CHECK_NEAR(*report.summaries[0].average_output_tokens_per_second,
                10.0, 1e-9);
+    CHECK_EQ(progress_events.size(), std::size_t{4});
+    CHECK_EQ(progress_events[0].stage, ai::EvaluationProgressStage::Started);
+    CHECK_EQ(progress_events[0].case_id, std::string{"supported"});
+    CHECK_EQ(progress_events[0].completed, std::size_t{0});
+    CHECK_EQ(progress_events[0].total, std::size_t{2});
+    CHECK_EQ(progress_events[1].stage, ai::EvaluationProgressStage::Completed);
+    CHECK_EQ(progress_events[1].completed, std::size_t{1});
+    CHECK_EQ(progress_events[3].case_id, std::string{"unsupported"});
+    CHECK_EQ(progress_events[3].completed, std::size_t{2});
 
     std::ostringstream json;
     ai::write_evaluation_json(json, report);
