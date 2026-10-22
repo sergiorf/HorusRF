@@ -14,6 +14,10 @@ against the retained final source, the case request, and the compiler and strict
 semantic-comparison behavior. They must not be treated as requirement-oracle
 results before M6Q.1.
 
+The later schema-v2 A/B/C comparison and the decision to retain the baseline
+prompt are documented in the
+[M6Q.2 prompt experiment](ai-generation-quality-prompt-experiment.md).
+
 ## Aggregate results
 
 | Model | First valid | Final valid | Strict semantic matches | Median latency | P90 latency | Output throughput |

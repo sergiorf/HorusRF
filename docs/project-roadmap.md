@@ -118,11 +118,14 @@ compiler-backed explicit-requirement oracle. Requirement satisfaction is reporte
 separately from strict full-program semantic comparison; no prompt, runtime,
 device, simulator, output, or Studio behavior changed.
 
-M6Q.2 prompt-experiment support was implemented on 2026-10-22. The evaluator can
-run the unchanged baseline, a compact-example variant, or a deterministically
-feature-selected variant while recording the stable configuration ID and prompt
-sizes. The baseline remains the product default until repeated live A/B/C runs
-show no material requirement-satisfaction regression.
+M6Q.2 was completed on 2026-10-22. Three-repetition live A/B/C measurements for
+both supported Qwen model sizes showed that the compact variant materially
+regresses 3B correctness, while the feature-selected variant improves 3B but
+materially regresses 7B. The unchanged baseline therefore remains the product
+default; both variants remain explicit evaluator options. The measurements and
+decision are recorded in the
+[M6Q.2 prompt experiment](ai-generation-quality-prompt-experiment.md). M6Q.3,
+conservative interactive requirement extraction, is next.
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

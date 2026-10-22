@@ -1,7 +1,6 @@
 # HorusRF AI generation quality improvement plan
 
-**Status:** M6Q.0 and M6Q.1 completed; M6Q.2 implementation completed on
-2026-10-22 with live A/B/C measurements pending
+**Status:** M6Q.0 through M6Q.2 completed on 2026-10-22; M6Q.3 is next
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
 **Reviewed baseline artifact:** `build/ai-evaluation/results-20261021-193036.json`
@@ -273,13 +272,16 @@ status. Exact comparison and requirement satisfaction are separate fields.
 
 ### M6Q.2 — Measured prompt experiment
 
-**Implementation status:** Completed on 2026-10-22. The unchanged
+**Status:** Completed on 2026-10-22. The unchanged
 `direct-dsl-v1` prompt remains the default. `direct-dsl-compact-v1` and
 `direct-dsl-relevant-v1` are opt-in evaluator configurations. The latter uses
 deterministic request-feature tags; both experimental configurations remove
 example comments, shorten example explanations, and add explicit preservation
 rules. The evaluator and PowerShell runner accept and record the selected stable
-ID. Default promotion remains pending the required repeated live A/B/C reports.
+ID. Three-repetition live A/B/C reports for both supported model sizes were
+reviewed. Neither experimental configuration passed the no-material-correctness-
+regression gate, so the baseline remains the default. See the
+[M6Q.2 prompt experiment](ai-generation-quality-prompt-experiment.md).
 
 **Changes**
 
@@ -318,6 +320,10 @@ Run A/B/C on the unchanged suite with identical settings and 3–5 repetitions.
 Document compiler validity, requirement satisfaction, exact comparison, repairs,
 input/output tokens, median/P90 latency, and variability. Adopt a configuration
 only if it has no material correctness regression.
+
+**Outcome:** Complete. B reduced latency but materially regressed 3B requirement
+satisfaction. C improved 3B correctness and latency but materially regressed 7B
+correctness. A remains the default; B and C remain explicit experiment options.
 
 ### M6Q.3 — Conservative interactive requirement extraction
 
