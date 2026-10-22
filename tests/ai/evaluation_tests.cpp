@@ -119,6 +119,10 @@ void supported_and_unsupported_report_test() {
     CHECK_EQ(report.cases[1].semantic_status,
              ai::SemanticComparisonStatus::NotEvaluated);
     CHECK_EQ(report.cases[0].total_latency, std::chrono::milliseconds{100});
+    CHECK_EQ(report.cases[0].attempts[0].compiler_duration,
+             std::optional{std::chrono::milliseconds{100}});
+    CHECK_EQ(report.cases[0].attempts[0].verification_duration,
+             std::optional{std::chrono::milliseconds{100}});
     CHECK_EQ(report.cases[0].warm_cold_status, ai::WarmColdStatus::Cold);
     CHECK_EQ(report.cases[1].warm_cold_status, ai::WarmColdStatus::Warm);
     CHECK(report.cases[1].final_warnings.empty());
@@ -126,6 +130,12 @@ void supported_and_unsupported_report_test() {
     CHECK_EQ(report.summaries[0].semantic_matches, std::size_t{1});
     CHECK_EQ(report.summaries[0].requirement_satisfied, std::size_t{1});
     CHECK_EQ(report.summaries[0].unsupported_recognized, std::size_t{1});
+    CHECK_EQ(report.summaries[0].cold_latency.sample_count, std::size_t{1});
+    CHECK_EQ(report.summaries[0].cold_latency.median,
+             std::chrono::milliseconds{100});
+    CHECK_EQ(report.summaries[0].warm_latency.sample_count, std::size_t{1});
+    CHECK_EQ(report.summaries[0].warm_latency.p90,
+             std::chrono::milliseconds{100});
     CHECK_NEAR(*report.summaries[0].average_output_tokens_per_second,
                10.0, 1e-9);
     CHECK_EQ(progress_events.size(), std::size_t{4});
@@ -147,6 +157,16 @@ void supported_and_unsupported_report_test() {
     CHECK(json.str().find("\"support_assessment\":{\"status\":\"unsupported\"") !=
           std::string::npos);
     CHECK(json.str().find("\"generated_source\":") != std::string::npos);
+    CHECK(json.str().find("\"compiler_duration_ns\":100000000") !=
+          std::string::npos);
+    CHECK(json.str().find("\"verification_duration_ns\":100000000") !=
+          std::string::npos);
+    CHECK(json.str().find(
+              "\"cold_latency\":{\"sample_count\":1,\"median_ms\":100,\"p90_ms\":100}") !=
+          std::string::npos);
+    CHECK(json.str().find(
+              "\"warm_latency\":{\"sample_count\":1,\"median_ms\":100,\"p90_ms\":100}") !=
+          std::string::npos);
 
     std::ostringstream table;
     ai::write_evaluation_table(table, report);
@@ -202,6 +222,25 @@ void repair_and_failure_test() {
     CHECK_EQ(failure.cases[0].attempts.size(), std::size_t{1});
     CHECK_EQ(failure.cases[0].attempts[0].structured_response_status,
              ai::StructuredResponseStatus::ProviderError);
+    CHECK_EQ(failure.cases[0].attempts[0].provider_error_code,
+             std::optional{ai::ProviderErrorCode::Unavailable});
+
+    ai::testing::FakeLlmProvider output_limited{{
+        ai::ProviderError{ai::ProviderErrorCode::OutputLimit,
+                          "provider output limit reached"},
+    }};
+    const auto output_limit_report = ai::evaluate_golden_dataset(
+        dataset, output_limited, settings, {}, fixed_clock());
+    CHECK_EQ(output_limit_report.cases[0].attempts[0].provider_error_code,
+             std::optional{ai::ProviderErrorCode::OutputLimit});
+    CHECK_EQ(output_limit_report.summaries[0].output_limit_errors,
+             std::size_t{1});
+    std::ostringstream output_limit_json;
+    ai::write_evaluation_json(output_limit_json, output_limit_report);
+    CHECK(output_limit_json.str().find("\"provider_error_code\":\"output_limit\"") !=
+          std::string::npos);
+    CHECK(output_limit_json.str().find("\"output_limit_errors\":1") !=
+          std::string::npos);
 }
 
 void requirement_correction_is_observable_test() {

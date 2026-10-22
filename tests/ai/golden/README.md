@@ -92,6 +92,11 @@ digest when Ollama reports one. The first evaluated case for each model is
 classified cold and subsequent cases warm; per-call model-load telemetry remains
 available to identify later reloads.
 
+M6Q.6 reports cold and warm latency summaries independently. Attempt records also
+include compiler and requirement-verification durations in nanoseconds. Provider
+failures retain their typed code, so an `output_limit` result is reported
+separately from malformed responses, timeouts, and other provider failures.
+
 M6Q.2 prompt experiments use `-PromptConfiguration` with one of these stable IDs:
 
 - `direct-dsl-v1` (A): the unchanged baseline and default;

@@ -1,6 +1,6 @@
 # HorusRF AI generation quality improvement plan
 
-**Status:** M6Q.0 through M6Q.5 completed on 2026-10-22; M6Q.6 is next
+**Status:** M6Q.0 through M6Q.5 completed on 2026-10-22; M6Q.6 is in progress
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
 **Reviewed baseline artifact:** `build/ai-evaluation/results-20261021-193036.json`
@@ -473,6 +473,10 @@ suite remains the acceptance gate; live provider evaluation is unchanged and
 opt-in.
 
 ### M6Q.6 — Performance tuning after correctness gates
+
+**Status:** In progress. The first implementation slice adds separate cold/warm
+latency summaries, per-attempt compiler and requirement-verification timing, and
+typed output-limit reporting. Live optimization A/B runs remain pending.
 
 **Changes**
 

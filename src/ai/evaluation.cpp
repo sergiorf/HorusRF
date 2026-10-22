@@ -57,7 +57,8 @@ std::vector<std::string> diagnostic_set(
 
 class ObservingProvider final : public LlmProvider {
 public:
-    explicit ObservingProvider(LlmProvider& provider) : provider_(provider) {}
+    explicit ObservingProvider(LlmProvider& provider, EvaluationClock clock)
+        : provider_(provider), clock_(std::move(clock)) {}
 
     LlmResult generate(const LlmRequest& request,
                        CancellationToken cancellation) override {
@@ -107,7 +108,9 @@ public:
             response_texts_.push_back(response->text);
         } else {
             attempt.structured_response_status = StructuredResponseStatus::ProviderError;
-            attempt.response_error = std::get<ProviderError>(result).message;
+            const auto& error = std::get<ProviderError>(result);
+            attempt.provider_error_code = error.code;
+            attempt.response_error = error.message;
             response_texts_.push_back(std::nullopt);
         }
         attempts.push_back(std::move(attempt));
@@ -139,7 +142,12 @@ public:
             attempt.explanation = payload.explanation;
             attempt.warnings = payload.warnings;
             if (payload.script.text().empty()) continue;
+            const auto compiler_started = clock_();
             const auto validation = validate_script(payload.script.text());
+            const auto compiler_finished = clock_();
+            attempt.compiler_duration =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    compiler_finished - compiler_started);
             attempt.compiler_valid = validation.ok();
             attempt.compiler_diagnostics = validation.diagnostics();
             const auto current_diagnostics = diagnostic_set(validation.diagnostics());
@@ -153,17 +161,23 @@ public:
                     expected_source, payload.script.text());
                 attempt.semantic_status = comparison.status;
                 attempt.semantic_differences = comparison.differences;
+                const auto verification_started = clock_();
                 const auto facts = compile_program_facts(payload.script.text());
                 if (facts) {
                     attempt.requirement_verification =
                         verify_requirements(requirements, *facts);
                 }
+                const auto verification_finished = clock_();
+                attempt.verification_duration =
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        verification_finished - verification_started);
             }
         }
         response_texts_.clear();
     }
 
     LlmProvider& provider_;
+    EvaluationClock clock_;
     std::vector<EvaluationAttempt> attempts;
     std::optional<ProviderIdentity> identity;
 
@@ -248,6 +262,23 @@ std::string_view structured_response_name(StructuredResponseStatus status) {
     case StructuredResponseStatus::ProviderException: return "provider_exception";
     }
     return "provider_error";
+}
+
+std::string_view provider_error_name(ProviderErrorCode code) {
+    switch (code) {
+    case ProviderErrorCode::InvalidRequest: return "invalid_request";
+    case ProviderErrorCode::InvalidEndpoint: return "invalid_endpoint";
+    case ProviderErrorCode::Unavailable: return "unavailable";
+    case ProviderErrorCode::ModelUnavailable: return "model_unavailable";
+    case ProviderErrorCode::Timeout: return "timeout";
+    case ProviderErrorCode::Cancelled: return "cancelled";
+    case ProviderErrorCode::MalformedResponse: return "malformed_response";
+    case ProviderErrorCode::EmptyResponse: return "empty_response";
+    case ProviderErrorCode::ContextLimit: return "context_limit";
+    case ProviderErrorCode::OutputLimit: return "output_limit";
+    case ProviderErrorCode::UnexpectedResponse: return "unexpected_response";
+    }
+    return "unexpected_response";
 }
 
 std::string_view warm_cold_name(WarmColdStatus status) {
@@ -402,11 +433,32 @@ void write_support_assessment(std::ostream& output,
     output << "]}";
 }
 
+LatencyStatistics latency_statistics(
+    std::vector<std::chrono::milliseconds> latencies) {
+    LatencyStatistics result;
+    result.sample_count = latencies.size();
+    std::ranges::sort(latencies);
+    if (latencies.empty()) return result;
+    const auto middle = latencies.size() / 2;
+    if (latencies.size() % 2 == 0) {
+        result.median = std::chrono::milliseconds{
+            (latencies[middle - 1].count() + latencies[middle].count()) / 2};
+    } else {
+        result.median = latencies[middle];
+    }
+    const auto p90_index = static_cast<std::size_t>(
+        std::ceil(static_cast<double>(latencies.size()) * 0.9) - 1.0);
+    result.p90 = latencies[p90_index];
+    return result;
+}
+
 ModelEvaluationSummary summarize(std::string model,
                                  const std::vector<CaseEvaluation>& cases) {
     ModelEvaluationSummary result;
     result.model = std::move(model);
     std::vector<std::chrono::milliseconds> latencies;
+    std::vector<std::chrono::milliseconds> cold_latencies;
+    std::vector<std::chrono::milliseconds> warm_latencies;
     std::size_t total_repairs{};
     double output_tokens{};
     double generation_seconds{};
@@ -446,6 +498,15 @@ ModelEvaluationSummary summarize(std::string model,
         }
         total_repairs += item.repair_attempts;
         latencies.push_back(item.total_latency);
+        if (item.warm_cold_status == WarmColdStatus::Cold) {
+            cold_latencies.push_back(item.total_latency);
+        } else if (item.warm_cold_status == WarmColdStatus::Warm) {
+            warm_latencies.push_back(item.total_latency);
+        }
+        for (const auto& attempt : item.attempts) {
+            result.output_limit_errors +=
+                attempt.provider_error_code == ProviderErrorCode::OutputLimit ? 1U : 0U;
+        }
         for (const auto& attempt : item.provider_attempts) {
             if (attempt && attempt->output_token_count && attempt->generation_duration &&
                 attempt->generation_duration->count() > 0) {
@@ -459,19 +520,11 @@ ModelEvaluationSummary summarize(std::string model,
         result.average_repair_attempts =
             static_cast<double>(total_repairs) / static_cast<double>(result.total_cases);
     }
-    std::ranges::sort(latencies);
-    if (!latencies.empty()) {
-        const auto middle = latencies.size() / 2;
-        if (latencies.size() % 2 == 0) {
-            result.median_latency = std::chrono::milliseconds{
-                (latencies[middle - 1].count() + latencies[middle].count()) / 2};
-        } else {
-            result.median_latency = latencies[middle];
-        }
-        const auto p90_index = static_cast<std::size_t>(
-            std::ceil(static_cast<double>(latencies.size()) * 0.9) - 1.0);
-        result.p90_latency = latencies[p90_index];
-    }
+    const auto aggregate_latency = latency_statistics(std::move(latencies));
+    result.median_latency = aggregate_latency.median;
+    result.p90_latency = aggregate_latency.p90;
+    result.cold_latency = latency_statistics(std::move(cold_latencies));
+    result.warm_latency = latency_statistics(std::move(warm_latencies));
     if (generation_seconds > 0.0) {
         result.average_output_tokens_per_second = output_tokens / generation_seconds;
     }
@@ -555,7 +608,7 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                              run_order - 1, total_runs);
                 }
 
-                ObservingProvider observed{provider};
+                ObservingProvider observed{provider, clock};
                 PromptBuilder prompts{{model, settings.temperature,
                                        settings.max_output_tokens, settings.timeout,
                                        *prompt_configuration}};
@@ -701,6 +754,13 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
             output << "]},\"structured_response_status\":"
                    << json_string(structured_response_name(
                           attempt.structured_response_status))
+                   << ",\"provider_error_code\":";
+            if (attempt.provider_error_code) {
+                output << json_string(provider_error_name(*attempt.provider_error_code));
+            } else {
+                output << "null";
+            }
+            output
                    << ",\"response_error\":";
             if (attempt.response_error) output << json_string(*attempt.response_error);
             else output << "null";
@@ -749,6 +809,10 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
             }
             output << "],\"requirement_verification\":";
             write_requirement_verification(output, attempt.requirement_verification);
+            output << ",\"compiler_duration_ns\":";
+            write_optional_duration(output, attempt.compiler_duration);
+            output << ",\"verification_duration_ns\":";
+            write_optional_duration(output, attempt.verification_duration);
             output << ",\"provider_metrics\":";
             write_provider_metrics(output, attempt.provider_metrics);
             output << ",\"provider_identity\":";
@@ -793,6 +857,15 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"average_repair_attempts\":" << item.average_repair_attempts
                << ",\"median_latency_ms\":" << item.median_latency.count()
                << ",\"p90_latency_ms\":" << item.p90_latency.count()
+               << ",\"cold_latency\":{\"sample_count\":"
+               << item.cold_latency.sample_count << ",\"median_ms\":"
+               << item.cold_latency.median.count() << ",\"p90_ms\":"
+               << item.cold_latency.p90.count() << "}"
+               << ",\"warm_latency\":{\"sample_count\":"
+               << item.warm_latency.sample_count << ",\"median_ms\":"
+               << item.warm_latency.median.count() << ",\"p90_ms\":"
+               << item.warm_latency.p90.count() << "}"
+               << ",\"output_limit_errors\":" << item.output_limit_errors
                << ",\"average_output_tokens_per_second\":";
         write_optional_number(output, item.average_output_tokens_per_second);
         output << ",\"rates\":{\"generation_completed\":{\"numerator\":"
@@ -822,16 +895,18 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
 
 void write_evaluation_table(std::ostream& output, const EvaluationReport& report) {
     output << "Prompt configuration: " << report.prompt_configuration_id << '\n';
-    output << "Model                       Cases  First valid  Final valid  Required  Semantic  Median ms  P90 ms\n";
-    output << "-------------------------------------------------------------------------------------------------\n";
+    output << "Model                       Cases  First valid  Final valid  Required  Semantic  Cold ms  Warm median  Warm P90  Output limit\n";
+    output << "-----------------------------------------------------------------------------------------------------------------------\n";
     for (const auto& item : report.summaries) {
         output << std::left << std::setw(27) << item.model << std::right
                << std::setw(6) << item.total_cases << std::setw(13)
                << item.first_attempt_valid << std::setw(13) << item.final_valid
                << std::setw(10) << item.requirement_satisfied
-               << std::setw(10) << item.semantic_matches << std::setw(11)
-               << item.median_latency.count() << std::setw(8)
-               << item.p90_latency.count() << '\n';
+               << std::setw(10) << item.semantic_matches << std::setw(9)
+               << item.cold_latency.median.count() << std::setw(13)
+               << item.warm_latency.median.count() << std::setw(10)
+               << item.warm_latency.p90.count() << std::setw(14)
+               << item.output_limit_errors << '\n';
     }
     output << "Required is explicit requirement satisfaction; Semantic is strict full-program comparison.\n";
 }

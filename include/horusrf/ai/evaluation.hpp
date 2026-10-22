@@ -48,6 +48,7 @@ struct EvaluationAttempt final {
     PromptSize prompt_size;
     StructuredResponseStatus structured_response_status{
         StructuredResponseStatus::ProviderError};
+    std::optional<ProviderErrorCode> provider_error_code;
     std::optional<std::string> response_error;
     std::optional<std::string> candidate_source;
     std::optional<std::string> candidate_hash;
@@ -60,8 +61,16 @@ struct EvaluationAttempt final {
     SemanticComparisonStatus semantic_status{SemanticComparisonStatus::NotEvaluated};
     std::vector<SemanticDifference> semantic_differences;
     RequirementVerificationResult requirement_verification;
+    std::optional<std::chrono::nanoseconds> compiler_duration;
+    std::optional<std::chrono::nanoseconds> verification_duration;
     std::optional<ProviderMetrics> provider_metrics;
     std::optional<ProviderIdentity> provider_identity;
+};
+
+struct LatencyStatistics final {
+    std::size_t sample_count{};
+    std::chrono::milliseconds median{};
+    std::chrono::milliseconds p90{};
 };
 
 struct CaseEvaluation final {
@@ -108,6 +117,9 @@ struct ModelEvaluationSummary final {
     double average_repair_attempts{};
     std::chrono::milliseconds median_latency{};
     std::chrono::milliseconds p90_latency{};
+    LatencyStatistics cold_latency;
+    LatencyStatistics warm_latency;
+    std::size_t output_limit_errors{};
     std::optional<double> average_output_tokens_per_second;
     std::vector<std::pair<std::string, std::size_t>> failure_categories;
 };
