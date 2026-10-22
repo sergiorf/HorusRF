@@ -51,7 +51,9 @@ ai::GoldenCase golden(std::string id, bool supported) {
     ai::GoldenCase result{
         {std::move(id), "test", supported ? "basic" : "unsupported_request",
          "basic", {}, supported, supported ? "semantic" : "unsupported", {}},
-        "Create the requested characterization.",
+        supported
+            ? "Create the requested characterization."
+            : "At a fixed 2.45 GHz, sweep transmit power from -20 dBm to 0 dBm.",
         supported ? valid_source : "// unsupported\n", {}};
     if (supported) {
         const auto facts = ai::compile_program_facts(valid_source);
@@ -81,8 +83,6 @@ void supported_and_unsupported_report_test() {
     metrics.output_token_count = 20;
     ai::testing::FakeLlmProvider provider{{
         response(valid_source, "ok", {}, metrics),
-        response(valid_source, "Power sweeps are unsupported.",
-                 {"Cannot represent the requested power sweep."}, metrics),
     }};
     ai::GoldenDataset dataset{"1.0.0", {golden("supported", true),
                                          golden("unsupported", false)}};
@@ -111,12 +111,17 @@ void supported_and_unsupported_report_test() {
     CHECK_EQ(report.cases[0].requirement_verification.status,
              ai::RequirementSatisfactionStatus::Satisfied);
     CHECK(report.cases[1].unsupported_recognized);
+    CHECK_EQ(report.cases[1].generation_status,
+             ai::EvaluationGenerationStatus::Unsupported);
+    CHECK(report.cases[1].attempts.empty());
+    CHECK_EQ(report.cases[1].support_assessment.status,
+             ai::SupportAssessmentStatus::Unsupported);
     CHECK_EQ(report.cases[1].semantic_status,
              ai::SemanticComparisonStatus::NotEvaluated);
     CHECK_EQ(report.cases[0].total_latency, std::chrono::milliseconds{100});
     CHECK_EQ(report.cases[0].warm_cold_status, ai::WarmColdStatus::Cold);
     CHECK_EQ(report.cases[1].warm_cold_status, ai::WarmColdStatus::Warm);
-    CHECK(!report.cases[1].final_warnings.empty());
+    CHECK(report.cases[1].final_warnings.empty());
     CHECK_EQ(report.summaries.size(), std::size_t{1});
     CHECK_EQ(report.summaries[0].semantic_matches, std::size_t{1});
     CHECK_EQ(report.summaries[0].requirement_satisfied, std::size_t{1});
@@ -138,6 +143,8 @@ void supported_and_unsupported_report_test() {
     CHECK(json.str().find("\"schema\":\"horusrf.ai-evaluation\"") !=
           std::string::npos);
     CHECK(json.str().find("\"unsupported_recognized\":true") !=
+          std::string::npos);
+    CHECK(json.str().find("\"support_assessment\":{\"status\":\"unsupported\"") !=
           std::string::npos);
     CHECK(json.str().find("\"generated_source\":") != std::string::npos);
 

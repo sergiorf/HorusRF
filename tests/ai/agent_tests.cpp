@@ -91,6 +91,11 @@ const ai::AgentFailure& failed(const ai::AgentResult& result) {
     return std::get<ai::AgentFailure>(result);
 }
 
+const ai::UnsupportedRequest& unsupported(const ai::AgentResult& result) {
+    CHECK(std::holds_alternative<ai::UnsupportedRequest>(result));
+    return std::get<ai::UnsupportedRequest>(result);
+}
+
 bool request_contains(const ai::LlmRequest& request, std::string_view text) {
     for (const auto& message : request.messages) {
         if (message.content.find(text) != std::string::npos) return true;
@@ -111,6 +116,34 @@ void valid_first_candidate_test() {
     CHECK_EQ(value.explanation(), "valid");
     CHECK_EQ(value.warnings().size(), std::size_t{1});
     CHECK_EQ(value.warnings().front(), "model note");
+    CHECK_EQ(provider.requests().size(), std::size_t{1});
+}
+
+void unsupported_preflight_skips_provider_test() {
+    ai::testing::FakeLlmProvider provider{{proposal(valid_source)}};
+    ai::AgentSession session{provider};
+    const auto result = session.generate({ai::NaturalLanguageInstruction{
+        "At a fixed 2.45 GHz, sweep transmit power from -20 dBm to 0 dBm."}});
+
+    const auto& value = unsupported(result);
+    CHECK_EQ(session.state(), ai::AgentState::Unsupported);
+    CHECK_EQ(value.assessment.status, ai::SupportAssessmentStatus::Unsupported);
+    CHECK(!value.assessment.clauses.empty());
+    CHECK(provider.requests().empty());
+}
+
+void partial_support_is_explicit_on_proposal_test() {
+    ai::testing::FakeLlmProvider provider{{proposal(valid_source)}};
+    ai::AgentSession session{provider};
+    const auto result = session.generate({ai::NaturalLanguageInstruction{
+        "Sweep frequency from 1 GHz to 2 GHz and sweep power from -20 dBm to 0 dBm."}});
+
+    const auto& value = completed(result);
+    CHECK_EQ(value.support_assessment().status,
+             ai::SupportAssessmentStatus::PartiallySupported);
+    CHECK(!value.warnings().empty());
+    CHECK(value.warnings().back().find("Unsupported request clause") !=
+          std::string::npos);
     CHECK_EQ(provider.requests().size(), std::size_t{1});
 }
 
@@ -323,6 +356,8 @@ void modification_repair_preserves_context_test() {
 int main() {
     try {
         valid_first_candidate_test();
+        unsupported_preflight_skips_provider_test();
+        partial_support_is_explicit_on_proposal_test();
         invalid_candidate_is_repaired_test();
         repair_limit_retains_last_candidate_test();
         unchanged_invalid_candidate_stops_test();

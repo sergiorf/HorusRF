@@ -36,14 +36,16 @@ ScriptProposal::ScriptProposal(ScriptSource candidate_source,
                                std::size_t attempt_count,
                                ProviderIdentity provider,
                                std::vector<std::string> warnings,
-                               RequirementVerificationResult requirement_verification)
+                               RequirementVerificationResult requirement_verification,
+                               SupportAssessment support_assessment)
     : candidate_source_(std::move(candidate_source)),
       validation_(std::move(validation)),
       explanation_(std::move(explanation)),
       attempt_count_(attempt_count),
       provider_(std::move(provider)),
       warnings_(std::move(warnings)),
-      requirement_verification_(std::move(requirement_verification)) {
+      requirement_verification_(std::move(requirement_verification)),
+      support_assessment_(std::move(support_assessment)) {
     if (attempt_count_ == 0) {
         throw std::invalid_argument("a script proposal requires at least one attempt");
     }

@@ -11,6 +11,7 @@
 
 #include "horusrf/ai/validation.hpp"
 #include "horusrf/ai/requirement_verification.hpp"
+#include "horusrf/ai/support_assessment.hpp"
 
 namespace horusrf::ai {
 namespace {
@@ -70,11 +71,23 @@ RequirementVerificationResult requirement_verification(
 ScriptProposal proposal_from(const Candidate& candidate,
                              const ValidationResult& validation,
                              std::size_t attempt_count,
-                             const NaturalLanguageInstruction& instruction) {
+                             const NaturalLanguageInstruction& instruction,
+                             const SupportAssessment& support_assessment) {
+    auto warnings = candidate.payload.warnings;
+    for (const auto& clause : support_assessment.clauses) {
+        if (clause.status == SupportClauseStatus::Unsupported) {
+            warnings.push_back("Unsupported request clause: " + clause.source_text +
+                               ". " + clause.explanation);
+        } else if (clause.status == SupportClauseStatus::Uncertain) {
+            warnings.push_back("Uncertain request clause: " + clause.source_text +
+                               ". " + clause.explanation);
+        }
+    }
     return {candidate.payload.script, validation, candidate.payload.explanation,
             attempt_count, candidate.provider,
-            candidate.payload.warnings,
-            requirement_verification(candidate, validation, instruction)};
+            std::move(warnings),
+            requirement_verification(candidate, validation, instruction),
+            support_assessment};
 }
 
 AgentResult failure_without_proposal(AgentErrorCode code, std::string message) {
@@ -85,11 +98,13 @@ AgentResult failure_with_proposal(AgentErrorCode code, std::string message,
                                   const Candidate& candidate,
                                   const ValidationResult& validation,
                                   std::size_t attempt_count,
-                                  const NaturalLanguageInstruction& instruction) {
+                                  const NaturalLanguageInstruction& instruction,
+                                  const SupportAssessment& support_assessment) {
     return AgentFailure{
         {code, std::move(message)},
         std::optional<ScriptProposal>{
-            std::in_place, proposal_from(candidate, validation, attempt_count, instruction)}};
+            std::in_place, proposal_from(candidate, validation, attempt_count, instruction,
+                                         support_assessment)}};
 }
 
 std::string response_error_message(const ProposalResponseError& error) {
@@ -105,10 +120,23 @@ AgentSession::AgentSession(LlmProvider& provider, PromptBuilder prompt_builder,
       settings_(settings) {}
 
 AgentResult AgentSession::generate(const GenerationRequest& request,
-                                   CancellationToken cancellation) {
+    CancellationToken cancellation) {
     try {
+        const auto initial_request = prompt_builder_.build_generation(request);
+        if (cancellation.stop_requested()) {
+            state_ = AgentState::Cancelled;
+            return failure_without_proposal(AgentErrorCode::Cancelled,
+                                            "the authoring request was cancelled");
+        }
+        const auto support = assess_instruction_support(request.instruction.text());
+        if (support.status == SupportAssessmentStatus::Unsupported) {
+            state_ = AgentState::Unsupported;
+            return UnsupportedRequest{
+                "The request contains only operations that the current HorusRF language does not support.",
+                support};
+        }
         return run(request.instruction, std::nullopt,
-                   prompt_builder_.build_generation(request), cancellation);
+                   initial_request, support, cancellation);
     } catch (const std::invalid_argument& error) {
         state_ = AgentState::Failed;
         return failure_without_proposal(AgentErrorCode::InvalidRequest, error.what());
@@ -123,10 +151,23 @@ AgentResult AgentSession::generate(const GenerationRequest& request,
 }
 
 AgentResult AgentSession::modify(const ModificationRequest& request,
-                                 CancellationToken cancellation) {
+    CancellationToken cancellation) {
     try {
+        const auto initial_request = prompt_builder_.build_modification(request);
+        if (cancellation.stop_requested()) {
+            state_ = AgentState::Cancelled;
+            return failure_without_proposal(AgentErrorCode::Cancelled,
+                                            "the authoring request was cancelled");
+        }
+        const auto support = assess_instruction_support(request.instruction.text());
+        if (support.status == SupportAssessmentStatus::Unsupported) {
+            state_ = AgentState::Unsupported;
+            return UnsupportedRequest{
+                "The requested modification contains only operations that the current HorusRF language does not support.",
+                support};
+        }
         return run(request.instruction, request.current_source,
-                   prompt_builder_.build_modification(request), cancellation);
+                   initial_request, support, cancellation);
     } catch (const std::invalid_argument& error) {
         state_ = AgentState::Failed;
         return failure_without_proposal(AgentErrorCode::InvalidRequest, error.what());
@@ -142,7 +183,8 @@ AgentResult AgentSession::modify(const ModificationRequest& request,
 
 AgentResult AgentSession::run(const NaturalLanguageInstruction& instruction,
                               std::optional<ScriptSource> original_source,
-                              LlmRequest request, CancellationToken cancellation) {
+                              LlmRequest request, SupportAssessment support_assessment,
+                              CancellationToken cancellation) {
     std::optional<Candidate> previous;
     std::optional<ValidationResult> previous_validation;
     std::optional<RequirementVerificationResult> previous_requirement_verification;
@@ -153,7 +195,7 @@ AgentResult AgentSession::run(const NaturalLanguageInstruction& instruction,
         if (previous && previous_validation) {
             return failure_with_proposal(code, std::move(message), *previous,
                                          *previous_validation, attempt_count,
-                                         instruction);
+                                         instruction, support_assessment);
         }
         return failure_without_proposal(code, std::move(message));
     };
@@ -249,7 +291,8 @@ AgentResult AgentSession::run(const NaturalLanguageInstruction& instruction,
             return failure_with_proposal(
                 AgentErrorCode::NoProgress,
                 "correction stopped with no progress because the provider repeated a candidate",
-                candidate, validation, attempt_count, instruction);
+                candidate, validation, attempt_count, instruction,
+                support_assessment);
         }
 
         if (!validation.ok()) {
@@ -259,7 +302,8 @@ AgentResult AgentSession::run(const NaturalLanguageInstruction& instruction,
                 return failure_with_proposal(
                     AgentErrorCode::NoProgress,
                     "compiler repair stopped with no progress because the diagnostic set did not change",
-                    candidate, validation, attempt_count, instruction);
+                    candidate, validation, attempt_count, instruction,
+                    support_assessment);
             }
 
             if (attempt_count > settings_.maximum_repair_attempts) {
@@ -267,7 +311,8 @@ AgentResult AgentSession::run(const NaturalLanguageInstruction& instruction,
                 return failure_with_proposal(
                     AgentErrorCode::RepairLimitReached,
                     "the shared compiler-repair and requirement-correction call limit was reached",
-                    candidate, validation, attempt_count, instruction);
+                    candidate, validation, attempt_count, instruction,
+                    support_assessment);
             }
 
             previous = std::move(candidate);
@@ -283,7 +328,8 @@ AgentResult AgentSession::run(const NaturalLanguageInstruction& instruction,
         const auto violations = high_confidence_violation_set(verification);
         if (violations.empty()) {
             state_ = AgentState::Completed;
-            return proposal_from(candidate, validation, attempt_count, instruction);
+            return proposal_from(candidate, validation, attempt_count, instruction,
+                                 support_assessment);
         }
 
         if (previous_requirement_verification &&
@@ -292,7 +338,8 @@ AgentResult AgentSession::run(const NaturalLanguageInstruction& instruction,
             return failure_with_proposal(
                 AgentErrorCode::NoProgress,
                 "requirement correction stopped with no progress because the verified violations did not change",
-                candidate, validation, attempt_count, instruction);
+                candidate, validation, attempt_count, instruction,
+                support_assessment);
         }
 
         if (attempt_count > settings_.maximum_repair_attempts) {
@@ -300,7 +347,7 @@ AgentResult AgentSession::run(const NaturalLanguageInstruction& instruction,
             return failure_with_proposal(
                 AgentErrorCode::RepairLimitReached,
                 "the shared compiler-repair and requirement-correction call limit was reached", candidate,
-                validation, attempt_count, instruction);
+                validation, attempt_count, instruction, support_assessment);
         }
 
         previous = std::move(candidate);

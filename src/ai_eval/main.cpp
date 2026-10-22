@@ -145,6 +145,7 @@ std::string_view generation_status_name(
     using horusrf::ai::EvaluationGenerationStatus;
     switch (status) {
     case EvaluationGenerationStatus::Completed: return "completed";
+    case EvaluationGenerationStatus::Unsupported: return "unsupported";
     case EvaluationGenerationStatus::Failed: return "failed";
     case EvaluationGenerationStatus::Cancelled: return "cancelled";
     }

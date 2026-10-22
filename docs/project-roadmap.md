@@ -139,8 +139,14 @@ source context, and relevant compiler-owned language metadata. Generation,
 compiler repair, and high-confidence requirement correction are distinguished in
 one bounded call flow. Repeated candidates, unchanged diagnostics, and unchanged
 verified violations stop as `no_progress`; evaluation records stable candidate
-hashes and diagnostic-set changes. M6Q.5, unsupported and partial-support
-handling, is next.
+hashes and diagnostic-set changes.
+
+M6Q.5 was completed on 2026-10-22. A conservative preflight now resolves explicit
+sweep operations against compiler-owned capability metadata. Entirely unsupported
+requests return a typed outcome without invoking the provider; mixed and
+ambiguous clauses remain explicit in proposals, Studio, and evaluation reports.
+The evaluator no longer infers unsupported recognition from model prose. M6Q.6,
+performance tuning after correctness gates, is next.
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

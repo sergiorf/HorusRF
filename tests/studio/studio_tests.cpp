@@ -105,6 +105,15 @@ public:
                 {horusrf::ai::AgentErrorCode::Cancelled, "cancelled by test"},
                 std::nullopt};
         }
+        if (return_unsupported) {
+            return horusrf::ai::UnsupportedRequest{
+                "The request contains only operations that the current HorusRF language does not support.",
+                {horusrf::ai::SupportAssessmentStatus::Unsupported,
+                 {{"sweep.power", horusrf::ai::SupportClauseStatus::Unsupported,
+                   "unsupported_sweep_dimension",
+                   "power is not a compiler-supported sweep dimension", 0, 17,
+                   "sweep power"}}}};
+        }
         if (return_valid_failure) {
             return horusrf::ai::AgentFailure{
                 {horusrf::ai::AgentErrorCode::NoProgress,
@@ -144,6 +153,7 @@ public:
     std::string discovery_error;
     bool block_until_cancelled{};
     bool return_valid_failure{};
+    bool return_unsupported{};
     std::mutex mutex;
     std::condition_variable_any condition;
 };
@@ -260,6 +270,31 @@ private slots:
         QCOMPARE(status->text(),
                  QStringLiteral("requirement correction made no progress"));
         QVERIFY(apply->isEnabled());
+    }
+
+    void assistantExplainsUnsupportedRequestWithoutProposal() {
+        auto backend = std::make_shared<FakeAssistantBackend>();
+        backend->return_unsupported = true;
+        horusrf::studio::MainWindow window(nullptr, runnerPath(), backend);
+        auto* instruction = window.findChild<QPlainTextEdit*>(
+            QStringLiteral("assistantInstruction"));
+        auto* generate = window.findChild<QPushButton*>(QStringLiteral("assistantGenerate"));
+        auto* proposal = window.findChild<QPlainTextEdit*>(
+            QStringLiteral("assistantProposal"));
+        auto* details = window.findChild<QPlainTextEdit*>(
+            QStringLiteral("assistantDetails"));
+        auto* apply = window.findChild<QPushButton*>(QStringLiteral("assistantApply"));
+        auto* status = window.findChild<QLabel*>(QStringLiteral("assistantStatus"));
+        instruction->setPlainText(QStringLiteral("Sweep power from -20 dBm to 0 dBm."));
+        generate->click();
+
+        QTRY_VERIFY(status->text().contains(QStringLiteral("does not support")));
+        QVERIFY(proposal->toPlainText().isEmpty());
+        QVERIFY(!apply->isEnabled());
+        QVERIFY(details->toPlainText().contains(QStringLiteral("Request support: unsupported.")));
+        QVERIFY(details->toPlainText().contains(QStringLiteral("sweep power")));
+        QVERIFY(details->toPlainText().contains(
+            QStringLiteral("power is not a compiler-supported sweep dimension")));
     }
 
     void assistantCancellationAndModelDiscoveryRemainResponsive() {

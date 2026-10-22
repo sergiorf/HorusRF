@@ -16,6 +16,7 @@ enum class AgentState {
     Validating,
     Repairing,
     CorrectingRequirements,
+    Unsupported,
     Completed,
     Failed,
     Cancelled
@@ -46,7 +47,7 @@ private:
     [[nodiscard]] AgentResult run(
         const NaturalLanguageInstruction& instruction,
         std::optional<ScriptSource> original_source, LlmRequest initial_request,
-        CancellationToken cancellation);
+        SupportAssessment support_assessment, CancellationToken cancellation);
 
     LlmProvider& provider_;
     PromptBuilder prompt_builder_;

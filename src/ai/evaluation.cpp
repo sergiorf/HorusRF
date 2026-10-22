@@ -1,7 +1,6 @@
 #include "horusrf/ai/evaluation.hpp"
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
@@ -172,29 +171,10 @@ private:
     std::vector<std::optional<std::string>> response_texts_;
 };
 
-std::string lower_ascii(std::string value) {
-    std::ranges::transform(value, value.begin(), [](unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
-    return value;
-}
-
-bool reports_unsupported(const ScriptProposal& proposal) {
-    std::string text = proposal.explanation();
-    for (const auto& warning : proposal.warnings()) {
-        text.push_back('\n');
-        text += warning;
-    }
-    text = lower_ascii(std::move(text));
-    return text.find("unsupported") != std::string::npos ||
-           text.find("not supported") != std::string::npos ||
-           text.find("cannot") != std::string::npos ||
-           text.find("unable") != std::string::npos;
-}
-
 std::string_view generation_name(EvaluationGenerationStatus status) {
     switch (status) {
     case EvaluationGenerationStatus::Completed: return "completed";
+    case EvaluationGenerationStatus::Unsupported: return "unsupported";
     case EvaluationGenerationStatus::Failed: return "failed";
     case EvaluationGenerationStatus::Cancelled: return "cancelled";
     }
@@ -229,6 +209,25 @@ std::string_view requirement_outcome_name(RequirementOutcomeStatus status) {
     case RequirementOutcomeStatus::Unsupported: return "unsupported";
     }
     return "unknown";
+}
+
+std::string_view support_status_name(SupportAssessmentStatus status) {
+    switch (status) {
+    case SupportAssessmentStatus::Supported: return "supported";
+    case SupportAssessmentStatus::PartiallySupported: return "partially_supported";
+    case SupportAssessmentStatus::Unsupported: return "unsupported";
+    case SupportAssessmentStatus::Uncertain: return "uncertain";
+    }
+    return "uncertain";
+}
+
+std::string_view support_clause_status_name(SupportClauseStatus status) {
+    switch (status) {
+    case SupportClauseStatus::Supported: return "supported";
+    case SupportClauseStatus::Unsupported: return "unsupported";
+    case SupportClauseStatus::Uncertain: return "uncertain";
+    }
+    return "uncertain";
 }
 
 std::string_view call_purpose_name(EvaluationCallPurpose purpose) {
@@ -381,6 +380,24 @@ void write_requirement_verification(
                << ",\"expected\":" << json_string(item.expected)
                << ",\"actual\":" << json_string(item.actual)
                << ",\"explanation\":" << json_string(item.explanation) << '}';
+    }
+    output << "]}";
+}
+
+void write_support_assessment(std::ostream& output,
+                              const SupportAssessment& assessment) {
+    output << "{\"status\":" << json_string(support_status_name(assessment.status))
+           << ",\"clauses\":[";
+    for (std::size_t index = 0; index < assessment.clauses.size(); ++index) {
+        if (index != 0) output << ',';
+        const auto& clause = assessment.clauses[index];
+        output << "{\"operation\":" << json_string(clause.operation)
+               << ",\"status\":" << json_string(support_clause_status_name(clause.status))
+               << ",\"code\":" << json_string(clause.code)
+               << ",\"explanation\":" << json_string(clause.explanation)
+               << ",\"source_begin\":" << clause.source_begin
+               << ",\"source_end\":" << clause.source_end
+               << ",\"source_text\":" << json_string(clause.source_text) << '}';
     }
     output << "]}";
 }
@@ -568,6 +585,12 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                 const ScriptProposal* proposal = std::get_if<ScriptProposal>(&agent_result);
                 if (proposal != nullptr) {
                     item.generation_status = EvaluationGenerationStatus::Completed;
+                    item.support_assessment = proposal->support_assessment();
+                } else if (const auto* unsupported =
+                               std::get_if<UnsupportedRequest>(&agent_result)) {
+                    item.generation_status = EvaluationGenerationStatus::Unsupported;
+                    item.support_assessment = unsupported->assessment;
+                    item.unsupported_recognized = !item.expected_supported;
                 } else {
                     const auto& failure = std::get<AgentFailure>(agent_result);
                     item.generation_status = failure.error.code == AgentErrorCode::Cancelled
@@ -592,9 +615,6 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                             item.requirement_verification = verify_requirements(
                                 golden.metadata.requirements, *facts);
                         }
-                    }
-                    if (!golden.metadata.expected_valid) {
-                        item.unsupported_recognized = reports_unsupported(*proposal);
                     }
                 }
                 report.cases.push_back(std::move(item));
@@ -648,6 +668,8 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"semantic_status\":" << json_string(semantic_name(item.semantic_status))
                << ",\"requirement_verification\":";
         write_requirement_verification(output, item.requirement_verification);
+        output << ",\"support_assessment\":";
+        write_support_assessment(output, item.support_assessment);
         output << ",\"unsupported_recognized\":" << (item.unsupported_recognized ? "true" : "false")
                << ",\"repair_attempts\":" << item.repair_attempts
                << ",\"total_latency_ms\":" << item.total_latency.count()

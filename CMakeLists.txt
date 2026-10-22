@@ -177,6 +177,7 @@ horusrf_enable_warnings(horusrf_ai_validation)
 
 add_library(horusrf_ai_requirements STATIC
     src/ai/requirement_verification.cpp
+    src/ai/support_assessment.cpp
 )
 target_compile_features(horusrf_ai_requirements PUBLIC cxx_std_20)
 target_include_directories(horusrf_ai_requirements PUBLIC
@@ -184,7 +185,8 @@ target_include_directories(horusrf_ai_requirements PUBLIC
 )
 target_link_libraries(horusrf_ai_requirements
     PUBLIC horusrf_ai
-    PRIVATE horusrf_frontend horusrf_ir horusrf_domain
+    PUBLIC horusrf_frontend
+    PRIVATE horusrf_ir horusrf_domain
 )
 horusrf_enable_warnings(horusrf_ai_requirements)
 
@@ -536,6 +538,16 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_ai_agent_tests)
     add_test(NAME horusrf_ai_agent_tests COMMAND horusrf_ai_agent_tests)
 
+    add_executable(horusrf_ai_support_assessment_tests
+        tests/ai/support_assessment_tests.cpp)
+    target_compile_features(horusrf_ai_support_assessment_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_ai_support_assessment_tests PRIVATE tests)
+    target_link_libraries(horusrf_ai_support_assessment_tests PRIVATE
+        horusrf_ai_requirements)
+    horusrf_enable_warnings(horusrf_ai_support_assessment_tests)
+    add_test(NAME horusrf_ai_support_assessment_tests
+        COMMAND horusrf_ai_support_assessment_tests)
+
     add_executable(horusrf_ai_evaluation_tests tests/ai/evaluation_tests.cpp)
     target_compile_features(horusrf_ai_evaluation_tests PRIVATE cxx_std_20)
     target_include_directories(horusrf_ai_evaluation_tests PRIVATE tests)
@@ -736,6 +748,7 @@ if(BUILD_TESTING)
         horusrf_frontend_tests
         horusrf_ai_contract_tests
         horusrf_ai_agent_tests
+        horusrf_ai_support_assessment_tests
         horusrf_ai_evaluation_tests
         horusrf_ai_prompt_tests
         horusrf_ai_provider_tests

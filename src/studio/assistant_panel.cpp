@@ -98,6 +98,36 @@ QString requirementStatus(ai::RequirementOutcomeStatus status) {
     return QStringLiteral("unknown");
 }
 
+QString supportStatus(ai::SupportAssessmentStatus status) {
+    switch (status) {
+    case ai::SupportAssessmentStatus::Supported: return QStringLiteral("supported");
+    case ai::SupportAssessmentStatus::PartiallySupported:
+        return QStringLiteral("partially supported");
+    case ai::SupportAssessmentStatus::Unsupported: return QStringLiteral("unsupported");
+    case ai::SupportAssessmentStatus::Uncertain: return QStringLiteral("uncertain");
+    }
+    return QStringLiteral("uncertain");
+}
+
+QString supportStatus(ai::SupportClauseStatus status) {
+    switch (status) {
+    case ai::SupportClauseStatus::Supported: return QStringLiteral("supported");
+    case ai::SupportClauseStatus::Unsupported: return QStringLiteral("unsupported");
+    case ai::SupportClauseStatus::Uncertain: return QStringLiteral("uncertain");
+    }
+    return QStringLiteral("uncertain");
+}
+
+void appendSupportDetails(QStringList& lines, const ai::SupportAssessment& assessment) {
+    lines.append(QObject::tr("Request support: %1.").arg(supportStatus(assessment.status)));
+    for (const auto& clause : assessment.clauses) {
+        lines.append(
+            QObject::tr("Operation '%1': %2 (%3): %4")
+                .arg(fromUtf8(clause.source_text), supportStatus(clause.status),
+                     fromUtf8(clause.code), fromUtf8(clause.explanation)));
+    }
+}
+
 } // namespace
 
 AssistantPanel::AssistantPanel(DslEditor* editor, AssistantService* service,
@@ -326,6 +356,11 @@ void AssistantPanel::requestFinished() {
                              .arg(fromUtf8(success->provider().provider),
                                   fromUtf8(success->provider().model))
                              .arg(success->attempt_count()));
+        appendSupportDetails(detail_lines, success->support_assessment());
+    } else if (const auto* unsupported =
+                   std::get_if<ai::UnsupportedRequest>(result.get())) {
+        status_->setText(fromUtf8(unsupported->message));
+        appendSupportDetails(detail_lines, unsupported->assessment);
     } else {
         const auto& failure = std::get<ai::AgentFailure>(*result);
         status_->setText(fromUtf8(failure.error.message));
@@ -336,6 +371,7 @@ void AssistantPanel::requestFinished() {
         }
     }
     finishRequestTimer(attempt_count, completed);
+    if (!detail_lines.isEmpty()) details_->setPlainText(detail_lines.join(QLatin1Char('\n')));
     if (proposal != nullptr) {
         const QString source = fromUtf8(proposal->candidate_source().text());
         proposal_->setPlainText(source);

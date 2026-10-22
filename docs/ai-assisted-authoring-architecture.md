@@ -95,11 +95,19 @@ provider, validation, orchestration, and UI layers:
 - `RepairAttempt` records a positive attempt number, candidate source,
   validation result, and provider identity.
 - `ScriptProposal` records the final candidate, validation result, explanation,
-  warnings, positive attempt count, and provider identity. It exposes no mutators and is
-  eligible to apply only when validation succeeded.
+  warnings, positive attempt count, provider identity, and typed support
+  assessment. It exposes no mutators and is eligible to apply only when
+  validation succeeded.
+- `SupportAssessment` enumerates recognized supported, unsupported, and uncertain
+  request clauses. Recognition is conservative and resolves operations against
+  compiler-owned language capability metadata.
+- `UnsupportedRequest` is a successful preflight outcome without a proposal or
+  provider call for requests whose recognized primary operations are entirely
+  unsupported.
 - `AgentError` distinguishes invalid requests, provider and validation failures,
   repair exhaustion, cancellation, and internal failures.
-- `AgentResult` is either a successful `ScriptProposal` or an `AgentFailure`.
+- `AgentResult` is a `ScriptProposal`, typed `UnsupportedRequest`, or
+  `AgentFailure`.
   A failure retains the last invalid proposal and its diagnostics when available.
 - `CancellationToken` uses the standard C++20 `std::stop_token`, avoiding a
   framework-specific cancellation contract.
@@ -295,13 +303,13 @@ Phase D adds the Qt-free `horusrf_ai_evaluation` target and the opt-in
 `horusrf-ai-eval` executable. The evaluator runs golden prompts through the
 existing agent, records every bounded provider attempt, validates the final
 candidate again, and invokes semantic comparison only for supported cases.
-Unsupported cases are reported separately and require an explicit limitation in
-the proposal explanation or warnings. Evaluation never reaches runtime,
+Unsupported cases are reported separately from the typed preflight outcome;
+evaluation does not inspect free-form explanation or warning text. Evaluation never reaches runtime,
 simulator, or device targets.
 
 Reports use schema `horusrf.ai-evaluation` version 2. They retain generated source,
 requested and actual provider identity, every provider attempt, compiler outcomes,
-strict semantic differences, clause-level requirement outcomes, repair counts,
+strict semantic differences, clause-level requirement and support outcomes, repair counts,
 errors, latency, explicit rate denominators, prompt sizes, run order, warm/cold
 classification, and optional provider-neutral inference telemetry. Ollama duration
 and token fields are adapted into that optional telemetry; unavailable fields

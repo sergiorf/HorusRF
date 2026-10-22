@@ -96,6 +96,11 @@ void proposal_contract_test() {
          {{"reference-power", ai::RequirementOutcomeStatus::Satisfied,
            "reference_power_match", "-10 dBm", "-10 dBm",
            "reference power matches"}}},
+        {ai::SupportAssessmentStatus::Supported,
+         {{"sweep.frequency", ai::SupportClauseStatus::Supported,
+           "supported_sweep_dimension",
+           "frequency is a compiler-supported sweep dimension", 0, 15,
+           "frequency sweep"}}},
     };
     CHECK(valid_proposal.eligible_to_apply());
     CHECK_EQ(valid_proposal.candidate_source().text(), "characterize proposed {}");
@@ -106,6 +111,8 @@ void proposal_contract_test() {
     CHECK(valid_proposal.requirement_verification().satisfied());
     CHECK_EQ(valid_proposal.requirement_verification().outcomes.size(),
              std::size_t{1});
+    CHECK_EQ(valid_proposal.support_assessment().status,
+             ai::SupportAssessmentStatus::Supported);
 
     const ai::ScriptProposal invalid_proposal{
         ai::ScriptSource{"characterize broken { @ }"},
@@ -124,6 +131,17 @@ void proposal_contract_test() {
         invalid_proposal};
     CHECK(std::holds_alternative<ai::AgentFailure>(failed));
     CHECK(std::get<ai::AgentFailure>(failed).proposal.has_value());
+
+    const ai::AgentResult unsupported = ai::UnsupportedRequest{
+        "power sweeps are unsupported",
+        {ai::SupportAssessmentStatus::Unsupported,
+         {{"sweep.power", ai::SupportClauseStatus::Unsupported,
+           "unsupported_sweep_dimension",
+           "power is not a compiler-supported sweep dimension", 0, 11,
+           "sweep power"}}}};
+    CHECK(std::holds_alternative<ai::UnsupportedRequest>(unsupported));
+    CHECK_EQ(std::get<ai::UnsupportedRequest>(unsupported).assessment.status,
+             ai::SupportAssessmentStatus::Unsupported);
 
     static_assert(!std::is_copy_assignable_v<ai::ScriptProposal>);
     static_assert(!std::is_move_assignable_v<ai::ScriptProposal>);

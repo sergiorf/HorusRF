@@ -15,7 +15,7 @@
 
 namespace horusrf::ai {
 
-enum class EvaluationGenerationStatus { Completed, Failed, Cancelled };
+enum class EvaluationGenerationStatus { Completed, Unsupported, Failed, Cancelled };
 enum class EvaluationCallPurpose { Generation, CompilerRepair, RequirementCorrection };
 enum class EvaluationProgressStage { Started, Completed };
 enum class StructuredResponseStatus {
@@ -77,6 +77,7 @@ struct CaseEvaluation final {
     bool final_valid{};
     SemanticComparisonStatus semantic_status{SemanticComparisonStatus::NotEvaluated};
     RequirementVerificationResult requirement_verification;
+    SupportAssessment support_assessment;
     bool unsupported_recognized{};
     std::size_t repair_attempts{};
     std::chrono::milliseconds total_latency{};

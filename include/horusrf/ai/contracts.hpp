@@ -131,6 +131,29 @@ struct RequirementVerificationResult final {
     }
 };
 
+enum class SupportClauseStatus { Supported, Unsupported, Uncertain };
+enum class SupportAssessmentStatus {
+    Supported,
+    PartiallySupported,
+    Unsupported,
+    Uncertain,
+};
+
+struct SupportClause final {
+    std::string operation;
+    SupportClauseStatus status{SupportClauseStatus::Uncertain};
+    std::string code;
+    std::string explanation;
+    std::size_t source_begin{};
+    std::size_t source_end{};
+    std::string source_text;
+};
+
+struct SupportAssessment final {
+    SupportAssessmentStatus status{SupportAssessmentStatus::Supported};
+    std::vector<SupportClause> clauses;
+};
+
 class ValidationResult final {
 public:
     [[nodiscard]] static ValidationResult valid();
@@ -175,7 +198,8 @@ public:
     ScriptProposal(ScriptSource candidate_source, ValidationResult validation,
                    std::string explanation, std::size_t attempt_count,
                    ProviderIdentity provider, std::vector<std::string> warnings = {},
-                   RequirementVerificationResult requirement_verification = {});
+                   RequirementVerificationResult requirement_verification = {},
+                   SupportAssessment support_assessment = {});
 
     [[nodiscard]] const ScriptSource& candidate_source() const noexcept {
         return candidate_source_;
@@ -196,6 +220,9 @@ public:
         return requirement_verification_;
     }
     [[nodiscard]] bool eligible_to_apply() const noexcept { return validation_.ok(); }
+    [[nodiscard]] const SupportAssessment& support_assessment() const noexcept {
+        return support_assessment_;
+    }
 
 private:
     const ScriptSource candidate_source_;
@@ -205,6 +232,7 @@ private:
     const ProviderIdentity provider_;
     const std::vector<std::string> warnings_;
     const RequirementVerificationResult requirement_verification_;
+    const SupportAssessment support_assessment_;
 };
 
 enum class AgentErrorCode {
@@ -227,7 +255,12 @@ struct AgentFailure final {
     std::optional<ScriptProposal> proposal;
 };
 
-using AgentResult = std::variant<ScriptProposal, AgentFailure>;
+struct UnsupportedRequest final {
+    std::string message;
+    SupportAssessment assessment;
+};
+
+using AgentResult = std::variant<ScriptProposal, UnsupportedRequest, AgentFailure>;
 
 using CancellationToken = std::stop_token;
 

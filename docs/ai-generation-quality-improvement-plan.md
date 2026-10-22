@@ -1,6 +1,6 @@
 # HorusRF AI generation quality improvement plan
 
-**Status:** M6Q.0 through M6Q.4 completed on 2026-10-22; M6Q.5 is next
+**Status:** M6Q.0 through M6Q.5 completed on 2026-10-22; M6Q.6 is next
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
 **Reviewed baseline artifact:** `build/ai-evaluation/results-20261021-193036.json`
@@ -427,6 +427,13 @@ remains the acceptance gate; live provider evaluation is unchanged and opt-in.
 
 ### M6Q.5 — Unsupported and partial-support handling
 
+**Status:** Completed on 2026-10-22. A conservative preflight recognizes
+explicit frequency, temperature, and power sweeps, fixed frequency, and ambiguous
+power ranges, then resolves recognized dimensions against compiler-owned language
+capabilities. Entirely unsupported requests return a typed outcome without a
+provider call. Mixed and uncertain clauses remain explicit on proposals, in
+Studio, and in evaluation reports; evaluator keyword inference has been removed.
+
 **Changes**
 
 - Add a narrow preflight recognizer for explicit sweep dimensions and other
@@ -457,6 +464,13 @@ the key risk; only high-confidence matches may bypass generation.
 
 The existing unsupported power-sweep case is recognized structurally, makes no
 repair calls, and Studio gives an understandable limitation.
+
+**Outcome:** Complete. Deterministic tests cover supported frequency and
+temperature sweeps, fixed frequency, unsupported power sweeps, mixed requests,
+ambiguous power ranges, capability metadata changes, zero-call rejection,
+typed evaluation reporting, and Studio presentation. The full offline CTest
+suite remains the acceptance gate; live provider evaluation is unchanged and
+opt-in.
 
 ### M6Q.6 — Performance tuning after correctness gates
 

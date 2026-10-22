@@ -93,6 +93,11 @@ retained proposals, and conservative typed requirement correction. It does not
 invoke Ollama, the network, runtime,
 simulator, or hardware.
 
+`horusrf_ai_support_assessment_tests` covers compiler-capability-backed frequency,
+temperature, power-sweep, fixed-frequency, mixed, and ambiguous operation
+classification, including deterministic behavior under changed capability
+metadata.
+
 `horusrf_ai_evaluation_tests` runs supported, repaired, unsupported, and failed
 golden-style cases through the real agent, compiler validation, and semantic
 comparison using scripted providers and an injected deterministic clock. It
