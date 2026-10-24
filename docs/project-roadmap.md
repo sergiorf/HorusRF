@@ -161,12 +161,13 @@ success variability, repair/correction rates, and per-case median/P90 latency. I
 offline acceptance gate passes; independent fixture review and the opt-in 3–5
 repetition live run and report review remain before the milestone can be closed.
 
-M6Q.8 is a proposed, gated structure-aware retrieval experiment. It keeps the
-baseline and Studio defaults unchanged, builds a physically separate library of
-compiler-validated examples, and compares deterministic structural retrieval
+M6Q.8 is an active, gated structure-aware retrieval experiment. Its independent
+compiler-validated corpus and deterministic structural retriever are complete;
+prompt integration and evaluation remain opt-in follow-up slices. It keeps the
+baseline and Studio defaults unchanged and will compare structural retrieval
 against both the baseline and the existing feature selector before considering
-embeddings or compiler-backed skeletons. Its Phase 0 architecture, leakage
-boundary, benchmark controls, and stop criteria are recorded in the
+embeddings or compiler-backed skeletons. Its architecture, leakage boundary,
+benchmark controls, and stop criteria are recorded in the
 [M6Q.8 structure-aware RAG experiment](ai-generation-rag-experiment.md).
 
 The complete approved scope, sequencing, acceptance criteria, and safety

@@ -1,11 +1,15 @@
 #include "test_support.hpp"
 
+#include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "horusrf/ai/retrieval.hpp"
 
@@ -66,6 +70,32 @@ bool has_message(const ai::RetrievalCorpusResult& result, std::string_view part)
         if (diagnostic.message.find(part) != std::string::npos) return true;
     }
     return false;
+}
+
+bool has_diagnostic(const ai::RetrievalResult& result,
+                    ai::RetrievalDiagnosticCode code) {
+    for (const auto& diagnostic : result.diagnostics) {
+        if (diagnostic.code == code) return true;
+    }
+    return false;
+}
+
+ai::RetrievalCorpus checked_in_corpus() {
+    const auto root = fs::path{HORUSRF_SOURCE_DIR} / "ai" / "retrieval";
+    const auto result = ai::load_retrieval_corpus(root);
+    if (!result.ok()) {
+        throw std::runtime_error(result.diagnostics.front().path.string() + ": " +
+                                 result.diagnostics.front().message);
+    }
+    return *result.corpus;
+}
+
+ai::RetrievalExample example(std::string id, std::string request,
+                             std::string program = std::string{valid_program}) {
+    return {{std::move(id), "fixture", {"measure_power"},
+             {"measure_named_power"}, {}, {}, "none", "basic",
+             {"test fixture", "2026-10-25", {}}},
+            std::move(request), std::move(program), {}};
 }
 
 void checked_in_corpus_test() {
@@ -159,6 +189,129 @@ void internal_duplication_report_test() {
              "corpus:two");
 }
 
+void query_analysis_test() {
+    const auto query = ai::analyze_retrieval_query(
+        "First sweep temperature from 20 degC to 40 degC in 10 deltaC steps, "
+        "then sweep frequency from 1 GHz to 2 GHz in 100 MHz steps. Record EVM "
+        "named quality, require EVM below 2%, and derive a calibration over "
+        "temperature and frequency.");
+    CHECK_EQ(query.sweep_dimensions.size(), std::size_t{2});
+    CHECK_EQ(query.sweep_dimensions[0], "temperature");
+    CHECK_EQ(query.sweep_dimensions[1], "frequency");
+    CHECK(std::ranges::find(query.operations, "measure_evm") !=
+          query.operations.end());
+    CHECK(std::ranges::find(query.operations, "assert_evm") !=
+          query.operations.end());
+    CHECK(std::ranges::find(query.operations, "derive_calibration") !=
+          query.operations.end());
+    CHECK_EQ(query.comparison_strictness, "strict");
+    CHECK(query.calibration);
+
+    const auto partial = ai::analyze_retrieval_query(
+        "Sweep output power, then sweep frequency from 1 GHz to 2 GHz in 1 MHz steps.");
+    CHECK(std::ranges::find(partial.unsupported_operations, "sweep.power") !=
+          partial.unsupported_operations.end());
+    CHECK(std::ranges::find(partial.operations, "sweep_frequency") !=
+          partial.operations.end());
+    CHECK(std::ranges::find(partial.operations, "sweep_power") ==
+          partial.operations.end());
+
+    const auto ambiguous = ai::analyze_retrieval_query("Use a power range.");
+    CHECK(ambiguous.unknown_evidence_count > 0U);
+    CHECK(ambiguous.operations.empty());
+}
+
+void structural_ranking_and_paraphrase_test() {
+    const ai::ExampleRetriever retriever{checked_in_corpus()};
+    const auto exact = retriever.retrieve(
+        "Sweep 700 to 760 MHz and require measured power to be strictly greater "
+        "than 1 dBm.",
+        {1, 4096, ai::RetrievalBudgetUnit::Utf8Bytes});
+    CHECK(exact.ok());
+    CHECK_EQ(exact.selected.front().id, "strict_power_guard");
+
+    const std::string request =
+        "Make temperature the first sweep from -30 to 30 degC in 15 deltaC "
+        "increments, then sweep 1.1 to 1.3 GHz by 50 MHz and record named power.";
+    const auto first = retriever.retrieve(request, {1, 4096,
+                                                    ai::RetrievalBudgetUnit::Utf8Bytes});
+    CHECK(first.ok());
+    CHECK_EQ(first.ranking_id, "structural-rag-ranking-v1");
+    CHECK_EQ(first.selected.size(), std::size_t{1});
+    CHECK_EQ(first.selected.front().id, "temperature_then_frequency");
+    CHECK(first.selected.front().scores.structural >
+          first.selected.front().scores.lexical_similarity);
+    CHECK(!first.selected.front().rationale.empty());
+    CHECK(first.inserted_context_bytes > 0U);
+    CHECK(first.duration >= std::chrono::nanoseconds::zero());
+
+    const auto second = retriever.retrieve(request, {1, 4096,
+                                                     ai::RetrievalBudgetUnit::Utf8Bytes});
+    CHECK_EQ(second.selected.front().id, first.selected.front().id);
+    CHECK_EQ(second.selected.front().scores.total,
+             first.selected.front().scores.total);
+
+    const auto dependency = retriever.retrieve(
+        "Measure output relative to -13 dBm, derive power error, then derive an "
+        "inverted delta from that first result.",
+        {1, 4096, ai::RetrievalBudgetUnit::Utf8Bytes});
+    CHECK(dependency.ok());
+    CHECK_EQ(dependency.selected.front().id, "two_stage_derivation");
+}
+
+void ties_duplicates_and_budgets_test() {
+    ai::RetrievalCorpus tied{"fixture", "1.0.0", "digest",
+        {example("manifest_first", "alpha observation"),
+         example("manifest_second", "beta observation")}, {}};
+    const ai::ExampleRetriever tie_retriever{std::move(tied)};
+    const auto tie = tie_retriever.retrieve(
+        "Record power.", {1, 4096, ai::RetrievalBudgetUnit::Utf8Bytes});
+    CHECK(tie.ok());
+    CHECK_EQ(tie.selected.front().id, "manifest_first");
+
+    auto first = example("first", "Record one power value.");
+    auto duplicate = example("duplicate", "Record one power value.");
+    auto distinct = example("distinct", "Observe transmitter power separately.",
+                            std::string{valid_program} + "\n// distinct\n");
+    distinct.metadata.structural_steps.push_back("distinct_shape");
+    ai::RetrievalCorpus duplicates{"fixture", "1.0.0", "digest",
+        {std::move(first), std::move(duplicate), std::move(distinct)}, {}};
+    const ai::ExampleRetriever duplicate_retriever{std::move(duplicates)};
+    const auto selected = duplicate_retriever.retrieve(
+        "Record power.", {3, 4096, ai::RetrievalBudgetUnit::Utf8Bytes});
+    CHECK_EQ(selected.selected.size(), std::size_t{1});
+    CHECK_EQ(selected.suppressed_near_duplicates.size(), std::size_t{2});
+
+    const auto rejected = duplicate_retriever.retrieve(
+        "Record power.", {2, 0, ai::RetrievalBudgetUnit::Utf8Bytes});
+    CHECK(!rejected.ok());
+    CHECK(has_diagnostic(rejected, ai::RetrievalDiagnosticCode::NoMatchingExample));
+    CHECK(!rejected.rejected_by_budget.empty());
+
+    const auto token_budget = tie_retriever.retrieve(
+        "Record power.", {1, 1000, ai::RetrievalBudgetUnit::EstimatedTokens});
+    CHECK(token_budget.ok());
+    CHECK(token_budget.inserted_context_estimated_tokens <= 1000U);
+}
+
+void safe_fallback_test() {
+    const ai::ExampleRetriever empty{ai::RetrievalCorpus{
+        "empty", "1.0.0", "digest", {}, {}}};
+    auto result = empty.retrieve("Record power.");
+    CHECK(!result.ok());
+    CHECK(has_diagnostic(result, ai::RetrievalDiagnosticCode::EmptyCorpus));
+
+    const ai::ExampleRetriever retriever{checked_in_corpus()};
+    result = retriever.retrieve(" ");
+    CHECK(has_diagnostic(result, ai::RetrievalDiagnosticCode::EmptyInstruction));
+    result = retriever.retrieve("Record power.", {4, 4096,
+                                                  ai::RetrievalBudgetUnit::Utf8Bytes});
+    CHECK(has_diagnostic(result, ai::RetrievalDiagnosticCode::InvalidTopK));
+    result = retriever.retrieve("Please do the thing.");
+    CHECK(has_diagnostic(result,
+                         ai::RetrievalDiagnosticCode::NoStructuralEvidence));
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -185,6 +338,10 @@ int main(int argc, char** argv) {
         identity_order_and_completeness_test();
         compiler_and_utf8_test();
         internal_duplication_report_test();
+        query_analysis_test();
+        structural_ranking_and_paraphrase_test();
+        ties_duplicates_and_budgets_test();
+        safe_fallback_test();
         std::cout << "All HorusRF retrieval corpus tests passed\n";
         return 0;
     } catch (const std::exception& error) {

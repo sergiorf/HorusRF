@@ -9,6 +9,7 @@ offline, independent of wall-clock time and randomness, and use no real hardware
 | AI contracts | authoring requests, validation/proposal invariants, errors, cancellation | `unit` |
 | AI validation | complete compiler adaptation, source ranges, deterministic diagnostic JSON | `unit` |
 | AI golden dataset | manifest/metadata integrity, discovery, unique IDs, curated script compilation | `unit` |
+| AI retrieval | independent corpus validation, structural query projection, deterministic ranking and budgets | `unit` |
 | AI semantic comparison | canonical IR comparison, mismatch details, golden-case self-equivalence | `unit` |
 | AI provider | provider contracts, Ollama protocol/error adaptation, fake provider | `unit` |
 | AI prompt | compiler-derived contexts, compiling examples, response schema and parsing | `unit` |
@@ -64,6 +65,13 @@ stdout, stderr, and exit-status behavior.
 duplicate identifiers, unlisted directories, malformed expected programs, and
 passes every supported curated output through parsing, semantic analysis, and IR
 lowering. Explicitly unsupported requests remain separate rejection cases.
+
+`horusrf_ai_retrieval_tests` validates the independent checked-in example corpus,
+compiler-valid programs, identity/digest rules, and leakage report. It also
+covers exact and paraphrased structural selection, ordered sweeps, derivation
+dependencies, unsupported and unknown evidence, deterministic ties, duplicate
+suppression, byte/token-estimate budgets, and typed safe fallback without a
+provider or network.
 
 `horusrf_ai_semantic_comparison_tests` compiles both sides through the existing
 frontend and IR lowering path, then checks conservative structural equivalence.

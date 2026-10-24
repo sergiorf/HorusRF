@@ -1,8 +1,9 @@
 # HorusRF M6Q.8 structure-aware RAG experiment
 
-**Status:** Phase 0 design, ready for review. Slices 1-4 and all live model runs
-are not yet implemented. The embedding and compiler-skeleton phases are gated
-follow-up experiments, not part of the initial implementation.
+**Status:** Slices 1 and 2 are implemented. Slice 3 prompt integration, Slice 4
+evaluation, and all live model runs are not yet implemented. The embedding and
+compiler-skeleton phases remain gated follow-up experiments, not part of the
+initial implementation.
 
 **Design inspection revision:** `50b4d1bf4ed1b9f76df714221df4f99c252896fe`
 (2026-10-23). The comparison run below was produced at
@@ -372,12 +373,17 @@ promotion review are complete.
 
 ### Slice 1 - independent corpus
 
+Implemented in `627be4d`.
+
 - Add the versioned corpus, loader, compiler validation, provenance, and leakage
   report.
 - Add deterministic offline tests for schema, IDs, ordering, completeness,
   compilation, duplication, and declared evaluation separation.
 
 ### Slice 2 - deterministic structural retrieval
+
+Implemented on 2026-10-25; prompt integration remains deliberately out of scope
+for this slice.
 
 - Add conservative typed query analysis, versioned scoring, budgeted top-K
   selection, diagnostics, and safe fallback.

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -16,6 +17,8 @@
 #include <variant>
 
 #include "horusrf/ai/golden_dataset.hpp"
+#include "horusrf/ai/requirement_verification.hpp"
+#include "horusrf/ai/support_assessment.hpp"
 #include "horusrf/ai/validation.hpp"
 
 namespace horusrf::ai {
@@ -583,7 +586,431 @@ std::string_view kind_name(LeakageMatchKind kind) {
     return "unknown";
 }
 
+template <typename Range>
+bool contains(const Range& values, std::string_view value) {
+    return std::ranges::find(values, value) != values.end();
+}
+
+void add_unique(std::vector<std::string>& values, std::string value) {
+    if (!contains(values, value)) values.push_back(std::move(value));
+}
+
+std::string dimension_name(ir::SweepDimension dimension) {
+    return dimension == ir::SweepDimension::Frequency ? "frequency" : "temperature";
+}
+
+std::string measurement_operation(ir::MeasurementOperation operation) {
+    switch (operation) {
+    case ir::MeasurementOperation::Power: return "measure_power";
+    case ir::MeasurementOperation::Evm: return "measure_evm";
+    case ir::MeasurementOperation::FrequencyError: return "measure_frequency_error";
+    }
+    return {};
+}
+
+std::string assertion_operation(ir::ValueType type) {
+    switch (type) {
+    case ir::ValueType::Power: return "assert_power";
+    case ir::ValueType::PowerDelta: return "assert_power_delta";
+    case ir::ValueType::Ratio: return "assert_evm";
+    case ir::ValueType::Frequency:
+    case ir::ValueType::FrequencyDelta: return "assert_frequency_error";
+    default: return {};
+    }
+}
+
+std::string merge_strictness(std::string current, std::string_view next) {
+    if (next == "none") return current;
+    if (current == "none" || current == next) return std::string{next};
+    return "mixed";
+}
+
+std::string assertion_strictness(ir::ComparisonOperator operation) {
+    switch (operation) {
+    case ir::ComparisonOperator::Less:
+    case ir::ComparisonOperator::Greater: return "strict";
+    case ir::ComparisonOperator::LessEqual:
+    case ir::ComparisonOperator::GreaterEqual:
+    case ir::ComparisonOperator::Equal:
+    case ir::ComparisonOperator::NotEqual: return "inclusive";
+    }
+    return "none";
+}
+
+double ordered_dimension_score(const std::vector<std::string>& requested,
+                               const std::vector<std::string>& candidate) {
+    if (requested.empty()) return 0.0;
+    if (requested == candidate) return 18.0;
+    std::size_t ordered{};
+    std::size_t cursor{};
+    for (const auto& dimension : candidate) {
+        if (cursor < requested.size() && dimension == requested[cursor]) {
+            ++cursor;
+            ++ordered;
+        }
+    }
+    return 10.0 * static_cast<double>(ordered) /
+           static_cast<double>(requested.size());
+}
+
+double coverage(const std::vector<std::string>& requested,
+                const std::vector<std::string>& candidate) {
+    if (requested.empty()) return 1.0;
+    const auto count = std::ranges::count_if(requested, [&](const auto& operation) {
+        return contains(candidate, operation);
+    });
+    return static_cast<double>(count) / static_cast<double>(requested.size());
+}
+
+bool is_foundational_operation(std::string_view operation) {
+    return operation == "reference_power" || operation == "derive_calibration";
+}
+
+std::size_t context_bytes(const RetrievalExample& example) {
+    return example.request.size() + example.program.size();
+}
+
+std::size_t estimated_tokens(std::size_t bytes) {
+    return (bytes + 3U) / 4U;
+}
+
+bool near_duplicate(const RetrievalExample& left, const RetrievalExample& right) {
+    return jaccard(left.request, right.request) >= 0.72 ||
+           program_shape(left.program) == program_shape(right.program);
+}
+
+struct RankedExample final {
+    std::size_t manifest_index{};
+    RetrievalComponentScores scores;
+    bool complete{};
+    std::string rationale;
+};
+
+RankedExample rank_example(const RetrievalQuery& query,
+                           const RetrievalExample& example,
+                           std::size_t manifest_index) {
+    RetrievalComponentScores scores;
+    const auto operation_coverage = coverage(query.operations,
+                                             example.metadata.operations);
+    scores.operation_coverage = 42.0 * operation_coverage;
+    scores.structural = ordered_dimension_score(query.sweep_dimensions,
+                                                example.metadata.sweep_dimensions);
+    if (query.fixed_frequency &&
+        contains(example.metadata.structural_steps, "sweep_single_frequency_point")) {
+        scores.structural += 6.0;
+    }
+    if (query.named_values && std::ranges::any_of(
+            example.metadata.structural_steps, [](const auto& step) {
+                return step.find("named") != std::string::npos;
+            })) {
+        scores.structural += 3.0;
+    }
+    if (query.dependency_chain && example.metadata.dependencies.size() >= 2U) {
+        scores.structural += 5.0;
+    }
+
+    std::size_t typed_requested{};
+    std::size_t typed_matched{};
+    if (query.comparison_strictness != "none") {
+        ++typed_requested;
+        if (example.metadata.comparison_strictness == query.comparison_strictness ||
+            example.metadata.comparison_strictness == "mixed") ++typed_matched;
+    }
+    if (query.calibration) {
+        ++typed_requested;
+        if (contains(example.metadata.operations, "derive_calibration")) ++typed_matched;
+    }
+    if (query.fixed_frequency) {
+        ++typed_requested;
+        if (contains(example.metadata.structural_steps,
+                     "sweep_single_frequency_point")) ++typed_matched;
+    }
+    scores.typed_feature_coverage = typed_requested == 0U ? 0.0
+        : 14.0 * static_cast<double>(typed_matched) /
+              static_cast<double>(typed_requested);
+    scores.lexical_similarity = 8.0 * jaccard(query.instruction, example.request);
+
+    const auto complexity = query.complexity == RetrievalComplexity::Basic ? "basic"
+        : query.complexity == RetrievalComplexity::Intermediate ? "intermediate"
+                                                                : "advanced";
+    scores.complexity_compatibility = example.metadata.complexity == complexity ? 5.0 : 0.0;
+
+    std::size_t conflicts{};
+    for (const auto& operation : example.metadata.operations) {
+        if (!is_foundational_operation(operation) &&
+            !contains(query.operations, operation)) ++conflicts;
+    }
+    for (auto unsupported : query.unsupported_operations) {
+        std::ranges::replace(unsupported, '.', '_');
+        if (contains(example.metadata.operations, unsupported)) conflicts += 2U;
+    }
+    scores.conflict_penalty = 2.5 * static_cast<double>(conflicts);
+    const bool dimensions_complete = query.sweep_dimensions.empty() ||
+                                     query.sweep_dimensions == example.metadata.sweep_dimensions;
+    const bool complete = operation_coverage == 1.0 && dimensions_complete &&
+                          typed_matched == typed_requested;
+    if (complete) scores.completeness_bonus = 9.0;
+    scores.total = scores.structural + scores.operation_coverage +
+                   scores.typed_feature_coverage + scores.lexical_similarity +
+                   scores.complexity_compatibility + scores.completeness_bonus -
+                   scores.conflict_penalty;
+
+    std::ostringstream rationale;
+    rationale.imbue(std::locale::classic());
+    rationale << (complete ? "complete" : "partial")
+              << " structural match; operation coverage " << std::fixed
+              << std::setprecision(2) << operation_coverage
+              << "; ordered sweep compatibility "
+              << ordered_dimension_score(query.sweep_dimensions,
+                                         example.metadata.sweep_dimensions)
+              << "; conflicts " << conflicts;
+    return {manifest_index, scores, complete, rationale.str()};
+}
+
 } // namespace
+
+std::string_view retrieval_ranking_id() noexcept {
+    return "structural-rag-ranking-v1";
+}
+
+RetrievalQuery analyze_retrieval_query(std::string_view instruction) {
+    RetrievalQuery query;
+    query.instruction = std::string{instruction};
+    const auto support = assess_instruction_support(instruction);
+    for (const auto& clause : support.clauses) {
+        if (clause.status == SupportClauseStatus::Unsupported) {
+            add_unique(query.unsupported_operations, clause.operation);
+            continue;
+        }
+        if (clause.status == SupportClauseStatus::Uncertain) {
+            ++query.unknown_evidence_count;
+        }
+    }
+
+    const auto requirements = extract_requirements(instruction);
+    for (const auto& requirement : requirements) {
+        if (requirement.confidence != RequirementConfidence::High) {
+            ++query.unknown_evidence_count;
+            continue;
+        }
+        switch (requirement.kind) {
+        case RequirementKind::ReferencePower:
+            if (requirement.reference_power) add_unique(query.operations, "reference_power");
+            break;
+        case RequirementKind::Sweep:
+            if (requirement.sweep) {
+                const auto dimension = dimension_name(requirement.sweep->dimension);
+                add_unique(query.operations, "sweep_" + dimension);
+                add_unique(query.sweep_dimensions, dimension);
+                query.fixed_frequency = query.fixed_frequency ||
+                    (dimension == "frequency" && requirement.sweep->point_count == 1U);
+            } else {
+                ++query.unknown_evidence_count;
+            }
+            break;
+        case RequirementKind::Measurement:
+            if (requirement.measurement) {
+                add_unique(query.operations,
+                           measurement_operation(requirement.measurement->operation));
+                query.named_values = query.named_values ||
+                                     requirement.constrain_measurement_name;
+            } else {
+                ++query.unknown_evidence_count;
+            }
+            break;
+        case RequirementKind::Assertion:
+            if (requirement.assertion) {
+                const auto operation = assertion_operation(
+                    requirement.assertion->operand_type);
+                if (!operation.empty()) add_unique(query.operations, operation);
+                query.comparison_strictness = merge_strictness(
+                    std::move(query.comparison_strictness),
+                    assertion_strictness(requirement.assertion->op));
+            } else {
+                ++query.unknown_evidence_count;
+            }
+            break;
+        case RequirementKind::Calibration:
+            if (requirement.calibration) {
+                add_unique(query.operations, "derive_calibration");
+                query.calibration = true;
+            } else {
+                ++query.unknown_evidence_count;
+            }
+            break;
+        }
+    }
+
+    // Requirements retain source order for ordered sweeps. Support assessment
+    // fills only dimensions that the stricter requirement extractor did not
+    // project (for example, a sweep without explicit numeric bounds).
+    for (const auto& clause : support.clauses) {
+        if (clause.status != SupportClauseStatus::Supported) continue;
+        if (clause.operation == "sweep.frequency" ||
+            clause.operation == "fixed.frequency") {
+            add_unique(query.operations, "sweep_frequency");
+            add_unique(query.sweep_dimensions, "frequency");
+            query.fixed_frequency = query.fixed_frequency ||
+                                    clause.operation == "fixed.frequency";
+        } else if (clause.operation == "sweep.temperature") {
+            add_unique(query.operations, "sweep_temperature");
+            add_unique(query.sweep_dimensions, "temperature");
+        }
+    }
+
+    const auto text = normalized_text(instruction);
+    if (text.find("calibrat") != std::string::npos ||
+        text.find("correction table") != std::string::npos ||
+        text.find("calibration table") != std::string::npos) {
+        add_unique(query.operations, "derive_calibration");
+        query.calibration = true;
+    }
+    if (text.find("power error") != std::string::npos ||
+        text.find("power delta") != std::string::npos ||
+        text.find("measured minus reference") != std::string::npos) {
+        add_unique(query.operations, "derive_power_error");
+    }
+    if ((text.find("negat") != std::string::npos ||
+         text.find("invert") != std::string::npos) &&
+        (text.find("error") != std::string::npos ||
+         text.find("delta") != std::string::npos)) {
+        add_unique(query.operations, "derive_power_delta");
+    }
+    const bool strict_comparison = text.find(" below ") != std::string::npos ||
+                                   text.find(" less than ") != std::string::npos ||
+                                   text.find(" above ") != std::string::npos ||
+                                   text.find(" greater than ") != std::string::npos ||
+                                   text.find(" strictly ") != std::string::npos;
+    const bool inclusive_comparison = text.find(" within ") != std::string::npos ||
+                                      text.find(" at most ") != std::string::npos ||
+                                      text.find(" at least ") != std::string::npos ||
+                                      text.find(" no more than ") != std::string::npos ||
+                                      text.find(" no less than ") != std::string::npos;
+    if (strict_comparison || inclusive_comparison) {
+        std::string projected_strictness = strict_comparison ? "strict" : "inclusive";
+        if (strict_comparison && inclusive_comparison) projected_strictness = "mixed";
+        query.comparison_strictness = merge_strictness(
+            std::move(query.comparison_strictness), projected_strictness);
+        if (text.find("evm") != std::string::npos ||
+            text.find("quality") != std::string::npos) {
+            add_unique(query.operations, "assert_evm");
+        }
+        if (text.find("frequency error") != std::string::npos ||
+            text.find("carrier error") != std::string::npos ||
+            text.find("carrier offset") != std::string::npos) {
+            add_unique(query.operations, "assert_frequency_error");
+        }
+        if (text.find("power error") != std::string::npos ||
+            text.find("power delta") != std::string::npos) {
+            add_unique(query.operations, "assert_power_delta");
+        } else if (text.find("power") != std::string::npos) {
+            add_unique(query.operations, "assert_power");
+        }
+    }
+    query.named_values = query.named_values || text.find(" named ") != std::string::npos ||
+                         text.starts_with("named ");
+    query.dependency_chain = text.find("then derive") != std::string::npos ||
+                             text.find("from that") != std::string::npos ||
+                             text.find("two stage") != std::string::npos ||
+                             (contains(query.operations, "derive_power_error") &&
+                              contains(query.operations, "derive_power_delta"));
+
+    const auto derived_count = std::ranges::count_if(query.operations,
+        [](const auto& operation) { return operation.starts_with("derive_"); });
+    if (query.dependency_chain || derived_count >= 2) {
+        query.complexity = RetrievalComplexity::Advanced;
+    } else if (query.sweep_dimensions.size() >= 2U || query.operations.size() >= 6U ||
+               query.comparison_strictness == "mixed") {
+        query.complexity = RetrievalComplexity::Intermediate;
+    }
+    return query;
+}
+
+ExampleRetriever::ExampleRetriever(RetrievalCorpus corpus)
+    : corpus_(std::move(corpus)) {}
+
+RetrievalResult ExampleRetriever::retrieve(std::string_view instruction,
+                                           RetrievalSettings settings) const {
+    const auto started = std::chrono::steady_clock::now();
+    RetrievalResult result;
+    result.corpus_id = corpus_.corpus_id;
+    result.corpus_version = corpus_.corpus_version;
+    result.corpus_content_digest = corpus_.content_digest;
+    result.ranking_id = std::string{retrieval_ranking_id()};
+    result.query = analyze_retrieval_query(instruction);
+    const auto finish = [&] {
+        result.duration = std::chrono::steady_clock::now() - started;
+        return result;
+    };
+    if (instruction.find_first_not_of(" \t\r\n") == std::string_view::npos) {
+        result.diagnostics.push_back({RetrievalDiagnosticCode::EmptyInstruction,
+                                      "retrieval instruction must not be empty"});
+        return finish();
+    }
+    if (settings.top_k < 1U || settings.top_k > 3U) {
+        result.diagnostics.push_back({RetrievalDiagnosticCode::InvalidTopK,
+                                      "retrieval top_k must be 1, 2, or 3"});
+        return finish();
+    }
+    if (corpus_.examples.empty()) {
+        result.diagnostics.push_back({RetrievalDiagnosticCode::EmptyCorpus,
+                                      "retrieval corpus contains no examples"});
+        return finish();
+    }
+    if (result.query.operations.empty() && result.query.sweep_dimensions.empty()) {
+        result.diagnostics.push_back({RetrievalDiagnosticCode::NoStructuralEvidence,
+                                      "instruction contains no supported structural retrieval evidence"});
+        return finish();
+    }
+
+    std::vector<RankedExample> ranked;
+    ranked.reserve(corpus_.examples.size());
+    for (std::size_t index = 0; index < corpus_.examples.size(); ++index) {
+        ranked.push_back(rank_example(result.query, corpus_.examples[index], index));
+    }
+    std::ranges::stable_sort(ranked, [](const auto& left, const auto& right) {
+        if (left.scores.total != right.scores.total) {
+            return left.scores.total > right.scores.total;
+        }
+        return left.manifest_index < right.manifest_index;
+    });
+
+    std::size_t used_budget{};
+    std::vector<std::size_t> selected_indexes;
+    for (const auto& candidate : ranked) {
+        if (result.selected.size() >= settings.top_k) break;
+        if (candidate.scores.total <= 0.0) continue;
+        const auto& example = corpus_.examples[candidate.manifest_index];
+        const bool duplicate = std::ranges::any_of(selected_indexes,
+            [&](std::size_t selected) {
+                return near_duplicate(corpus_.examples[selected], example);
+            });
+        if (duplicate) {
+            result.suppressed_near_duplicates.push_back(example.metadata.id);
+            continue;
+        }
+        const auto bytes = context_bytes(example);
+        const auto tokens = estimated_tokens(bytes);
+        const auto cost = settings.budget_unit == RetrievalBudgetUnit::Utf8Bytes
+                              ? bytes : tokens;
+        if (cost > settings.context_budget -
+                       std::min(settings.context_budget, used_budget)) {
+            result.rejected_by_budget.push_back(example.metadata.id);
+            continue;
+        }
+        used_budget += cost;
+        selected_indexes.push_back(candidate.manifest_index);
+        result.inserted_context_bytes += bytes;
+        result.inserted_context_estimated_tokens += tokens;
+        result.selected.push_back({example.metadata.id, candidate.scores,
+                                   candidate.rationale, bytes, tokens});
+    }
+    if (result.selected.empty()) {
+        result.diagnostics.push_back({RetrievalDiagnosticCode::NoMatchingExample,
+                                      "no matching retrieval example fits the context budget"});
+    }
+    return finish();
+}
 
 RetrievalCorpusResult load_retrieval_corpus(
     const std::filesystem::path& root,

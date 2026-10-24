@@ -25,6 +25,17 @@ The loader validates the exact JSON shapes, UTF-8, safe and unique IDs,
 manifest/directory agreement, digest, and each program through the full compiler
 pipeline. It performs no provider, network, runtime, simulator, or hardware work.
 
+`ExampleRetriever` implements the deterministic `structural-rag-ranking-v1`
+ranking. Its conservative query projection reuses the authoring support and
+requirement extractors, then scores ordered sweep/dependency compatibility,
+operation and typed-feature coverage, lexical similarity, complexity, conflicts,
+and complete-match preference. Selection accepts only K=1, 2, or 3, applies a
+UTF-8 byte or explicit four-bytes-per-token estimate budget, suppresses structural
+near-duplicates, and resolves score ties in manifest order. Results include the
+corpus and ranking identities, component scores, rationale, budget rejections,
+context size, duration, and typed fallback diagnostics. This retriever is not yet
+connected to prompt construction or any default product path.
+
 `leakage-report.json` is the deterministic review artifact produced by comparing
 requests and compiler-valid programs internally and against golden dataset 2.0.0.
 An empty `findings` array means no normalized exact request, likely request
