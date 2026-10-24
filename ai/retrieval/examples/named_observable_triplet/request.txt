@@ -1,0 +1,1 @@
+Across 915–925 MHz, collect separately named readings for RF power, modulation EVM, and carrier-frequency offset.

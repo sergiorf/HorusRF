@@ -1,0 +1,10 @@
+characterize thermal_calibration {
+  reference power = -18 dBm
+  sweep frequency 2.2 GHz .. 2.2 GHz step 1 MHz
+  sweep temperature -40 degC .. 20 degC step 12 deltaC
+  measure chamber_power = power
+  derive calibration thermal_table {
+    correction = reference.power - chamber_power
+    over frequency, temperature
+  }
+}

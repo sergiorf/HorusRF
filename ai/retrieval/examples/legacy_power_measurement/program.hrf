@@ -1,0 +1,11 @@
+characterize legacy_power_measurement {
+  reference power = -1 dBm
+  sweep frequency 100 MHz .. 104 MHz step 1 MHz
+  measure power
+  derive legacy_error = power - reference.power
+  assert abs(legacy_error) <= 2 dB
+  derive calibration legacy_table {
+    correction = -legacy_error
+    over frequency
+  }
+}

@@ -1,0 +1,1 @@
+Sample transmitter power from 860 MHz through 940 MHz in 20 MHz increments, using -4 dBm as the reference.

@@ -1,0 +1,1 @@
+Visit frequencies from 0.45 GHz to 550 MHz in 25 MHz steps and keep carrier offset within 0.03 MHz in magnitude.

@@ -1,0 +1,1 @@
+From 2.30 to 2.34 GHz, measure power for a -6 dBm target, enforce absolute error no greater than 0.8 dB, and emit reference-minus-measurement correction.

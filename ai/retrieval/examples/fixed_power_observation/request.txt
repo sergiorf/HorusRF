@@ -1,0 +1,1 @@
+At a fixed operating point, record output power against a -7 dBm target and require it to remain below 3 dBm.

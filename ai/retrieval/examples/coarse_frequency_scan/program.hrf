@@ -1,0 +1,9 @@
+characterize coarse_frequency_scan {
+  reference power = -4 dBm
+  sweep frequency 860 MHz .. 940 MHz step 20 MHz
+  measure sampled_power = power
+  derive calibration coarse_table {
+    correction = reference.power - sampled_power
+    over frequency
+  }
+}

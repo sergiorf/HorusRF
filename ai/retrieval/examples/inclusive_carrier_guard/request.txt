@@ -1,0 +1,1 @@
+Measure oscillator error between 3.3 and 3.6 GHz and accept the signed result when it is at least 12 kHz.

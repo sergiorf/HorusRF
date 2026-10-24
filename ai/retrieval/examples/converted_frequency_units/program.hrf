@@ -1,0 +1,11 @@
+characterize converted_frequency_units {
+  reference power = -15 dBm
+  sweep frequency 0.45 GHz .. 550 MHz step 25 MHz
+  measure baseline_power = power
+  measure residual_offset = frequency_error
+  assert abs(residual_offset) <= 0.03 MHz
+  derive calibration converted_units_table {
+    correction = reference.power - baseline_power
+    over frequency
+  }
+}

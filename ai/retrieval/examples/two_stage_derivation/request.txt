@@ -1,0 +1,1 @@
+Measure output relative to -13 dBm, derive its error, then derive an inverted compensation value from that first result.

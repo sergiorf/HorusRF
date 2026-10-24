@@ -1,0 +1,10 @@
+characterize carrier_offset_scan {
+  reference power = -3 dBm
+  sweep frequency 6.00 GHz .. 6.12 GHz step 30 MHz
+  measure baseline_power = power
+  measure synthesizer_error = frequency_error
+  derive calibration carrier_scan_table {
+    correction = reference.power - baseline_power
+    over frequency
+  }
+}

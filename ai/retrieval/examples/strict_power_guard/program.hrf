@@ -1,0 +1,10 @@
+characterize strict_power_guard {
+  reference power = -17 dBm
+  sweep frequency 700 MHz .. 760 MHz step 15 MHz
+  measure receiver_level = power
+  assert receiver_level > 1 dBm
+  derive calibration guarded_power_table {
+    correction = reference.power - receiver_level
+    over frequency
+  }
+}

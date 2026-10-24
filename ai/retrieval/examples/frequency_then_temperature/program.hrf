@@ -1,0 +1,11 @@
+characterize frequency_then_temperature {
+  reference power = -8 dBm
+  sweep frequency 5.0 GHz .. 5.2 GHz step 100 MHz
+  sweep temperature 0 degC .. 40 degC step 20 deltaC
+  measure baseline_power = power
+  measure carrier_offset = frequency_error
+  derive calibration reverse_grid_table {
+    correction = reference.power - baseline_power
+    over frequency, temperature
+  }
+}

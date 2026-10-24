@@ -1,0 +1,11 @@
+characterize qualified_frequency_calibration {
+  reference power = -6 dBm
+  sweep frequency 2.30 GHz .. 2.34 GHz step 8 MHz
+  measure measured_level = power
+  derive level_error = measured_level - reference.power
+  assert abs(level_error) <= 0.8 dB
+  derive calibration qualified_table {
+    correction = reference.power - measured_level
+    over frequency
+  }
+}

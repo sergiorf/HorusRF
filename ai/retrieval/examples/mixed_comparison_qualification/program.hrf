@@ -1,0 +1,13 @@
+characterize mixed_comparison_qualification {
+  reference power = -5 dBm
+  sweep frequency 3.8 GHz .. 3.8 GHz step 1 MHz
+  sweep temperature 20 degC .. 60 degC step 10 deltaC
+  measure equality_power = power
+  measure inequality_evm = evm
+  assert equality_power == 5 dBm
+  assert inequality_evm < 4 %
+  derive calibration comparison_table {
+    correction = reference.power - equality_power
+    over frequency, temperature
+  }
+}

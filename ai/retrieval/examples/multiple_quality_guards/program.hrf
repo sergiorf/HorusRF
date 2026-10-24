@@ -1,0 +1,14 @@
+characterize multiple_quality_guards {
+  reference power = -5 dBm
+  sweep frequency 1.5 GHz .. 1.5 GHz step 1 MHz
+  sweep temperature -10 degC .. 50 degC step 10 deltaC
+  measure baseline_power = power
+  measure quality = evm
+  measure drift = frequency_error
+  assert quality <= 2.5 %
+  assert abs(drift) < 18 kHz
+  derive calibration quality_guard_table {
+    correction = reference.power - baseline_power
+    over frequency, temperature
+  }
+}

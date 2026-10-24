@@ -1,0 +1,11 @@
+characterize two_stage_derivation {
+  reference power = -13 dBm
+  sweep frequency 2.7 GHz .. 2.7 GHz step 1 MHz
+  measure stage_output = power
+  derive stage_error = stage_output - reference.power
+  derive compensation = -stage_error
+  derive calibration dependency_chain_table {
+    correction = compensation
+    over frequency
+  }
+}

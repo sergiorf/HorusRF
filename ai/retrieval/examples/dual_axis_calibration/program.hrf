@@ -1,0 +1,10 @@
+characterize dual_axis_calibration {
+  reference power = -2 dBm
+  sweep temperature 10 degC .. 70 degC step 20 deltaC
+  sweep frequency 4.8 GHz .. 5.0 GHz step 50 MHz
+  measure mapped_power = power
+  derive calibration dual_axis_table {
+    correction = reference.power - mapped_power
+    over temperature, frequency
+  }
+}

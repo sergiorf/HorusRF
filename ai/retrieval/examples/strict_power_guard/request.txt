@@ -1,0 +1,1 @@
+Sweep 700 to 760 MHz and require measured power to be strictly greater than 1 dBm.

@@ -1,0 +1,1 @@
+Perform a compact 100–104 MHz sweep using the unnamed power-reading form, expose its error from the target, and hold the magnitude to 2 dB.

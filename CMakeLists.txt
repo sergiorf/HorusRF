@@ -203,6 +203,19 @@ target_link_libraries(horusrf_ai_golden
 )
 horusrf_enable_warnings(horusrf_ai_golden)
 
+add_library(horusrf_ai_retrieval STATIC
+    src/ai/retrieval.cpp
+)
+target_compile_features(horusrf_ai_retrieval PUBLIC cxx_std_20)
+target_include_directories(horusrf_ai_retrieval PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(horusrf_ai_retrieval
+    PUBLIC horusrf_ai_golden
+    PRIVATE horusrf_ai_validation
+)
+horusrf_enable_warnings(horusrf_ai_retrieval)
+
 add_library(horusrf_ai_semantic_comparison STATIC
     src/ai/semantic_comparison.cpp
 )
@@ -483,6 +496,23 @@ if(BUILD_TESTING)
         COMMAND horusrf_ai_golden_dataset_tests
     )
 
+    add_executable(horusrf_ai_retrieval_tests
+        tests/ai/retrieval_tests.cpp
+    )
+    target_compile_features(horusrf_ai_retrieval_tests PRIVATE cxx_std_20)
+    target_include_directories(horusrf_ai_retrieval_tests PRIVATE tests)
+    target_link_libraries(horusrf_ai_retrieval_tests PRIVATE
+        horusrf_ai_retrieval
+    )
+    target_compile_definitions(horusrf_ai_retrieval_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        HORUSRF_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+    )
+    horusrf_enable_warnings(horusrf_ai_retrieval_tests)
+    add_test(NAME horusrf_ai_retrieval_tests
+        COMMAND horusrf_ai_retrieval_tests
+    )
+
     add_executable(horusrf_ai_semantic_comparison_tests
         tests/ai/semantic_comparison_tests.cpp
     )
@@ -754,6 +784,7 @@ if(BUILD_TESTING)
         horusrf_ai_provider_tests
         horusrf_ai_validation_tests
         horusrf_ai_golden_dataset_tests
+        horusrf_ai_retrieval_tests
         horusrf_ai_semantic_comparison_tests
         horusrf_ai_requirement_verification_tests
         horusrf_ir_tests

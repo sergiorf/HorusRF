@@ -1,0 +1,1 @@
+Map output correction over temperature from 10 to 70 degC first and frequency from 4.8 to 5.0 GHz second, retaining that axis order in the calibration.

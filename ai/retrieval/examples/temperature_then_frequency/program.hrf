@@ -1,0 +1,10 @@
+characterize temperature_then_frequency {
+  reference power = -12 dBm
+  sweep temperature -30 degC .. 30 degC step 15 deltaC
+  sweep frequency 1.1 GHz .. 1.3 GHz step 50 MHz
+  measure grid_power = power
+  derive calibration ordered_grid_table {
+    correction = reference.power - grid_power
+    over temperature, frequency
+  }
+}

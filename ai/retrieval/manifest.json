@@ -1,0 +1,29 @@
+{
+  "schema": "horusrf.retrieval-corpus",
+  "version": 1,
+  "corpus_id": "horusrf-structural-examples",
+  "corpus_version": "1.0.0",
+  "content_digest": "fnv1a64:b384b4661ff6a6bf",
+  "examples": [
+    "fixed_power_observation",
+    "coarse_frequency_scan",
+    "thermal_evm_scan",
+    "temperature_then_frequency",
+    "frequency_then_temperature",
+    "named_observable_triplet",
+    "power_error_dependency",
+    "strict_power_guard",
+    "inclusive_carrier_guard",
+    "multiple_quality_guards",
+    "negated_error_calibration",
+    "converted_frequency_units",
+    "two_stage_derivation",
+    "qualified_frequency_calibration",
+    "legacy_power_measurement",
+    "carrier_offset_scan",
+    "fixed_evm_qualification",
+    "thermal_calibration",
+    "dual_axis_calibration",
+    "mixed_comparison_qualification"
+  ]
+}

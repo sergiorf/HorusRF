@@ -1,0 +1,11 @@
+characterize power_error_dependency {
+  reference power = -16 dBm
+  sweep frequency 2.0 GHz .. 2.2 GHz step 40 MHz
+  measure delivered_power = power
+  derive delivery_error = delivered_power - reference.power
+  assert abs(delivery_error) < 1.2 dB
+  derive calibration dependency_table {
+    correction = -delivery_error
+    over frequency
+  }
+}

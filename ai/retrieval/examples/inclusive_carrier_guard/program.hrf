@@ -1,0 +1,11 @@
+characterize inclusive_carrier_guard {
+  reference power = -10 dBm
+  sweep frequency 3.3 GHz .. 3.6 GHz step 100 MHz
+  measure baseline_power = power
+  measure offset = frequency_error
+  assert offset >= 12 kHz
+  derive calibration carrier_guard_table {
+    correction = reference.power - baseline_power
+    over frequency
+  }
+}

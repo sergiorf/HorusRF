@@ -1,0 +1,11 @@
+characterize fixed_evm_qualification {
+  reference power = -20 dBm
+  sweep frequency 1 GHz .. 1 GHz step 1 MHz
+  measure baseline_power = power
+  measure evm_snapshot = evm
+  assert evm_snapshot != 5 %
+  derive calibration fixed_evm_table {
+    correction = reference.power - baseline_power
+    over frequency
+  }
+}

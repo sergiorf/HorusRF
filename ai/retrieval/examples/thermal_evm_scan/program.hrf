@@ -1,0 +1,12 @@
+characterize thermal_evm_scan {
+  reference power = -11 dBm
+  sweep frequency 868 MHz .. 868 MHz step 1 MHz
+  sweep temperature 250 K .. 310 K step 15 deltaK
+  measure baseline_power = power
+  measure modulation_quality = evm
+  assert modulation_quality <= 3 %
+  derive calibration thermal_evm_table {
+    correction = reference.power - baseline_power
+    over frequency, temperature
+  }
+}

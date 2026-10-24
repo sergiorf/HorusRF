@@ -1,0 +1,1 @@
+At each point from 6.00 to 6.12 GHz, record carrier-frequency error under the name synthesizer_error.

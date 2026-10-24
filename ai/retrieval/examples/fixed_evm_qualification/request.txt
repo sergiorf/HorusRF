@@ -1,0 +1,1 @@
+Without defining a sweep, take a named EVM reading and require it to differ from 5 percent.

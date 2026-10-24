@@ -1,0 +1,11 @@
+characterize negated_error_calibration {
+  reference power = -9 dBm
+  sweep frequency 1.80 GHz .. 1.86 GHz step 10 MHz
+  measure actual_level = power
+  measure calibration_evm = evm
+  derive signed_error = actual_level - reference.power
+  derive calibration level_table {
+    correction = -signed_error
+    over frequency
+  }
+}

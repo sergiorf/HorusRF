@@ -1,0 +1,1 @@
+Build a frequency-major matrix from 5.0 to 5.2 GHz by 100 MHz and then 0 to 40 degC by 20 deltaC; record carrier error at each point.

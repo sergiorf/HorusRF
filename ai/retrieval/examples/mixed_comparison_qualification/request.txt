@@ -1,0 +1,1 @@
+Across 20–60 degC, require power to equal 5 dBm while also keeping EVM strictly below 4 percent.

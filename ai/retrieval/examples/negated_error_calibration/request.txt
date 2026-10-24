@@ -1,0 +1,1 @@
+Using -9 dBm as target, scan 1.80–1.86 GHz, record EVM, derive actual-minus-target power error, and make the calibration correction its negation.

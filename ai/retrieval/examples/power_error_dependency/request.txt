@@ -1,0 +1,1 @@
+For a -16 dBm target, measure power over 2.0–2.2 GHz, expose measured-minus-target error, and keep its magnitude strictly under 1.2 dB.

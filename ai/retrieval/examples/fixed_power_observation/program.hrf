@@ -1,0 +1,10 @@
+characterize fixed_power_observation {
+  reference power = -7 dBm
+  sweep frequency 433 MHz .. 433 MHz step 1 MHz
+  measure observed_power = power
+  assert observed_power < 3 dBm
+  derive calibration fixed_table {
+    correction = reference.power - observed_power
+    over frequency
+  }
+}

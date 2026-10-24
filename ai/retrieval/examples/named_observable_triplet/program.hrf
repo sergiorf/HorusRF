@@ -1,0 +1,11 @@
+characterize named_observable_triplet {
+  reference power = -14 dBm
+  sweep frequency 915 MHz .. 925 MHz step 5 MHz
+  measure rf_level = power
+  measure vector_error = evm
+  measure oscillator_offset = frequency_error
+  derive calibration triplet_table {
+    correction = reference.power - rf_level
+    over frequency
+  }
+}

@@ -1,0 +1,1 @@
+Create a grid with temperature as the outer axis (-30 to 30 degC by 15 deltaC), then frequency (1.1 to 1.3 GHz by 50 MHz), and capture named power.
