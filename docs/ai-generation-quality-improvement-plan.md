@@ -2,7 +2,8 @@
 
 **Status:** M6Q.0 through M6Q.6 completed on 2026-10-23; M6Q.7 implementation
 completed on 2026-10-23, with fixture review and the opt-in live acceptance run
-pending
+pending; M6Q.8 has a Phase 0 design pending review.
+
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
 **Reviewed baseline artifact:** `build/ai-evaluation/results-20261021-193036.json`

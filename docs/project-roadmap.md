@@ -161,6 +161,14 @@ success variability, repair/correction rates, and per-case median/P90 latency. I
 offline acceptance gate passes; independent fixture review and the opt-in 3–5
 repetition live run and report review remain before the milestone can be closed.
 
+M6Q.8 is a proposed, gated structure-aware retrieval experiment. It keeps the
+baseline and Studio defaults unchanged, builds a physically separate library of
+compiler-validated examples, and compares deterministic structural retrieval
+against both the baseline and the existing feature selector before considering
+embeddings or compiler-backed skeletons. Its Phase 0 architecture, leakage
+boundary, benchmark controls, and stop criteria are recorded in the
+[M6Q.8 structure-aware RAG experiment](ai-generation-rag-experiment.md).
+
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the
 [Phase 2 local AI-assisted authoring plan](phase-2-local-ai-assisted-authoring-plan.md).
