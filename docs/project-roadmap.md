@@ -163,8 +163,10 @@ repetition live run and report review remain before the milestone can be closed.
 
 M6Q.8 is an active, gated structure-aware retrieval experiment. Its independent
 compiler-validated corpus, deterministic structural retriever, and opt-in
-`structural-rag-v1` prompt integration are complete. Evaluation settings,
-reporting, and live runs remain pending. The integration retrieves only for the
+`structural-rag-v1` prompt integration are complete. Evaluation settings and
+schema-v3 run/per-case/aggregate retrieval reporting are complete, including
+schema-v1/v2 archive compatibility; the full offline gate and a one-case 3B live
+smoke pass. The controlled A/B/K live matrix and analysis remain pending. The integration retrieves only for the
 initial generation prompt, preserves local provenance outside provider payloads,
 and leaves repair, correction, the baseline, and Studio defaults unchanged. The
 experiment will compare structural retrieval

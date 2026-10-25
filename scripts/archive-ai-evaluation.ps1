@@ -47,8 +47,8 @@ if (-not $OutputDirectory) {
 }
 
 $report = Get-Content -LiteralPath $resolvedReport -Raw | ConvertFrom-Json
-if ($report.schema -ne "horusrf.ai-evaluation" -or $report.version -notin @(1, 2)) {
-    throw "Only horusrf.ai-evaluation schema version 1 or 2 reports can be archived."
+if ($report.schema -ne "horusrf.ai-evaluation" -or $report.version -notin @(1, 2, 3)) {
+    throw "Only horusrf.ai-evaluation schema versions 1, 2, or 3 can be archived."
 }
 if (-not $report.cases -or -not $report.summaries) {
     throw "The evaluation report has no cases or summaries."
@@ -136,7 +136,7 @@ $caseTrends = @(
 
 $snapshot = [pscustomobject][ordered]@{
     schema = "horusrf.ai-evaluation-history"
-    version = 1
+    version = 2
     source = [pscustomobject][ordered]@{
         report_file = [IO.Path]::GetFileName($resolvedReport)
         sha256 = (Get-FileHash -LiteralPath $resolvedReport -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -150,6 +150,7 @@ $snapshot = [pscustomobject][ordered]@{
         requirement_schema_version = $report.requirement_schema_version
         prompt_configuration_id = $report.prompt_configuration_id
         settings = $report.settings
+        retrieval = $report.retrieval
         models = $modelIdentities
     }
     summaries = @($report.summaries)

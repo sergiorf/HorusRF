@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <functional>
 #include <iosfwd>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -65,12 +66,19 @@ struct EvaluationAttempt final {
     std::optional<std::chrono::nanoseconds> verification_duration;
     std::optional<ProviderMetrics> provider_metrics;
     std::optional<ProviderIdentity> provider_identity;
+    std::optional<RetrievalResult> retrieval;
 };
 
 struct LatencyStatistics final {
     std::size_t sample_count{};
     std::chrono::milliseconds median{};
     std::chrono::milliseconds p90{};
+};
+
+struct RetrievalLatencyStatistics final {
+    std::size_t sample_count{};
+    std::chrono::nanoseconds median{};
+    std::chrono::nanoseconds p90{};
 };
 
 struct CaseEvaluation final {
@@ -150,6 +158,27 @@ struct ModelEvaluationSummary final {
     std::size_t output_limit_errors{};
     std::optional<double> average_output_tokens_per_second;
     std::vector<std::pair<std::string, std::size_t>> failure_categories;
+    std::size_t retrieval_attempts{};
+    std::size_t retrieval_successes{};
+    std::size_t retrieved_examples{};
+    std::size_t retrieval_context_bytes{};
+    std::size_t retrieval_context_estimated_tokens{};
+    RetrievalLatencyStatistics retrieval_latency;
+    std::optional<double> average_top_operation_coverage;
+    std::optional<double> average_top_typed_feature_coverage;
+};
+
+struct EvaluationRetrievalProvenance final {
+    std::string corpus_path;
+    std::string corpus_load_status{"unavailable"};
+    std::optional<std::size_t> corpus_schema_version;
+    std::optional<std::string> corpus_id;
+    std::optional<std::string> corpus_version;
+    std::optional<std::string> corpus_content_digest;
+    std::string ranking_id;
+    std::size_t top_k{2};
+    std::size_t context_budget{4096};
+    RetrievalBudgetUnit budget_unit{RetrievalBudgetUnit::Utf8Bytes};
 };
 
 struct EvaluationReport final {
@@ -167,6 +196,7 @@ struct EvaluationReport final {
     std::vector<CaseEvaluation> cases;
     std::vector<CaseEvaluationTrend> case_trends;
     std::vector<ModelEvaluationSummary> summaries;
+    std::optional<EvaluationRetrievalProvenance> retrieval;
 };
 
 struct EvaluationSettings final {
@@ -180,6 +210,10 @@ struct EvaluationSettings final {
     std::optional<std::string> git_revision;
     std::string prompt_configuration_id{"direct-dsl-v1"};
     std::string comparison_version{"semantic-ir-v2"};
+    std::shared_ptr<const ExampleRetriever> retriever;
+    RetrievalSettings retrieval_settings;
+    std::string retrieval_corpus_path;
+    std::string retrieval_ranking_id;
 };
 
 using EvaluationClock =

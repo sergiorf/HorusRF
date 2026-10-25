@@ -25,8 +25,23 @@ param(
     [ValidateRange(1, 20)]
     [int]$MaxRepairs = 3,
 
-    [ValidateSet("direct-dsl-v1", "direct-dsl-compact-v1", "direct-dsl-relevant-v1")]
+    [ValidateSet("direct-dsl-v1", "direct-dsl-compact-v1", "direct-dsl-relevant-v1", "structural-rag-v1")]
     [string]$PromptConfiguration = "direct-dsl-v1",
+
+    [ValidateNotNullOrEmpty()]
+    [string]$RetrievalCorpus = "ai/retrieval",
+
+    [ValidateRange(1, 3)]
+    [int]$RetrievalTopK = 2,
+
+    [ValidateRange(1, 1048576)]
+    [int]$RetrievalContextBudget = 4096,
+
+    [ValidateSet("utf8-bytes", "estimated-tokens")]
+    [string]$RetrievalBudgetUnit = "utf8-bytes",
+
+    [ValidateNotNullOrEmpty()]
+    [string]$RetrievalRankingId = "structural-rag-ranking-v1",
 
     [ValidateNotNullOrEmpty()]
     [string]$Endpoint = "http://127.0.0.1:11434",
@@ -102,6 +117,15 @@ try {
     )
     if ($CaseIds) {
         $arguments += @("--case", $CaseIds)
+    }
+    if ($PromptConfiguration -eq "structural-rag-v1") {
+        $arguments += @(
+            "--retrieval-corpus", $RetrievalCorpus,
+            "--retrieval-top-k", $RetrievalTopK,
+            "--retrieval-context-budget", $RetrievalContextBudget,
+            "--retrieval-budget-unit", $RetrievalBudgetUnit,
+            "--retrieval-ranking-id", $RetrievalRankingId
+        )
     }
 
     $gitCommand = Get-Command git -CommandType Application -ErrorAction SilentlyContinue

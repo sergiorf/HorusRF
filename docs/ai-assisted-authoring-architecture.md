@@ -307,28 +307,31 @@ Unsupported cases are reported separately from the typed preflight outcome;
 evaluation does not inspect free-form explanation or warning text. Evaluation never reaches runtime,
 simulator, or device targets.
 
-Reports use schema `horusrf.ai-evaluation` version 2. They retain generated source,
+Reports use schema `horusrf.ai-evaluation` version 3. They retain generated source,
 requested and actual provider identity, every provider attempt, compiler outcomes,
 strict semantic differences, clause-level requirement and support outcomes, repair counts,
 errors, latency, explicit rate denominators, prompt sizes, run order, warm/cold
 classification, and optional provider-neutral inference telemetry. Ollama duration
 and token fields are adapted into that optional telemetry; unavailable fields
-remain JSON `null`. Reports are write-only artifacts, so no schema-v1 reader is
+remain JSON `null`. Structural-RAG reports add corpus schema/version/digest,
+ranking and budget settings, per-case selection diagnostics and cost, and aggregate
+retrieval coverage, latency, and context cost. Reports are write-only artifacts, so no schema-v1 reader is
 maintained. The checked-in
 evaluation tests inject scripted providers and a deterministic clock. Live model
 evaluation is invoked explicitly through the executable or
 `scripts/run-ai-evaluation.ps1`, writes under `build/` by default, and is not a
 CTest dependency. Selected gate and milestone runs are archived as compact,
-immutable `horusrf.ai-evaluation-history` version-1 snapshots under
+immutable `horusrf.ai-evaluation-history` version-2 snapshots under
 `evaluation/history/`; they retain aggregate and per-case trend data plus the
 full report's SHA-256, while attempt-level raw reports remain ignored build
 artifacts. `scripts/archive-ai-evaluation.ps1` creates a snapshot from a
-schema-v1 or schema-v2 report, preserving unavailable legacy fields as `null`,
+schema-v1, schema-v2, or schema-v3 report, preserving unavailable legacy fields as `null`,
 and the live runner's `-Archive` switch performs that step after a successful
-run. The evaluator accepts three versioned prompt configurations:
+run. The evaluator accepts four versioned prompt configurations:
 the unchanged `direct-dsl-v1` default, `direct-dsl-compact-v1` with compact
 comment-free examples, and `direct-dsl-relevant-v1` with deterministic
-feature-tag selection. Prompt configuration is evaluation input and remains
+feature-tag selection, and opt-in `structural-rag-v1` with a validated local
+corpus and explicit ranking/budget settings. Prompt configuration is evaluation input and remains
 independent of the compiler, runtime, and Studio execution boundaries.
 
 ## Recorded risks and controls

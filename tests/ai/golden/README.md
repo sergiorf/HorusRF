@@ -90,13 +90,15 @@ does not download them or start Ollama. During a run, the evaluator prints a
 starting and finished line for every model/repetition/case combination, including
 the total position, validity, requirement status, repairs, and elapsed time.
 
-Evaluation reports use `horusrf.ai-evaluation` schema version 2. They are
+Evaluation reports use `horusrf.ai-evaluation` schema version 3. They are
 write-only artifacts; the repository has no report reader, so no schema-v1
-reader is required. Version 2 retains every provider attempt, structured-response
+reader is required. Version 3 retains every provider attempt, structured-response
 status, candidate, compiler diagnostics, strict semantic differences, clause-level
 requirement outcomes, prompt
 UTF-8 sizes, provider telemetry, run order, cold/warm classification, and model
-digest when Ollama reports one. The first evaluated case for each model is
+digest when Ollama reports one. It additively records structural-retrieval corpus,
+ranking, budget, per-case selection, score, rationale, timing, and context-cost
+provenance plus per-model retrieval aggregates. The first evaluated case for each model is
 classified cold and subsequent cases warm; per-call model-load telemetry remains
 available to identify later reloads.
 
@@ -119,7 +121,9 @@ M6Q.2 prompt experiments use `-PromptConfiguration` with one of these stable IDs
 - `direct-dsl-compact-v1` (B): all applicable examples with comments removed and
   compact explanations; or
 - `direct-dsl-relevant-v1` (C): the same compact form with deterministic
-  feature-relevant example selection.
+  feature-relevant example selection; or
+- `structural-rag-v1`: opt-in structure-aware retrieval from the independently
+  validated corpus.
 
 Run each configuration against the same models and settings with `-Repeat 3` to
 `-Repeat 5`, writing a separate report. Do not promote B or C to the default
@@ -130,4 +134,16 @@ until the reports show no material requirement-satisfaction regression. Example:
   -Models "qwen2.5-coder:3b,qwen2.5-coder:7b" -Repeat 3 `
   -PromptConfiguration direct-dsl-relevant-v1 `
   -OutputPath build/ai-evaluation/m6q2-relevant.json
+```
+
+For a structural-RAG run, the runner validates the corpus before contacting the
+provider and accepts explicit `-RetrievalCorpus`, `-RetrievalTopK`,
+`-RetrievalContextBudget`, `-RetrievalBudgetUnit`, and `-RetrievalRankingId`
+inputs. For example:
+
+```powershell
+.\scripts\run-ai-evaluation.ps1 -Configuration Release `
+  -Models "qwen2.5-coder:3b,qwen2.5-coder:7b" -Repeat 3 `
+  -PromptConfiguration structural-rag-v1 -RetrievalTopK 2 `
+  -OutputPath build/ai-evaluation/m6q8-rag-k2.json
 ```

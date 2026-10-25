@@ -80,6 +80,28 @@ ai::EvaluationClock fixed_clock() {
     };
 }
 
+std::shared_ptr<const ai::ExampleRetriever> fixture_retriever() {
+    ai::RetrievalExampleMetadata metadata;
+    metadata.id = "evaluation-reference";
+    metadata.category = "evaluation-test";
+    metadata.operations = {"reference_power", "sweep_frequency", "measure_power",
+                           "derive_calibration"};
+    metadata.structural_steps = {"reference_power", "sweep_frequency",
+                                 "measure_power", "derive_calibration"};
+    metadata.sweep_dimensions = {"frequency"};
+    metadata.comparison_strictness = "none";
+    metadata.complexity = "basic";
+    ai::RetrievalExample example{
+        std::move(metadata),
+        "Sweep frequency and measure power before deriving calibration.",
+        valid_source,
+        {},
+    };
+    ai::RetrievalCorpus corpus{
+        "evaluation-fixture", "1.0.0", "fnv1a64:evaluation", {std::move(example)}, {}};
+    return std::make_shared<const ai::ExampleRetriever>(std::move(corpus));
+}
+
 void supported_and_unsupported_report_test() {
     ai::ProviderMetrics metrics;
     metrics.generation_duration = std::chrono::seconds{2};
@@ -383,7 +405,7 @@ void schema_v2_diagnostics_and_differences_test() {
 
     std::ostringstream json;
     ai::write_evaluation_json(json, report);
-    CHECK(json.str().find("\"version\":2") != std::string::npos);
+    CHECK(json.str().find("\"version\":3") != std::string::npos);
     CHECK(json.str().find("\"prompt_configuration_id\":\"direct-dsl-v1\"") !=
           std::string::npos);
     CHECK(json.str().find("\"purpose\":\"compiler_repair\"") !=
@@ -434,6 +456,61 @@ void malformed_response_and_cancellation_test() {
     CHECK(cancelled_provider.requests().empty());
 }
 
+void structural_rag_evaluation_provenance_test() {
+    ai::testing::FakeLlmProvider provider{{response(valid_source)}};
+    auto test_case = golden("rag", true);
+    test_case.prompt = "Use reference power 3 dBm, sweep frequency at 915 MHz, "
+                       "measure power, and derive calibration.";
+    ai::GoldenDataset dataset{"2.0.0", {std::move(test_case)}};
+    ai::EvaluationSettings settings{{"test-model"}, 0.0, 512,
+                                    std::chrono::seconds{10}, 3, 1, {}, {},
+                                    "structural-rag-v1"};
+    settings.retriever = fixture_retriever();
+    settings.retrieval_settings = {1, 4096, ai::RetrievalBudgetUnit::Utf8Bytes};
+    settings.retrieval_corpus_path = "fixture/retrieval";
+    settings.retrieval_ranking_id = "structural-rag-ranking-v1";
+
+    const auto report = ai::evaluate_golden_dataset(
+        dataset, provider, settings, {}, fixed_clock());
+    CHECK(report.retrieval.has_value());
+    CHECK_EQ(report.retrieval->corpus_load_status, "loaded");
+    CHECK_EQ(report.retrieval->corpus_id,
+             std::optional<std::string>{"evaluation-fixture"});
+    CHECK_EQ(report.cases[0].attempts.size(), std::size_t{1});
+    CHECK(report.cases[0].attempts[0].retrieval.has_value());
+    CHECK(report.cases[0].attempts[0].retrieval->ok());
+    CHECK_EQ(report.cases[0].attempts[0].retrieval->selected[0].id,
+             "evaluation-reference");
+    CHECK_EQ(provider.requests().size(), std::size_t{1});
+    CHECK(provider.requests()[0].retrieval != nullptr);
+    CHECK_EQ(report.summaries[0].retrieval_attempts, std::size_t{1});
+    CHECK_EQ(report.summaries[0].retrieval_successes, std::size_t{1});
+    CHECK_EQ(report.summaries[0].retrieved_examples, std::size_t{1});
+    CHECK(report.summaries[0].average_top_operation_coverage.has_value());
+
+    std::ostringstream json;
+    ai::write_evaluation_json(json, report);
+    CHECK(json.str().find("\"version\":3") != std::string::npos);
+    CHECK(json.str().find("\"corpus_load_status\":\"loaded\"") !=
+          std::string::npos);
+    CHECK(json.str().find("\"ranking_id\":\"structural-rag-ranking-v1\"") !=
+          std::string::npos);
+    CHECK(json.str().find("\"id\":\"evaluation-reference\"") !=
+          std::string::npos);
+    CHECK(json.str().find("\"duration_ns\":") != std::string::npos);
+
+    ai::testing::FakeLlmProvider fallback_provider{{response(valid_source)}};
+    settings.retriever.reset();
+    const auto fallback = ai::evaluate_golden_dataset(
+        dataset, fallback_provider, settings, {}, fixed_clock());
+    CHECK_EQ(fallback.retrieval->corpus_load_status, "unavailable");
+    CHECK(fallback.cases[0].attempts[0].retrieval.has_value());
+    CHECK_EQ(fallback.cases[0].attempts[0].retrieval->diagnostics[0].code,
+             ai::RetrievalDiagnosticCode::RetrieverUnavailable);
+    CHECK_EQ(fallback.summaries[0].retrieval_attempts, std::size_t{1});
+    CHECK_EQ(fallback.summaries[0].retrieval_successes, std::size_t{0});
+}
+
 void invalid_settings_test() {
     ai::testing::FakeLlmProvider provider{{}};
     ai::GoldenDataset dataset{"1.0.0", {}};
@@ -458,6 +535,7 @@ void invalid_settings_test() {
     CHECK(threw);
 
     unknown.prompt_configuration_id = "structural-rag-v1";
+    unknown.retrieval_ranking_id = "unknown-ranking";
     threw = false;
     try {
         static_cast<void>(ai::evaluate_golden_dataset(nonempty, provider, unknown));
@@ -478,6 +556,7 @@ int main() {
         requirement_correction_is_observable_test();
         schema_v2_diagnostics_and_differences_test();
         malformed_response_and_cancellation_test();
+        structural_rag_evaluation_provenance_test();
         invalid_settings_test();
         std::cout << "All HorusRF AI evaluation tests passed\n";
         return 0;

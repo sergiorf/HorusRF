@@ -65,6 +65,7 @@ public:
         EvaluationAttempt attempt;
         attempt.number = attempts.size() + 1;
         attempt.purpose = evaluation_purpose(request.purpose);
+        if (request.retrieval) attempt.retrieval = *request.retrieval;
         for (std::size_t index = 0; index < request.messages.size(); ++index) {
             const auto& message = request.messages[index];
             std::string section = "message[" + std::to_string(index) + "].";
@@ -290,6 +291,26 @@ std::string_view warm_cold_name(WarmColdStatus status) {
     return "unknown";
 }
 
+std::string_view retrieval_budget_unit_name(RetrievalBudgetUnit unit) {
+    switch (unit) {
+    case RetrievalBudgetUnit::Utf8Bytes: return "utf8_bytes";
+    case RetrievalBudgetUnit::EstimatedTokens: return "estimated_tokens";
+    }
+    return "unknown";
+}
+
+std::string_view retrieval_diagnostic_name(RetrievalDiagnosticCode code) {
+    switch (code) {
+    case RetrievalDiagnosticCode::RetrieverUnavailable: return "retriever_unavailable";
+    case RetrievalDiagnosticCode::EmptyInstruction: return "empty_instruction";
+    case RetrievalDiagnosticCode::InvalidTopK: return "invalid_top_k";
+    case RetrievalDiagnosticCode::EmptyCorpus: return "empty_corpus";
+    case RetrievalDiagnosticCode::NoStructuralEvidence: return "no_structural_evidence";
+    case RetrievalDiagnosticCode::NoMatchingExample: return "no_matching_example";
+    }
+    return "unknown";
+}
+
 std::string_view diagnostic_category_name(DiagnosticCategory category) {
     switch (category) {
     case DiagnosticCategory::Syntax: return "syntax";
@@ -335,6 +356,71 @@ std::string json_string(std::string_view value) {
     }
     output << '"';
     return output.str();
+}
+
+void write_strings(std::ostream& output,
+                   const std::vector<std::string>& values) {
+    output << '[';
+    for (std::size_t index = 0; index < values.size(); ++index) {
+        if (index != 0) output << ',';
+        output << json_string(values[index]);
+    }
+    output << ']';
+}
+
+void write_retrieval_result(std::ostream& output,
+                            const std::optional<RetrievalResult>& value) {
+    if (!value) {
+        output << "null";
+        return;
+    }
+    output << "{\"corpus_id\":" << json_string(value->corpus_id)
+           << ",\"corpus_version\":" << json_string(value->corpus_version)
+           << ",\"corpus_content_digest\":"
+           << json_string(value->corpus_content_digest)
+           << ",\"ranking_id\":" << json_string(value->ranking_id)
+           << ",\"requested_operations\":";
+    write_strings(output, value->query.operations);
+    output << ",\"unsupported_operations\":";
+    write_strings(output, value->query.unsupported_operations);
+    output << ",\"sweep_dimensions\":";
+    write_strings(output, value->query.sweep_dimensions);
+    output << ",\"selected\":[";
+    for (std::size_t index = 0; index < value->selected.size(); ++index) {
+        if (index != 0) output << ',';
+        const auto& item = value->selected[index];
+        output << "{\"id\":" << json_string(item.id)
+               << ",\"score\":" << item.scores.total
+               << ",\"scores\":{\"structural\":" << item.scores.structural
+               << ",\"operation_coverage\":" << item.scores.operation_coverage
+               << ",\"typed_feature_coverage\":"
+               << item.scores.typed_feature_coverage
+               << ",\"lexical_similarity\":" << item.scores.lexical_similarity
+               << ",\"complexity_compatibility\":"
+               << item.scores.complexity_compatibility
+               << ",\"completeness_bonus\":" << item.scores.completeness_bonus
+               << ",\"conflict_penalty\":" << item.scores.conflict_penalty
+               << "},\"rationale\":" << json_string(item.rationale)
+               << ",\"context_bytes\":" << item.context_bytes
+               << ",\"estimated_tokens\":" << item.estimated_tokens << '}';
+    }
+    output << "],\"rejected_by_budget\":";
+    write_strings(output, value->rejected_by_budget);
+    output << ",\"suppressed_near_duplicates\":";
+    write_strings(output, value->suppressed_near_duplicates);
+    output << ",\"diagnostics\":[";
+    for (std::size_t index = 0; index < value->diagnostics.size(); ++index) {
+        if (index != 0) output << ',';
+        output << "{\"code\":"
+               << json_string(retrieval_diagnostic_name(
+                      value->diagnostics[index].code))
+               << ",\"message\":"
+               << json_string(value->diagnostics[index].message) << '}';
+    }
+    output << "],\"duration_ns\":" << value->duration.count()
+           << ",\"inserted_context_bytes\":" << value->inserted_context_bytes
+           << ",\"inserted_context_estimated_tokens\":"
+           << value->inserted_context_estimated_tokens << '}';
 }
 
 template <typename T>
@@ -452,6 +538,25 @@ LatencyStatistics latency_statistics(
     return result;
 }
 
+RetrievalLatencyStatistics retrieval_latency_statistics(
+    std::vector<std::chrono::nanoseconds> latencies) {
+    RetrievalLatencyStatistics result;
+    result.sample_count = latencies.size();
+    std::ranges::sort(latencies);
+    if (latencies.empty()) return result;
+    const auto middle = latencies.size() / 2;
+    if (latencies.size() % 2 == 0) {
+        result.median = std::chrono::nanoseconds{
+            (latencies[middle - 1].count() + latencies[middle].count()) / 2};
+    } else {
+        result.median = latencies[middle];
+    }
+    const auto p90_index = static_cast<std::size_t>(
+        std::ceil(static_cast<double>(latencies.size()) * 0.9) - 1.0);
+    result.p90 = latencies[p90_index];
+    return result;
+}
+
 ModelEvaluationSummary summarize(std::string model,
                                  const std::vector<CaseEvaluation>& cases) {
     ModelEvaluationSummary result;
@@ -467,6 +572,10 @@ ModelEvaluationSummary summarize(std::string model,
     std::map<std::size_t, std::pair<std::size_t, std::size_t>> repetition_success;
     std::size_t runs_with_repair{};
     std::size_t runs_with_requirement_correction{};
+    std::vector<std::chrono::nanoseconds> retrieval_latencies;
+    double top_operation_coverage{};
+    double top_typed_feature_coverage{};
+    std::size_t top_score_samples{};
     for (const auto& item : cases) {
         if (item.model != result.model) continue;
         distinct_cases.insert(item.case_id);
@@ -540,6 +649,23 @@ ModelEvaluationSummary summarize(std::string model,
         for (const auto& attempt : item.attempts) {
             result.output_limit_errors +=
                 attempt.provider_error_code == ProviderErrorCode::OutputLimit ? 1U : 0U;
+            if (attempt.retrieval) {
+                const auto& retrieval = *attempt.retrieval;
+                ++result.retrieval_attempts;
+                result.retrieval_successes += retrieval.ok() ? 1U : 0U;
+                result.retrieved_examples += retrieval.selected.size();
+                result.retrieval_context_bytes += retrieval.inserted_context_bytes;
+                result.retrieval_context_estimated_tokens +=
+                    retrieval.inserted_context_estimated_tokens;
+                retrieval_latencies.push_back(retrieval.duration);
+                if (!retrieval.selected.empty()) {
+                    top_operation_coverage +=
+                        retrieval.selected.front().scores.operation_coverage / 42.0;
+                    top_typed_feature_coverage +=
+                        retrieval.selected.front().scores.typed_feature_coverage / 20.0;
+                    ++top_score_samples;
+                }
+            }
         }
         for (const auto& attempt : item.provider_attempts) {
             if (attempt && attempt->output_token_count && attempt->generation_duration &&
@@ -596,6 +722,14 @@ ModelEvaluationSummary summarize(std::string model,
     result.p90_latency = aggregate_latency.p90;
     result.cold_latency = latency_statistics(std::move(cold_latencies));
     result.warm_latency = latency_statistics(std::move(warm_latencies));
+    result.retrieval_latency =
+        retrieval_latency_statistics(std::move(retrieval_latencies));
+    if (top_score_samples != 0) {
+        result.average_top_operation_coverage =
+            top_operation_coverage / static_cast<double>(top_score_samples);
+        result.average_top_typed_feature_coverage =
+            top_typed_feature_coverage / static_cast<double>(top_score_samples);
+    }
     if (generation_seconds > 0.0) {
         result.average_output_tokens_per_second = output_tokens / generation_seconds;
     }
@@ -676,9 +810,24 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
         throw std::invalid_argument("unknown prompt configuration ID: " +
                                     settings.prompt_configuration_id);
     }
-    if (*prompt_configuration == PromptConfiguration::StructuralRag) {
+    const bool structural_rag =
+        *prompt_configuration == PromptConfiguration::StructuralRag;
+    if (!structural_rag && settings.retriever) {
         throw std::invalid_argument(
-            "structural-rag-v1 evaluation integration is not available until M6Q.8 Slice 4");
+            "retrieval corpus settings require structural-rag-v1");
+    }
+    if (structural_rag && !settings.retrieval_ranking_id.empty() &&
+        settings.retrieval_ranking_id != retrieval_ranking_id()) {
+        throw std::invalid_argument("unknown retrieval ranking ID: " +
+                                    settings.retrieval_ranking_id);
+    }
+    if (structural_rag &&
+        (settings.retrieval_settings.top_k < 1U ||
+         settings.retrieval_settings.top_k > 3U)) {
+        throw std::invalid_argument("retrieval top_k must be 1, 2, or 3");
+    }
+    if (structural_rag && settings.retrieval_settings.context_budget == 0U) {
+        throw std::invalid_argument("retrieval context budget must be positive");
     }
     if (settings.comparison_version.empty()) {
         throw std::invalid_argument("comparison version must not be empty");
@@ -704,6 +853,23 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
     report.max_output_tokens = settings.max_output_tokens;
     report.timeout = settings.timeout;
     report.maximum_repair_attempts = settings.maximum_repair_attempts;
+    if (structural_rag) {
+        EvaluationRetrievalProvenance provenance;
+        provenance.corpus_path = settings.retrieval_corpus_path;
+        provenance.ranking_id = std::string{retrieval_ranking_id()};
+        provenance.top_k = settings.retrieval_settings.top_k;
+        provenance.context_budget = settings.retrieval_settings.context_budget;
+        provenance.budget_unit = settings.retrieval_settings.budget_unit;
+        if (settings.retriever) {
+            const auto& corpus = settings.retriever->corpus();
+            provenance.corpus_load_status = "loaded";
+            provenance.corpus_schema_version = 1;
+            provenance.corpus_id = corpus.corpus_id;
+            provenance.corpus_version = corpus.corpus_version;
+            provenance.corpus_content_digest = corpus.content_digest;
+        }
+        report.retrieval = std::move(provenance);
+    }
     const auto total_runs = settings.models.size() * settings.repetitions *
                             dataset.cases.size();
     std::size_t run_order{};
@@ -730,7 +896,8 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                 ObservingProvider observed{provider, clock};
                 PromptBuilder prompts{{model, settings.temperature,
                                        settings.max_output_tokens, settings.timeout,
-                                       *prompt_configuration}};
+                                       *prompt_configuration, settings.retriever,
+                                       settings.retrieval_settings}};
                 AgentSession session{observed, std::move(prompts),
                                      {settings.maximum_repair_attempts}};
                 const auto started = clock();
@@ -813,7 +980,7 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
 }
 
 void write_evaluation_json(std::ostream& output, const EvaluationReport& report) {
-    output << "{\"schema\":\"horusrf.ai-evaluation\",\"version\":2"
+    output << "{\"schema\":\"horusrf.ai-evaluation\",\"version\":3"
            << ",\"dataset_version\":" << json_string(report.dataset_version)
            << ",\"comparison_version\":" << json_string(report.comparison_version)
            << ",\"requirement_schema_version\":"
@@ -829,7 +996,35 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
            << ",\"max_output_tokens\":" << report.max_output_tokens
            << ",\"timeout_ms\":" << report.timeout.count()
            << ",\"maximum_repair_attempts\":" << report.maximum_repair_attempts
-           << "},\"cases\":[";
+           << "},\"retrieval\":";
+    if (report.retrieval) {
+        const auto& retrieval = *report.retrieval;
+        output << "{\"corpus_path\":" << json_string(retrieval.corpus_path)
+               << ",\"corpus_load_status\":"
+               << json_string(retrieval.corpus_load_status)
+               << ",\"corpus_schema_version\":";
+        if (retrieval.corpus_schema_version) {
+            output << *retrieval.corpus_schema_version;
+        } else output << "null";
+        output
+               << ",\"corpus_id\":";
+        if (retrieval.corpus_id) output << json_string(*retrieval.corpus_id);
+        else output << "null";
+        output << ",\"corpus_version\":";
+        if (retrieval.corpus_version) output << json_string(*retrieval.corpus_version);
+        else output << "null";
+        output << ",\"corpus_content_digest\":";
+        if (retrieval.corpus_content_digest) {
+            output << json_string(*retrieval.corpus_content_digest);
+        } else output << "null";
+        output << ",\"ranking_id\":" << json_string(retrieval.ranking_id)
+               << ",\"top_k\":" << retrieval.top_k
+               << ",\"context_budget\":" << retrieval.context_budget
+               << ",\"budget_unit\":"
+               << json_string(retrieval_budget_unit_name(retrieval.budget_unit))
+               << '}';
+    } else output << "null";
+    output << ",\"cases\":[";
     for (std::size_t index = 0; index < report.cases.size(); ++index) {
         if (index != 0) output << ',';
         const auto& item = report.cases[index];
@@ -947,6 +1142,8 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
             write_provider_metrics(output, attempt.provider_metrics);
             output << ",\"provider_identity\":";
             write_provider_identity(output, attempt.provider_identity);
+            output << ",\"retrieval\":";
+            write_retrieval_result(output, attempt.retrieval);
             output << '}';
         }
         output << "],\"error\":";
@@ -1036,6 +1233,21 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"output_limit_errors\":" << item.output_limit_errors
                << ",\"average_output_tokens_per_second\":";
         write_optional_number(output, item.average_output_tokens_per_second);
+        output << ",\"retrieval\":{\"attempts\":" << item.retrieval_attempts
+               << ",\"successes\":" << item.retrieval_successes
+               << ",\"selected_examples\":" << item.retrieved_examples
+               << ",\"context_bytes\":" << item.retrieval_context_bytes
+               << ",\"context_estimated_tokens\":"
+               << item.retrieval_context_estimated_tokens
+               << ",\"latency\":{\"sample_count\":"
+               << item.retrieval_latency.sample_count
+               << ",\"median_ns\":" << item.retrieval_latency.median.count()
+               << ",\"p90_ns\":" << item.retrieval_latency.p90.count()
+               << "},\"average_top_operation_coverage\":";
+        write_optional_number(output, item.average_top_operation_coverage);
+        output << ",\"average_top_typed_feature_coverage\":";
+        write_optional_number(output, item.average_top_typed_feature_coverage);
+        output << '}';
         output << ",\"rates\":{\"generation_completed\":{\"numerator\":"
                << item.generation_completed << ",\"denominator\":" << item.total_cases
                << "},\"first_attempt_valid\":{\"numerator\":"

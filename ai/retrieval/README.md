@@ -43,7 +43,10 @@ remains the final user message. Repair, requirement-correction, modification,
 the three legacy prompt configurations, and Studio defaults do not retrieve.
 Each structural-RAG request retains an immutable local `RetrievalResult` for
 later evaluation provenance, and provider serializers ignore that metadata.
-Missing retrievers and selection failures fall back to the full compiler context
+The live evaluator validates and loads the corpus before model discovery, records
+schema/version/digest and ranking/budget identity in schema-v3 reports, and
+retains each initial request's selections, scores, rationale, duration, and
+context cost outside the provider payload. Missing retrievers and selection failures fall back to the full compiler context
 with no retrieved examples and an explicit typed diagnostic.
 
 `leakage-report.json` is the deterministic review artifact produced by comparing

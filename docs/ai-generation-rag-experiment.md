@@ -1,7 +1,9 @@
 # HorusRF M6Q.8 structure-aware RAG experiment
 
-**Status:** Slices 1 through 3 are implemented. Slice 4 evaluation and all live
-model runs are not yet implemented. The embedding and
+**Status:** Slices 1 through 3 and the Slice 4 evaluation/reporting integration
+are implemented. The full 35-test offline gate and a one-case 3B
+`structural-rag-v1` K=1 live smoke pass; the controlled A/B/K matrix and its
+reviewed report remain pending. The embedding and
 compiler-skeleton phases remain gated follow-up experiments, not part of the
 initial implementation.
 
@@ -404,10 +406,17 @@ runs remain deliberately out of scope for this slice.
 
 ### Slice 4 - evaluation and first A/B report
 
-- Add CLI/script settings and versioned report/history provenance.
-- Run deterministic evaluator tests, then the full unfiltered CTest suite because
+- Evaluation integration implemented on 2026-10-25: the CLI and runner validate
+  explicit corpus, K, context-budget, budget-unit, and ranking inputs; schema-v3
+  reports and version-2 history snapshots preserve run, per-case, and aggregate
+  retrieval provenance while retaining schema-v1/v2 archive compatibility.
+- The Release build and full unfiltered 35-test CTest suite pass. A one-case 3B
+  K=1 smoke also passes with compiler-valid, requirement-satisfying output and
+  captured corpus, ranking, selection, cost, and model-digest provenance.
+- Completed: add CLI/script settings and versioned report/history provenance.
+- Completed: run deterministic evaluator tests, then the full unfiltered CTest suite because
   the change crosses prompt, agent-observation, and evaluation layers.
-- Verify installed model digests, run the controlled matrix, and publish aggregate
+- Installed model digests are verified. Run the controlled matrix and publish aggregate
   plus per-case improvement/regression analysis before any optional work.
 
 ### Slices 5-7 - separately approved follow-ups

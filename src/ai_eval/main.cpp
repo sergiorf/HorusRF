@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -32,6 +33,14 @@ struct Options final {
     std::size_t repetitions{1};
     std::chrono::milliseconds timeout{std::chrono::minutes{2}};
     std::string prompt_configuration_id{"direct-dsl-v1"};
+    std::filesystem::path retrieval_corpus{"ai/retrieval"};
+    std::size_t retrieval_top_k{2};
+    std::size_t retrieval_context_budget{4096};
+    horusrf::ai::RetrievalBudgetUnit retrieval_budget_unit{
+        horusrf::ai::RetrievalBudgetUnit::Utf8Bytes};
+    std::string retrieval_ranking_id{
+        horusrf::ai::retrieval_ranking_id()};
+    bool retrieval_option_specified{};
 };
 
 std::vector<std::string> split(std::string_view input) {
@@ -74,7 +83,12 @@ void usage(std::ostream& output) {
               "  --max-output-tokens COUNT  Provider output limit\n"
               "  --timeout-seconds COUNT    Per-provider-call timeout\n"
               "  --max-repairs COUNT        Shared compiler-repair/correction limit\n"
-              "  --prompt-configuration ID Prompt: direct-dsl-v1, direct-dsl-compact-v1, or direct-dsl-relevant-v1\n"
+              "  --prompt-configuration ID Prompt configuration, including structural-rag-v1\n"
+              "  --retrieval-corpus PATH   Validated corpus root for structural RAG\n"
+              "  --retrieval-top-k COUNT   Retrieved examples (1, 2, or 3)\n"
+              "  --retrieval-context-budget COUNT  Retrieval context budget\n"
+              "  --retrieval-budget-unit UNIT      utf8-bytes or estimated-tokens\n"
+              "  --retrieval-ranking-id ID         Required ranking identity\n"
               "  --endpoint URL             Local Ollama HTTP endpoint\n"
               "  --git-revision REVISION    Source revision recorded in the report\n";
 }
@@ -114,6 +128,33 @@ Options parse_options(int argc, char** argv) {
             options.maximum_repairs = positive_size(value_after(index, argc, argv, argument), argument);
         } else if (argument == "--prompt-configuration") {
             options.prompt_configuration_id = value_after(index, argc, argv, argument);
+        } else if (argument == "--retrieval-corpus") {
+            options.retrieval_corpus = value_after(index, argc, argv, argument);
+            options.retrieval_option_specified = true;
+        } else if (argument == "--retrieval-top-k") {
+            options.retrieval_top_k = positive_size(
+                value_after(index, argc, argv, argument), argument);
+            options.retrieval_option_specified = true;
+        } else if (argument == "--retrieval-context-budget") {
+            options.retrieval_context_budget = positive_size(
+                value_after(index, argc, argv, argument), argument);
+            options.retrieval_option_specified = true;
+        } else if (argument == "--retrieval-budget-unit") {
+            const auto value = value_after(index, argc, argv, argument);
+            if (value == "utf8-bytes") {
+                options.retrieval_budget_unit =
+                    horusrf::ai::RetrievalBudgetUnit::Utf8Bytes;
+            } else if (value == "estimated-tokens") {
+                options.retrieval_budget_unit =
+                    horusrf::ai::RetrievalBudgetUnit::EstimatedTokens;
+            } else {
+                throw std::invalid_argument(
+                    "--retrieval-budget-unit must be utf8-bytes or estimated-tokens");
+            }
+            options.retrieval_option_specified = true;
+        } else if (argument == "--retrieval-ranking-id") {
+            options.retrieval_ranking_id = value_after(index, argc, argv, argument);
+            options.retrieval_option_specified = true;
         } else if (argument == "--endpoint") {
             options.endpoint = value_after(index, argc, argv, argument);
         } else if (argument == "--git-revision") {
@@ -123,6 +164,26 @@ Options parse_options(int argc, char** argv) {
         }
     }
     if (options.models.empty()) throw std::invalid_argument("--models is required");
+    const auto prompt = horusrf::ai::parse_prompt_configuration(
+        options.prompt_configuration_id);
+    if (!prompt) {
+        throw std::invalid_argument("unknown prompt configuration ID: " +
+                                    options.prompt_configuration_id);
+    }
+    const bool structural_rag =
+        *prompt == horusrf::ai::PromptConfiguration::StructuralRag;
+    if (!structural_rag && options.retrieval_option_specified) {
+        throw std::invalid_argument(
+            "retrieval options require --prompt-configuration structural-rag-v1");
+    }
+    if (options.retrieval_top_k > 3) {
+        throw std::invalid_argument("--retrieval-top-k must be 1, 2, or 3");
+    }
+    if (structural_rag &&
+        options.retrieval_ranking_id != horusrf::ai::retrieval_ranking_id()) {
+        throw std::invalid_argument("unsupported retrieval ranking identity: " +
+                                    options.retrieval_ranking_id);
+    }
     return options;
 }
 
@@ -192,6 +253,21 @@ int main(int argc, char** argv) {
         }
         if (dataset.cases.empty()) throw std::invalid_argument("no golden cases were selected");
 
+        std::shared_ptr<const horusrf::ai::ExampleRetriever> retriever;
+        if (options.prompt_configuration_id == "structural-rag-v1") {
+            auto corpus = horusrf::ai::load_retrieval_corpus(
+                options.retrieval_corpus, options.dataset);
+            if (!corpus.ok()) {
+                for (const auto& diagnostic : corpus.diagnostics) {
+                    std::cerr << diagnostic.path.string() << ": "
+                              << diagnostic.message << '\n';
+                }
+                return 2;
+            }
+            retriever = std::make_shared<const horusrf::ai::ExampleRetriever>(
+                std::move(*corpus.corpus));
+        }
+
         horusrf::ai::OllamaProvider provider{{options.endpoint}};
         const auto available_result = provider.list_models(std::chrono::seconds{5});
         if (const auto* error = std::get_if<horusrf::ai::ProviderError>(&available_result)) {
@@ -206,10 +282,16 @@ int main(int argc, char** argv) {
             }
         }
 
-        const horusrf::ai::EvaluationSettings settings{
+        horusrf::ai::EvaluationSettings settings{
             options.models, options.temperature, options.max_output_tokens,
             options.timeout, options.maximum_repairs, options.repetitions,
             utc_timestamp(), options.git_revision, options.prompt_configuration_id};
+        settings.retriever = std::move(retriever);
+        settings.retrieval_settings = {options.retrieval_top_k,
+                                       options.retrieval_context_budget,
+                                       options.retrieval_budget_unit};
+        settings.retrieval_corpus_path = options.retrieval_corpus.generic_string();
+        settings.retrieval_ranking_id = options.retrieval_ranking_id;
         const auto total_runs = options.models.size() * options.repetitions *
                                 dataset.cases.size();
         std::clog << "Evaluating " << total_runs << " runs with prompt configuration '"
