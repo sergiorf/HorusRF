@@ -1,7 +1,7 @@
 # HorusRF M6Q.8 structure-aware RAG experiment
 
-**Status:** Slices 1 and 2 are implemented. Slice 3 prompt integration, Slice 4
-evaluation, and all live model runs are not yet implemented. The embedding and
+**Status:** Slices 1 through 3 are implemented. Slice 4 evaluation and all live
+model runs are not yet implemented. The embedding and
 compiler-skeleton phases remain gated follow-up experiments, not part of the
 initial implementation.
 
@@ -392,6 +392,9 @@ for this slice.
   repeated-run determinism.
 
 ### Slice 3 - prompt integration
+
+Implemented on 2026-10-25; evaluator settings, report provenance, and live model
+runs remain deliberately out of scope for this slice.
 
 - Pin exact legacy prompt messages.
 - Add `structural-rag-v1`, shared immutable retriever injection, clearly delimited

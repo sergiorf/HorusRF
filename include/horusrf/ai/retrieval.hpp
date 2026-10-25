@@ -132,6 +132,7 @@ struct RetrievedExample final {
 };
 
 enum class RetrievalDiagnosticCode {
+    RetrieverUnavailable,
     EmptyInstruction,
     InvalidTopK,
     EmptyCorpus,

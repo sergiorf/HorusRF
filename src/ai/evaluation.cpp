@@ -676,6 +676,10 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
         throw std::invalid_argument("unknown prompt configuration ID: " +
                                     settings.prompt_configuration_id);
     }
+    if (*prompt_configuration == PromptConfiguration::StructuralRag) {
+        throw std::invalid_argument(
+            "structural-rag-v1 evaluation integration is not available until M6Q.8 Slice 4");
+    }
     if (settings.comparison_version.empty()) {
         throw std::invalid_argument("comparison version must not be empty");
     }

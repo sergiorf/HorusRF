@@ -456,6 +456,15 @@ void invalid_settings_test() {
         threw = true;
     }
     CHECK(threw);
+
+    unknown.prompt_configuration_id = "structural-rag-v1";
+    threw = false;
+    try {
+        static_cast<void>(ai::evaluate_golden_dataset(nonempty, provider, unknown));
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    CHECK(threw);
 }
 
 } // namespace

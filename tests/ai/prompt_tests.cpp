@@ -1,7 +1,12 @@
 #include "test_support.hpp"
 
 #include <chrono>
+#include <cstdint>
+#include <filesystem>
+#include <iomanip>
 #include <iostream>
+#include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -38,6 +43,33 @@ std::size_t prompt_bytes(const ai::LlmRequest& request) {
     for (const auto& message : request.messages) result += message.content.size();
     if (request.json_schema) result += request.json_schema->size();
     return result;
+}
+
+std::string message_digest(const ai::LlmRequest& request) {
+    std::uint64_t hash = 14695981039346656037ULL;
+    const auto add = [&hash](unsigned char byte) {
+        hash ^= byte;
+        hash *= 1099511628211ULL;
+    };
+    for (const auto& message : request.messages) {
+        add(static_cast<unsigned char>(message.role));
+        std::uint64_t size = message.content.size();
+        for (int index = 0; index < 8; ++index) {
+            add(static_cast<unsigned char>((size >> (index * 8)) & 0xffU));
+        }
+        for (const unsigned char byte : message.content) add(byte);
+    }
+    std::ostringstream output;
+    output << "fnv1a64:" << std::hex << std::setfill('0') << std::setw(16) << hash;
+    return output.str();
+}
+
+const ai::RetrievalExample* corpus_example(const ai::RetrievalCorpus& corpus,
+                                           std::string_view id) {
+    for (const auto& example : corpus.examples) {
+        if (example.metadata.id == id) return &example;
+    }
+    return nullptr;
 }
 
 const ai::ProposalResponseError& response_error(const ai::ProposalResponseResult& result) {
@@ -147,6 +179,10 @@ void named_prompt_configuration_test() {
              std::optional{ai::PromptConfiguration::Compact});
     CHECK_EQ(ai::parse_prompt_configuration("direct-dsl-relevant-v1"),
              std::optional{ai::PromptConfiguration::CapabilityRelevant});
+    CHECK_EQ(ai::prompt_configuration_id(ai::PromptConfiguration::StructuralRag),
+             "structural-rag-v1");
+    CHECK_EQ(ai::parse_prompt_configuration("structural-rag-v1"),
+             std::optional{ai::PromptConfiguration::StructuralRag});
     CHECK(!ai::parse_prompt_configuration("unknown"));
 
     const ai::GenerationRequest input{ai::NaturalLanguageInstruction{
@@ -158,6 +194,163 @@ void named_prompt_configuration_test() {
     CHECK(prompt_bytes(compact) < prompt_bytes(baseline));
     CHECK(contains(compact, "Preserve every explicit operation"));
     CHECK(!contains(compact, "// Characterizes"));
+}
+
+void exact_legacy_message_regression_test() {
+    const ai::GenerationRequest generation{ai::NaturalLanguageInstruction{
+        "Sweep frequency from 900 MHz to 1 GHz and measure power."}};
+    const ai::ModificationRequest modification{
+        ai::ScriptSource{std::string{valid_source}},
+        ai::NaturalLanguageInstruction{"Change only the reference power to -5 dBm."}};
+    const ai::ValidationDiagnostic diagnostic{
+        ai::DiagnosticCategory::Semantic,
+        "semantic.unexpected_quantity_type",
+        "expected Power, got PowerDelta",
+        {{1, 21, 20}, {1, 25, 24}},
+    };
+    const ai::RepairPromptRequest repair{
+        ai::NaturalLanguageInstruction{"Create a basic power sweep."},
+        ai::ScriptSource{"characterize broken { reference power = 1 dB }"},
+        ai::ValidationResult::invalid({diagnostic}),
+        ai::ScriptSource{std::string{valid_source}},
+    };
+    ai::RequirementOutcome violation;
+    violation.requirement_id = "reference-power-1";
+    violation.status = ai::RequirementOutcomeStatus::Violated;
+    violation.code = "reference_power_mismatch";
+    violation.expected = "-5 dBm";
+    violation.actual = "-10 dBm";
+    violation.explanation = "reference power differs";
+    violation.source_text = "reference power -5 dBm";
+    const ai::RequirementCorrectionPromptRequest correction{
+        ai::NaturalLanguageInstruction{"Use reference power -5 dBm."},
+        ai::ScriptSource{std::string{valid_source}},
+        {ai::RequirementSatisfactionStatus::Violated, {violation}},
+        std::nullopt,
+    };
+
+    const ai::PromptBuilder baseline;
+    const ai::PromptBuilder compact{{
+        "qwen2.5-coder:7b", 0.0, 2048, std::chrono::minutes{2},
+        ai::PromptConfiguration::Compact}};
+    const ai::PromptBuilder relevant{{
+        "qwen2.5-coder:7b", 0.0, 2048, std::chrono::minutes{2},
+        ai::PromptConfiguration::CapabilityRelevant}};
+
+    CHECK_EQ(message_digest(baseline.build_generation(generation)),
+             "fnv1a64:62e39d223563fc6c");
+    CHECK_EQ(message_digest(baseline.build_modification(modification)),
+             "fnv1a64:28e35ec0b353385b");
+    CHECK_EQ(message_digest(baseline.build_repair(repair)),
+             "fnv1a64:261098752c88732c");
+    CHECK_EQ(message_digest(baseline.build_requirement_correction(correction)),
+             "fnv1a64:e3523a1224a97918");
+    CHECK_EQ(message_digest(compact.build_generation(generation)),
+             "fnv1a64:5fc3105826664001");
+    CHECK_EQ(message_digest(relevant.build_generation(generation)),
+             "fnv1a64:67eaa8e54fcc30a8");
+}
+
+void structural_rag_prompt_test() {
+    const auto loaded = ai::load_retrieval_corpus(
+        std::filesystem::path{HORUSRF_SOURCE_DIR} / "ai" / "retrieval");
+    CHECK(loaded.ok());
+    auto retriever = std::make_shared<const ai::ExampleRetriever>(*loaded.corpus);
+    const ai::PromptBuilder builder{{
+        "qwen2.5-coder:7b", 0.0, 2048, std::chrono::minutes{2},
+        ai::PromptConfiguration::StructuralRag, retriever,
+        {2, 4096, ai::RetrievalBudgetUnit::Utf8Bytes}}};
+    const std::string instruction =
+        "Sweep 700 to 760 MHz and require measured power to be strictly greater than 1 dBm.";
+    const auto first = builder.build_generation(
+        {ai::NaturalLanguageInstruction{instruction}});
+    const auto second = builder.build_generation(
+        {ai::NaturalLanguageInstruction{instruction}});
+
+    CHECK(first.retrieval != nullptr);
+    CHECK(first.retrieval->ok());
+    CHECK(!first.retrieval->selected.empty());
+    CHECK(first.retrieval->selected.size() <= std::size_t{2});
+    CHECK_EQ(first.retrieval->corpus_content_digest, loaded.corpus->content_digest);
+    CHECK_EQ(first.retrieval->ranking_id, ai::retrieval_ranking_id());
+    CHECK_EQ(first.messages, second.messages);
+    CHECK_EQ(first.messages.back().role, ai::LlmRole::User);
+    CHECK(first.messages.back().content.find(instruction) != std::string::npos);
+    CHECK(first.messages.front().content.find("<retrieved_example") ==
+          std::string::npos);
+
+    for (std::size_t selected_index = 0;
+         selected_index < first.retrieval->selected.size(); ++selected_index) {
+        const auto& selected = first.retrieval->selected[selected_index];
+        const auto* example = corpus_example(retriever->corpus(), selected.id);
+        CHECK(example != nullptr);
+        const auto user_index = 1U + selected_index * 2U;
+        const auto assistant_index = user_index + 1U;
+        CHECK(first.messages[user_index].content.find(example->request) !=
+              std::string::npos);
+        CHECK(first.messages[user_index].content.find(selected.id) !=
+              std::string::npos);
+        CHECK(first.messages[user_index].content.find("untrusted data") !=
+              std::string::npos);
+        const auto first_line = example->program.substr(0, example->program.find('\n'));
+        CHECK(first.messages[assistant_index].content.find(first_line) !=
+              std::string::npos);
+        CHECK(first.messages[assistant_index].content.find("\"status\":\"proposal\"") !=
+              std::string::npos);
+    }
+
+    const auto modification = builder.build_modification({
+        ai::ScriptSource{std::string{valid_source}},
+        ai::NaturalLanguageInstruction{"Change only the reference power."}});
+    CHECK(modification.retrieval == nullptr);
+    CHECK(!contains(modification, "<retrieved_example"));
+}
+
+void structural_rag_fallback_test() {
+    const ai::PromptBuilder builder{{
+        "qwen2.5-coder:7b", 0.0, 2048, std::chrono::minutes{2},
+        ai::PromptConfiguration::StructuralRag}};
+    const std::string instruction = "Create a frequency characterization.";
+    const auto request = builder.build_generation(
+        {ai::NaturalLanguageInstruction{instruction}});
+    CHECK(request.retrieval != nullptr);
+    CHECK(!request.retrieval->ok());
+    CHECK_EQ(request.retrieval->diagnostics.size(), std::size_t{1});
+    CHECK_EQ(request.retrieval->diagnostics.front().code,
+             ai::RetrievalDiagnosticCode::RetrieverUnavailable);
+    CHECK(!contains(request, "<retrieved_example"));
+    CHECK(request.messages.back().content.find(instruction) != std::string::npos);
+    CHECK(contains(request, "Preserve every explicit operation"));
+    CHECK(contains(request, "Authoritative ANTLR grammar:"));
+
+    const auto loaded = ai::load_retrieval_corpus(
+        std::filesystem::path{HORUSRF_SOURCE_DIR} / "ai" / "retrieval");
+    CHECK(loaded.ok());
+    auto retriever = std::make_shared<const ai::ExampleRetriever>(*loaded.corpus);
+    const ai::PromptBuilder no_evidence{{
+        "qwen2.5-coder:7b", 0.0, 2048, std::chrono::minutes{2},
+        ai::PromptConfiguration::StructuralRag, retriever}};
+    const auto no_evidence_request = no_evidence.build_generation(
+        {ai::NaturalLanguageInstruction{"Please do the thing."}});
+    CHECK(no_evidence_request.retrieval != nullptr);
+    CHECK(!no_evidence_request.retrieval->ok());
+    CHECK_EQ(no_evidence_request.retrieval->diagnostics.front().code,
+             ai::RetrievalDiagnosticCode::NoStructuralEvidence);
+    CHECK(!contains(no_evidence_request, "<retrieved_example"));
+
+    const ai::PromptBuilder no_budget{{
+        "qwen2.5-coder:7b", 0.0, 2048, std::chrono::minutes{2},
+        ai::PromptConfiguration::StructuralRag, retriever,
+        {1, 0, ai::RetrievalBudgetUnit::Utf8Bytes}}};
+    const auto no_budget_request = no_budget.build_generation(
+        {ai::NaturalLanguageInstruction{
+            "Sweep frequency from 1 GHz to 2 GHz and measure power."}});
+    CHECK(no_budget_request.retrieval != nullptr);
+    CHECK(!no_budget_request.retrieval->ok());
+    CHECK_EQ(no_budget_request.retrieval->diagnostics.front().code,
+             ai::RetrievalDiagnosticCode::NoMatchingExample);
+    CHECK(!no_budget_request.retrieval->rejected_by_budget.empty());
+    CHECK(!contains(no_budget_request, "<retrieved_example"));
 }
 
 void capability_relevant_selection_test() {
@@ -344,7 +537,10 @@ int main() {
         custom_settings_and_input_validation_test();
         curated_examples_compile_test();
         named_prompt_configuration_test();
+        exact_legacy_message_regression_test();
         capability_relevant_selection_test();
+        structural_rag_prompt_test();
+        structural_rag_fallback_test();
         modification_context_test();
         repair_context_test();
         requirement_correction_context_test();

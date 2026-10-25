@@ -34,7 +34,17 @@ UTF-8 byte or explicit four-bytes-per-token estimate budget, suppresses structur
 near-duplicates, and resolves score ties in manifest order. Results include the
 corpus and ranking identities, component scores, rationale, budget rejections,
 context size, duration, and typed fallback diagnostics. This retriever is not yet
-connected to prompt construction or any default product path.
+used by any default product path.
+
+The opt-in `structural-rag-v1` prompt configuration connects this retriever only
+to initial generation prompts. Selected entries are inserted in ranking order as
+clearly delimited, untrusted user/assistant reference pairs; the original request
+remains the final user message. Repair, requirement-correction, modification,
+the three legacy prompt configurations, and Studio defaults do not retrieve.
+Each structural-RAG request retains an immutable local `RetrievalResult` for
+later evaluation provenance, and provider serializers ignore that metadata.
+Missing retrievers and selection failures fall back to the full compiler context
+with no retrieved examples and an explicit typed diagnostic.
 
 `leakage-report.json` is the deterministic review artifact produced by comparing
 requests and compiler-valid programs internally and against golden dataset 2.0.0.

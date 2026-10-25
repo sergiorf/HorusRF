@@ -12,6 +12,7 @@
 
 #include "ai/fake_provider.hpp"
 #include "horusrf/ai/ollama_provider.hpp"
+#include "horusrf/ai/retrieval.hpp"
 
 namespace {
 
@@ -111,6 +112,29 @@ void request_encoding_and_success_test() {
     CHECK(body.find("\"temperature\":0.1") != std::string::npos);
     CHECK(body.find("\"num_predict\":1536") != std::string::npos);
     CHECK(body.find("\"format\":{\"type\":\"object\"") != std::string::npos);
+}
+
+void local_retrieval_metadata_is_not_serialized_test() {
+    auto transport = std::make_shared<FakeTransport>(
+        std::vector<ai::ollama::HttpResult>{ai::ollama::HttpResponse{
+            200,
+            R"({"model":"qwen2.5-coder:7b","message":{"role":"assistant","content":"proposal"},"done":true,"done_reason":"stop"})"}});
+    ai::OllamaProvider provider{{}, transport};
+    auto candidate = request();
+    auto retrieval = std::make_shared<ai::RetrievalResult>();
+    retrieval->corpus_id = "sentinel-local-corpus";
+    retrieval->diagnostics.push_back({
+        ai::RetrievalDiagnosticCode::NoMatchingExample,
+        "sentinel-local-diagnostic",
+    });
+    candidate.retrieval = retrieval;
+
+    CHECK(std::holds_alternative<ai::ProviderResponse>(provider.generate(candidate)));
+    CHECK_EQ(transport->requests.size(), std::size_t{1});
+    CHECK(transport->requests.front().body.find("sentinel-local-corpus") ==
+          std::string::npos);
+    CHECK(transport->requests.front().body.find("sentinel-local-diagnostic") ==
+          std::string::npos);
 }
 
 void request_validation_test() {
@@ -274,6 +298,7 @@ void scripted_provider_test() {
 int main() {
     try {
         request_encoding_and_success_test();
+        local_retrieval_metadata_is_not_serialized_test();
         request_validation_test();
         provider_response_error_test();
         transport_error_mapping_test();

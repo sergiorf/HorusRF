@@ -134,6 +134,7 @@ target_include_directories(horusrf_ai_prompt PRIVATE
 )
 target_link_libraries(horusrf_ai_prompt
     PUBLIC horusrf_ai
+    PUBLIC horusrf_ai_retrieval
     PRIVATE horusrf_frontend
 )
 horusrf_enable_warnings(horusrf_ai_prompt)
@@ -557,6 +558,9 @@ if(BUILD_TESTING)
     target_include_directories(horusrf_ai_prompt_tests PRIVATE tests)
     target_link_libraries(horusrf_ai_prompt_tests PRIVATE
         horusrf_ai_prompt horusrf_ai_validation
+    )
+    target_compile_definitions(horusrf_ai_prompt_tests PRIVATE
+        HORUSRF_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     )
     horusrf_enable_warnings(horusrf_ai_prompt_tests)
     add_test(NAME horusrf_ai_prompt_tests COMMAND horusrf_ai_prompt_tests)

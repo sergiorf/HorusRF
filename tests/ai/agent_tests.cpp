@@ -1,6 +1,8 @@
 #include "test_support.hpp"
 
+#include <chrono>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <stop_token>
 #include <string>
@@ -103,6 +105,28 @@ bool request_contains(const ai::LlmRequest& request, std::string_view text) {
     return false;
 }
 
+std::shared_ptr<const ai::ExampleRetriever> fixture_retriever() {
+    ai::RetrievalExampleMetadata metadata;
+    metadata.id = "agent-reference";
+    metadata.category = "agent-test";
+    metadata.operations = {"reference_power", "sweep_frequency", "measure_power",
+                           "derive_calibration"};
+    metadata.structural_steps = {"reference_power", "sweep_frequency",
+                                 "measure_power", "derive_calibration"};
+    metadata.sweep_dimensions = {"frequency"};
+    metadata.comparison_strictness = "none";
+    metadata.complexity = "basic";
+    ai::RetrievalExample example{
+        std::move(metadata),
+        "Sweep frequency from 1 GHz to 2 GHz and measure power.",
+        std::string{valid_source},
+        {},
+    };
+    ai::RetrievalCorpus corpus{
+        "agent-fixture", "1.0.0", "fnv1a64:agent", {std::move(example)}, {}};
+    return std::make_shared<const ai::ExampleRetriever>(std::move(corpus));
+}
+
 void valid_first_candidate_test() {
     ai::testing::FakeLlmProvider provider{{proposal(valid_source, "valid", "[\"model note\"]")}};
     ai::AgentSession session{provider};
@@ -166,6 +190,42 @@ void invalid_candidate_is_repaired_test() {
     CHECK_EQ(value.requirement_verification().status,
              ai::RequirementSatisfactionStatus::Satisfied);
     CHECK(!value.requirement_verification().outcomes.empty());
+}
+
+void structural_rag_is_initial_generation_only_test() {
+    ai::testing::FakeLlmProvider provider{{proposal(invalid_source), proposal(valid_source)}};
+    const ai::PromptBuilder prompts{{
+        "qwen2.5-coder:7b", 0.0, 2048, std::chrono::minutes{2},
+        ai::PromptConfiguration::StructuralRag, fixture_retriever(),
+        {1, 4096, ai::RetrievalBudgetUnit::Utf8Bytes}}};
+    ai::AgentSession session{provider, prompts};
+    const auto result = session.generate({ai::NaturalLanguageInstruction{
+        "Sweep frequency from 1 GHz to 2 GHz and measure power."}});
+
+    CHECK(completed(result).eligible_to_apply());
+    CHECK_EQ(provider.requests().size(), std::size_t{2});
+    CHECK(provider.requests()[0].retrieval != nullptr);
+    CHECK(provider.requests()[0].retrieval->ok());
+    CHECK(request_contains(provider.requests()[0], "<retrieved_example"));
+    CHECK(provider.requests()[1].retrieval == nullptr);
+    CHECK(!request_contains(provider.requests()[1], "<retrieved_example"));
+    CHECK_EQ(provider.requests()[1].purpose, ai::LlmCallPurpose::CompilerRepair);
+
+    const std::string corrected =
+        std::string{valid_source}.replace(std::string{valid_source}.find("-10 dBm"), 7,
+                                          "-5 dBm");
+    ai::testing::FakeLlmProvider correction_provider{{proposal(valid_source),
+                                                       proposal(corrected)}};
+    ai::AgentSession correction_session{correction_provider, prompts};
+    const auto correction_result = correction_session.generate(
+        {ai::NaturalLanguageInstruction{"Use reference power -5 dBm."}});
+    CHECK(completed(correction_result).eligible_to_apply());
+    CHECK_EQ(correction_provider.requests().size(), std::size_t{2});
+    CHECK(correction_provider.requests()[0].retrieval != nullptr);
+    CHECK(correction_provider.requests()[1].retrieval == nullptr);
+    CHECK(!request_contains(correction_provider.requests()[1], "<retrieved_example"));
+    CHECK_EQ(correction_provider.requests()[1].purpose,
+             ai::LlmCallPurpose::RequirementCorrection);
 }
 
 void repair_limit_retains_last_candidate_test() {
@@ -359,6 +419,7 @@ int main() {
         unsupported_preflight_skips_provider_test();
         partial_support_is_explicit_on_proposal_test();
         invalid_candidate_is_repaired_test();
+        structural_rag_is_initial_generation_only_test();
         repair_limit_retains_last_candidate_test();
         unchanged_invalid_candidate_stops_test();
         changed_candidate_with_unchanged_diagnostics_stops_test();

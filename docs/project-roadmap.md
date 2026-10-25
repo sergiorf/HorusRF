@@ -162,9 +162,12 @@ offline acceptance gate passes; independent fixture review and the opt-in 3–5
 repetition live run and report review remain before the milestone can be closed.
 
 M6Q.8 is an active, gated structure-aware retrieval experiment. Its independent
-compiler-validated corpus and deterministic structural retriever are complete;
-prompt integration and evaluation remain opt-in follow-up slices. It keeps the
-baseline and Studio defaults unchanged and will compare structural retrieval
+compiler-validated corpus, deterministic structural retriever, and opt-in
+`structural-rag-v1` prompt integration are complete. Evaluation settings,
+reporting, and live runs remain pending. The integration retrieves only for the
+initial generation prompt, preserves local provenance outside provider payloads,
+and leaves repair, correction, the baseline, and Studio defaults unchanged. The
+experiment will compare structural retrieval
 against both the baseline and the existing feature selector before considering
 embeddings or compiler-backed skeletons. Its architecture, leakage boundary,
 benchmark controls, and stop criteria are recorded in the

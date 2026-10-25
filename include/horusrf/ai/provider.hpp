@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
@@ -10,6 +11,8 @@
 #include "horusrf/ai/contracts.hpp"
 
 namespace horusrf::ai {
+
+struct RetrievalResult;
 
 enum class LlmRole { System, User, Assistant };
 enum class LlmCallPurpose { Generation, CompilerRepair, RequirementCorrection };
@@ -29,6 +32,9 @@ struct LlmRequest final {
     std::chrono::milliseconds timeout{std::chrono::minutes{2}};
     std::optional<std::string> json_schema;
     LlmCallPurpose purpose{LlmCallPurpose::Generation};
+    // Local prompt-construction provenance. Providers must not serialize this
+    // metadata into their wire request.
+    std::shared_ptr<const RetrievalResult> retrieval;
 };
 
 enum class ProviderErrorCode {

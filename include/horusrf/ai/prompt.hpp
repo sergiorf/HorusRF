@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -10,6 +11,7 @@
 
 #include "horusrf/ai/contracts.hpp"
 #include "horusrf/ai/provider.hpp"
+#include "horusrf/ai/retrieval.hpp"
 
 namespace horusrf::ai {
 
@@ -17,6 +19,7 @@ enum class PromptConfiguration {
     Baseline,
     Compact,
     CapabilityRelevant,
+    StructuralRag,
 };
 
 [[nodiscard]] std::string_view prompt_configuration_id(
@@ -30,6 +33,8 @@ struct PromptSettings final {
     std::size_t max_output_tokens{2048};
     std::chrono::milliseconds timeout{std::chrono::minutes{2}};
     PromptConfiguration configuration{PromptConfiguration::Baseline};
+    std::shared_ptr<const ExampleRetriever> retriever;
+    RetrievalSettings retrieval_settings;
 };
 
 enum class PromptFeature {
