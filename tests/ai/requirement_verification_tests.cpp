@@ -65,6 +65,15 @@ bool has_assertion_operator(const std::vector<ai::RequirementClause>& clauses,
     });
 }
 
+bool has_calibration_relation(
+    const std::vector<ai::RequirementClause>& clauses,
+    ai::CalibrationCorrectionRelation relation) {
+    return std::ranges::any_of(clauses, [relation](const auto& clause) {
+        return clause.kind == ai::RequirementKind::Calibration &&
+               clause.calibration_correction_relation == relation;
+    });
+}
+
 ai::RequirementVerificationResult verify(const ai::GoldenCase& golden,
                                          std::string_view source) {
     const auto facts = ai::compile_program_facts(source);
@@ -225,7 +234,8 @@ void interactive_extraction_test(const ai::GoldenDataset& dataset) {
     facts = ai::compile_program_facts(combined.expected_source);
     CHECK(facts.has_value());
     result = ai::verify_instruction_requirements(combined.prompt, *facts);
-    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Satisfied);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Unknown);
+    CHECK(has_code(result, "calibration_correction_uncheckable"));
     auto clauses = ai::extract_requirements(combined.prompt);
     CHECK(has_named_measurement(clauses, ir::MeasurementOperation::Power,
                                 "actual"));
@@ -249,7 +259,9 @@ void interactive_extraction_test(const ai::GoldenDataset& dataset) {
                                 "output"));
     facts = ai::compile_program_facts(chain.expected_source);
     CHECK(facts.has_value());
-    CHECK(ai::verify_requirements(clauses, *facts).satisfied());
+    result = ai::verify_requirements(clauses, *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Unknown);
+    CHECK(has_code(result, "calibration_correction_uncheckable"));
     changed = replace_once(chain.expected_source,
                            "measure output = power",
                            "measure output_power = power");
@@ -284,13 +296,45 @@ void interactive_extraction_test(const ai::GoldenDataset& dataset) {
     facts = ai::compile_program_facts(strict.expected_source);
     CHECK(facts.has_value());
     result = ai::verify_instruction_requirements(strict.prompt, *facts);
-    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Satisfied);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Unknown);
+    CHECK(has_code(result, "calibration_correction_uncheckable"));
     changed = replace_once(strict.expected_source, "< 0.75 dB", "<= 0.75 dB");
     facts = ai::compile_program_facts(changed);
     CHECK(facts.has_value());
     result = ai::verify_instruction_requirements(strict.prompt, *facts);
     CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
     CHECK(has_code(result, "assertion_missing_or_different"));
+
+    const auto& calibration_sign = find_case(dataset, "calibration_sign_paraphrase");
+    clauses = ai::extract_requirements(calibration_sign.prompt);
+    CHECK(has_calibration_relation(
+        clauses, ai::CalibrationCorrectionRelation::ReferenceMinusMeasuredPower));
+    facts = ai::compile_program_facts(calibration_sign.expected_source);
+    CHECK(facts.has_value());
+    result = ai::verify_requirements(clauses, *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Satisfied);
+    changed = replace_once(calibration_sign.expected_source,
+                           "correction = -deviation",
+                           "correction = deviation");
+    facts = ai::compile_program_facts(changed);
+    CHECK(facts.has_value());
+    result = ai::verify_requirements(clauses, *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+    CHECK(has_code(result, "calibration_correction_mismatch"));
+
+    clauses = ai::extract_requirements(
+        "Measure power and set the correction to reference power minus measured power.");
+    CHECK(has_calibration_relation(
+        clauses, ai::CalibrationCorrectionRelation::ReferenceMinusMeasuredPower));
+    clauses = ai::extract_requirements(
+        "Measure power and set the correction to measured power minus reference power.");
+    CHECK(has_calibration_relation(
+        clauses, ai::CalibrationCorrectionRelation::MeasuredPowerMinusReference));
+    clauses = ai::extract_requirements(
+        "Define deviation as temperature minus nominal and make the correction "
+        "cancel that deviation.");
+    CHECK(!has_calibration_relation(
+        clauses, ai::CalibrationCorrectionRelation::ReferenceMinusMeasuredPower));
 
     clauses = ai::extract_requirements(
         "Require absolute power error strictly below 1 dB.");

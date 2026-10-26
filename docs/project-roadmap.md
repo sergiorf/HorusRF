@@ -198,8 +198,13 @@ it allowed three proposals with the wrong calibration sign. A follow-up added
 conservative `strictly below`/`above` assertion extraction, but replay proved all
 three candidates already used the correct strict operator; only calibration
 direction violated the curated oracle. Product gating and cascade therefore
-remain blocked. The next work is calibration-correction verification policy plus
-ranked-candidate observability before any alternate rescue implementation. The
+remain blocked. Calibration-correction verification policy and ranked-candidate
+observability were implemented on 2026-10-27. Explicit correction direction is
+now checked against compiler-normalized program facts; an unstated direction is
+sent to review, and schema-v4 attempt retrieval records retain the full positive-
+score ranking beyond K without changing prompt context. The next work is a
+controlled replay and ranked-candidate review before any alternate rescue
+implementation. The
 overall experiment will separately measure verified
 completion, accepted-proposal precision, coverage, safe rejection, provider cost,
 and latency for an explicit acceptance gate, a reserved targeted correction,

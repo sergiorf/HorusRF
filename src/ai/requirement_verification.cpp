@@ -314,6 +314,20 @@ std::string sweep_text(const SweepFact& value) {
     return dimension_name(value.dimension) + "[" + std::to_string(value.order) + "]";
 }
 
+std::string calibration_correction_identity(
+    CalibrationCorrectionRelation relation, domain::Power reference_power) {
+    const std::string measured{"Power{measure:power}"};
+    const std::string reference{"Power{reference_power:" +
+                                number(reference_power.dbm()) + "}"};
+    const int measured_coefficient =
+        relation == CalibrationCorrectionRelation::ReferenceMinusMeasuredPower
+            ? -1
+            : 1;
+    const int reference_coefficient = -measured_coefficient;
+    return "linear(" + std::to_string(measured_coefficient) + "*" + measured +
+           "," + std::to_string(reference_coefficient) + "*" + reference + ")";
+}
+
 RequirementOutcome outcome(const RequirementClause& requirement,
                            RequirementOutcomeStatus status, std::string code,
                            std::string expected, std::string actual,
@@ -629,13 +643,116 @@ std::vector<RequirementClause> extract_requirements(std::string_view instruction
             calibration_indexes.push_back(ir::SweepDimension::Frequency);
         }
     }
-    if (!calibration_indexes.empty()) {
+    std::optional<CalibrationCorrectionRelation> calibration_relation;
+    std::size_t correction_begin{};
+    std::size_t correction_end{};
+    const std::regex calibration_request{
+        R"(\b(calibrate|calibration|correction)\b)",
+        std::regex_constants::icase};
+    std::smatch calibration_request_match;
+    const bool calibration_requested =
+        std::regex_search(normalized.text, calibration_request_match,
+                          calibration_request);
+
+    const std::regex deviation_definition{
+        R"((?:define\s+)?([A-Za-z_][A-Za-z0-9_]*)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s+minus\s+(?:the\s+)?(?:nominal|reference(?:\s+power)?))",
+        std::regex_constants::icase};
+    const std::regex cancel_deviation{
+        R"((?:make\s+)?(?:the\s+)?correction\s+(?:cancel|negate)s?\s+(?:that\s+|the\s+)?([A-Za-z_][A-Za-z0-9_]*))",
+        std::regex_constants::icase};
+    std::smatch definition_match;
+    std::smatch cancellation_match;
+    const auto is_power_measurement_term = [&](std::string value) {
+        value = lowercase(std::move(value));
+        if (value == "measured" || value == "measurement" ||
+            value == "output" || value == "observed" || value == "reading") {
+            return true;
+        }
+        return std::ranges::any_of(result, [&](const RequirementClause& clause) {
+            return clause.measurement &&
+                   clause.measurement->operation ==
+                       ir::MeasurementOperation::Power &&
+                   clause.constrain_measurement_name &&
+                   lowercase(clause.measurement->name) == value;
+        });
+    };
+    if (std::regex_search(normalized.text, definition_match,
+                          deviation_definition) &&
+        std::regex_search(normalized.text, cancellation_match,
+                          cancel_deviation) &&
+        is_power_measurement_term(definition_match[2].str()) &&
+        lowercase(definition_match[1].str()) ==
+            lowercase(cancellation_match[1].str())) {
+        calibration_relation =
+            CalibrationCorrectionRelation::ReferenceMinusMeasuredPower;
+        correction_begin = std::min(
+            static_cast<std::size_t>(definition_match.position()),
+            static_cast<std::size_t>(cancellation_match.position()));
+        correction_end = std::max(
+            static_cast<std::size_t>(definition_match.position() +
+                                     definition_match.length()),
+            static_cast<std::size_t>(cancellation_match.position() +
+                                     cancellation_match.length()));
+    } else {
+        const std::regex reference_minus_measured{
+            R"((?:set\s+(?:the\s+)?)?(?:calibration\s+)?correction(?:\s+(?:to|is|as|equals?))?\s+(?:the\s+)?(?:nominal|reference(?:\s+power)?)\s+minus\s+(?:the\s+)?(?:measured(?:\s+power)?|measurement|output|observed|reading))",
+            std::regex_constants::icase};
+        const std::regex measured_minus_reference{
+            R"((?:set\s+(?:the\s+)?)?(?:calibration\s+)?correction(?:\s+(?:to|is|as|equals?))?\s+(?:the\s+)?(?:measured(?:\s+power)?|measurement|output|observed|reading)\s+minus\s+(?:the\s+)?(?:nominal|reference(?:\s+power)?))",
+            std::regex_constants::icase};
+        std::smatch direct_match;
+        if (std::regex_search(normalized.text, direct_match,
+                              reference_minus_measured)) {
+            calibration_relation =
+                CalibrationCorrectionRelation::ReferenceMinusMeasuredPower;
+        } else if (std::regex_search(normalized.text, direct_match,
+                                     measured_minus_reference)) {
+            calibration_relation =
+                CalibrationCorrectionRelation::MeasuredPowerMinusReference;
+        }
+        if (calibration_relation) {
+            correction_begin = static_cast<std::size_t>(direct_match.position());
+            correction_end = correction_begin +
+                             static_cast<std::size_t>(direct_match.length());
+        }
+    }
+
+    const bool has_calibration_indexes = !calibration_indexes.empty();
+    if (has_calibration_indexes || calibration_relation) {
+        const auto clause_begin = calibration_relation && has_calibration_indexes
+                                      ? std::min(correction_begin, calibration_begin)
+                                      : calibration_relation ? correction_begin
+                                                             : calibration_begin;
+        const auto clause_end = calibration_relation && has_calibration_indexes
+                                    ? std::max(correction_end, calibration_end)
+                                    : calibration_relation ? correction_end
+                                                           : calibration_end;
         auto clause = extracted_clause(next_id("calibration"),
                                        RequirementKind::Calibration, instruction,
-                                       normalized, calibration_begin,
-                                       calibration_end);
+                                       normalized, clause_begin, clause_end);
         clause.calibration = CalibrationFact{"", "", std::move(calibration_indexes)};
-        clause.constrain_calibration_correction = false;
+        clause.calibration_correction_relation = calibration_relation;
+        clause.constrain_calibration_correction = calibration_relation.has_value();
+        clause.constrain_calibration_indexes = !clause.calibration->indexes.empty();
+        result.push_back(std::move(clause));
+    }
+    if (calibration_requested && !calibration_relation) {
+        const auto unknown_begin = has_calibration_indexes
+                                       ? calibration_begin
+                                       : static_cast<std::size_t>(
+                                             calibration_request_match.position());
+        const auto unknown_end = has_calibration_indexes
+                                     ? calibration_end
+                                     : unknown_begin + static_cast<std::size_t>(
+                                                           calibration_request_match.length());
+        auto clause = extracted_clause(next_id("calibration-correction"),
+                                       RequirementKind::Calibration, instruction,
+                                       normalized, unknown_begin, unknown_end);
+        clause.confidence = RequirementConfidence::Ambiguous;
+        clause.provenance = "interactive-ambiguous";
+        clause.extraction_code = "calibration_correction_uncheckable";
+        clause.extraction_explanation =
+            "the request asks for calibration but does not state a verifiable correction direction";
         result.push_back(std::move(clause));
     }
 
@@ -825,15 +942,28 @@ RequirementVerificationResult verify_requirements(
                                                                   : "assertion is missing or differs");
         } else if (requirement.kind == RequirementKind::Calibration && requirement.calibration) {
             const auto& expected = *requirement.calibration;
-            const bool match = (!requirement.constrain_calibration_correction ||
-                                facts.calibration.correction == expected.correction) &&
-                               facts.calibration.indexes == expected.indexes;
+            const std::string expected_correction =
+                requirement.calibration_correction_relation
+                    ? calibration_correction_identity(
+                          *requirement.calibration_correction_relation,
+                          facts.reference_power)
+                    : expected.correction;
+            const bool correction_matches =
+                !requirement.constrain_calibration_correction ||
+                facts.calibration.correction == expected_correction;
+            const bool indexes_match =
+                !requirement.constrain_calibration_indexes ||
+                facts.calibration.indexes == expected.indexes;
+            const bool match = correction_matches && indexes_match;
             item = outcome(requirement, match ? RequirementOutcomeStatus::Satisfied
                                               : RequirementOutcomeStatus::Violated,
-                           match ? "calibration_match" : "calibration_mismatch",
-                           expected.correction, facts.calibration.correction,
+                           match ? "calibration_match"
+                                 : !correction_matches
+                                     ? "calibration_correction_mismatch"
+                                     : "calibration_indexes_mismatch",
+                           expected_correction, facts.calibration.correction,
                            match ? "calibration requirement matches"
-                                 : "calibration correction or indexes differ");
+                                  : "calibration correction or indexes differ");
         } else {
             item = outcome(
                 requirement, RequirementOutcomeStatus::Unknown,

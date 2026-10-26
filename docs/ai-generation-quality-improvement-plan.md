@@ -10,7 +10,9 @@ verified completion/coverage on the development suite. Product gating remains
 unapproved. A 2026-10-27 strict-adverb extraction follow-up corrected the
 remaining 3B diagnosis: its assertions were strict, but calibration correction
 had the wrong sign. Calibration verification policy and ranked-candidate
-observability are next.
+observability were implemented on 2026-10-27; the next work is a controlled
+schema-v4 replay and review of the retained rankings for the persistent failure
+families.
 
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  

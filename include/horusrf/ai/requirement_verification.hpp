@@ -48,6 +48,11 @@ struct CalibrationFact final {
     std::vector<ir::SweepDimension> indexes;
 };
 
+enum class CalibrationCorrectionRelation {
+    ReferenceMinusMeasuredPower,
+    MeasuredPowerMinusReference,
+};
+
 struct ProgramFacts final {
     domain::Power reference_power{domain::Power::from_dbm(0.0)};
     std::vector<SweepFact> sweeps;
@@ -86,6 +91,7 @@ struct RequirementClause final {
     std::optional<MeasurementFact> measurement;
     std::optional<AssertionFact> assertion;
     std::optional<CalibrationFact> calibration;
+    std::optional<CalibrationCorrectionRelation> calibration_correction_relation;
     // A missing one-point step means the representation's positive step was
     // not explicitly requested and must not affect satisfaction.
     bool constrain_sweep_step{true};
@@ -94,6 +100,7 @@ struct RequirementClause final {
     bool constrain_measurement_name{false};
     bool constrain_assertion_left{true};
     bool constrain_calibration_correction{true};
+    bool constrain_calibration_indexes{true};
     std::size_t source_begin{};
     std::size_t source_end{};
     std::string source_text;

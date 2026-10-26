@@ -461,26 +461,33 @@ void write_retrieval_result(std::ostream& output,
     write_strings(output, value->query.unsupported_operations);
     output << ",\"sweep_dimensions\":";
     write_strings(output, value->query.sweep_dimensions);
-    output << ",\"selected\":[";
-    for (std::size_t index = 0; index < value->selected.size(); ++index) {
-        if (index != 0) output << ',';
-        const auto& item = value->selected[index];
-        output << "{\"id\":" << json_string(item.id)
-               << ",\"score\":" << item.scores.total
-               << ",\"scores\":{\"structural\":" << item.scores.structural
-               << ",\"operation_coverage\":" << item.scores.operation_coverage
-               << ",\"typed_feature_coverage\":"
-               << item.scores.typed_feature_coverage
-               << ",\"lexical_similarity\":" << item.scores.lexical_similarity
-               << ",\"complexity_compatibility\":"
-               << item.scores.complexity_compatibility
-               << ",\"completeness_bonus\":" << item.scores.completeness_bonus
-               << ",\"conflict_penalty\":" << item.scores.conflict_penalty
-               << "},\"rationale\":" << json_string(item.rationale)
-               << ",\"context_bytes\":" << item.context_bytes
-               << ",\"estimated_tokens\":" << item.estimated_tokens << '}';
-    }
-    output << "],\"rejected_by_budget\":";
+    const auto write_examples = [&](const std::vector<RetrievedExample>& examples) {
+        output << '[';
+        for (std::size_t index = 0; index < examples.size(); ++index) {
+            if (index != 0) output << ',';
+            const auto& item = examples[index];
+            output << "{\"id\":" << json_string(item.id)
+                   << ",\"score\":" << item.scores.total
+                   << ",\"scores\":{\"structural\":" << item.scores.structural
+                   << ",\"operation_coverage\":" << item.scores.operation_coverage
+                   << ",\"typed_feature_coverage\":"
+                   << item.scores.typed_feature_coverage
+                   << ",\"lexical_similarity\":" << item.scores.lexical_similarity
+                   << ",\"complexity_compatibility\":"
+                   << item.scores.complexity_compatibility
+                   << ",\"completeness_bonus\":" << item.scores.completeness_bonus
+                   << ",\"conflict_penalty\":" << item.scores.conflict_penalty
+                   << "},\"rationale\":" << json_string(item.rationale)
+                   << ",\"context_bytes\":" << item.context_bytes
+                   << ",\"estimated_tokens\":" << item.estimated_tokens << '}';
+        }
+        output << ']';
+    };
+    output << ",\"ranked_candidates\":";
+    write_examples(value->ranked_candidates);
+    output << ",\"selected\":";
+    write_examples(value->selected);
+    output << ",\"rejected_by_budget\":";
     write_strings(output, value->rejected_by_budget);
     output << ",\"suppressed_near_duplicates\":";
     write_strings(output, value->suppressed_near_duplicates);

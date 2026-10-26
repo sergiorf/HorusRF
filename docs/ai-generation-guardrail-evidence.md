@@ -3,7 +3,9 @@
 **Status:** Slice 1 completed on 2026-10-26 from the controlled M6Q.8
 development reports. Slice 2A and the controlled schema-v4 replay completed by
 2026-10-27. A follow-up strict-adverb extraction audit corrected the remaining
-3B failure diagnosis to calibration direction. No product gate is approved.
+3B failure diagnosis to calibration direction. Calibration verification policy
+and ranked-candidate observability were implemented on 2026-10-27; their
+controlled replay and ranking review remain pending. No product gate is approved.
 
 ## 1. Inputs and reproducibility
 
@@ -209,3 +211,27 @@ change their acceptance result: all three already contain the correct strict
 assertion and fail only the curated calibration-correction requirement. The
 replay therefore corrects the diagnosis rather than claiming an accepted-
 precision improvement.
+
+## 10. Calibration policy and ranked-candidate observability
+
+**Implemented on 2026-10-27 without a live-model run.** The interactive
+requirement layer now recognizes explicit correction relations expressed as
+reference/nominal minus measured power, measured power minus reference/nominal,
+or a named measured-minus-nominal deviation that the correction must cancel.
+The relation is verified against the compiler-normalized correction expression.
+A calibration request without an explicit verifiable direction produces the
+ambiguous `calibration_correction_uncheckable` outcome, which the schema-v4
+evaluation gate routes to `review_required` rather than `allow`.
+
+Structural retrieval now retains every positive-score candidate in deterministic
+rank order in each attempt's `ranked_candidates` report field. The existing
+bounded `selected` list remains the only context inserted into the provider
+prompt, so this is an observability change and does not implement alternate
+rescue. Deterministic requirement, agent, retrieval, and evaluator tests cover
+wrong-sign rejection, ambiguous review routing, rank order, and serialization.
+The Release build and full unfiltered CTest suite passed 36/36 tests.
+
+The next evidence step is to rerun the controlled 3B K=1 and 7B K=3 policies,
+then inspect candidates beyond K for the persistent failure families. That
+review must show materially different validated evidence before any
+`g3-alternate-rescue` implementation is justified.

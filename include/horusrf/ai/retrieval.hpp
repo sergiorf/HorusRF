@@ -151,6 +151,9 @@ struct RetrievalResult final {
     std::string corpus_content_digest;
     std::string ranking_id;
     RetrievalQuery query;
+    // All positive-score candidates in deterministic rank order. This is
+    // observability only; selected remains the bounded prompt context.
+    std::vector<RetrievedExample> ranked_candidates;
     std::vector<RetrievedExample> selected;
     std::vector<std::string> rejected_by_budget;
     std::vector<std::string> suppressed_near_duplicates;

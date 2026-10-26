@@ -239,6 +239,12 @@ void structural_ranking_and_paraphrase_test() {
     CHECK_EQ(first.ranking_id, "structural-rag-ranking-v1");
     CHECK_EQ(first.selected.size(), std::size_t{1});
     CHECK_EQ(first.selected.front().id, "temperature_then_frequency");
+    CHECK(first.ranked_candidates.size() > first.selected.size());
+    CHECK_EQ(first.ranked_candidates.front().id, first.selected.front().id);
+    CHECK(std::ranges::is_sorted(first.ranked_candidates,
+        [](const auto& left, const auto& right) {
+            return left.scores.total > right.scores.total;
+        }));
     CHECK(first.selected.front().scores.structural >
           first.selected.front().scores.lexical_similarity);
     CHECK(!first.selected.front().rationale.empty());
@@ -250,6 +256,7 @@ void structural_ranking_and_paraphrase_test() {
     CHECK_EQ(second.selected.front().id, first.selected.front().id);
     CHECK_EQ(second.selected.front().scores.total,
              first.selected.front().scores.total);
+    CHECK_EQ(second.ranked_candidates.size(), first.ranked_candidates.size());
 
     const auto dependency = retriever.retrieve(
         "Measure output relative to -13 dBm, derive power error, then derive an "

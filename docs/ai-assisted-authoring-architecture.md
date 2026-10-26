@@ -204,7 +204,14 @@ typed clauses, retaining source text and offsets, and verifies them against a
 read-only projection of the lowered IR. Canonical quantities accept equivalent
 unit spellings. Explicit assertion phrases include inclusive limits and strict
 `below`, `less than`, `above`, and `greater than` forms, including their
-unambiguous `strictly` variants. Recognized ambiguity remains unknown rather than
+unambiguous `strictly` variants. Explicit calibration correction phrases are
+projected to a typed
+reference-minus-measured or measured-minus-reference relation and compared with
+the compiler-normalized correction expression. A calibration request whose
+direction is not explicit remains an ambiguous unknown so the evaluation gate
+requires review instead of treating an unchecked sign as satisfied. The product
+Apply boundary remains unchanged.
+Recognized ambiguity remains unknown rather than
 becoming an invented requirement. The immutable proposal reports requirement
 satisfaction separately from compiler validity; this is a review diagnostic and
 does not alter Apply eligibility in M6Q.3.
@@ -317,8 +324,10 @@ errors, latency, explicit rate denominators, prompt sizes, run order, warm/cold
 classification, and optional provider-neutral inference telemetry. Ollama duration
 and token fields are adapted into that optional telemetry; unavailable fields
 remain JSON `null`. Structural-RAG reports add corpus schema/version/digest,
-ranking and budget settings, per-case selection diagnostics and cost, and aggregate
-retrieval coverage, latency, and context cost. The evaluator does not maintain a
+ranking and budget settings, the complete positive-score candidate ranking beyond
+K, per-case selection diagnostics and cost, and aggregate retrieval coverage,
+latency, and context cost. Candidates beyond K are observability only and are not
+inserted into provider prompts. The evaluator does not maintain a
 C++ report reader; the checked-in
 evaluation tests inject scripted providers and a deterministic clock. Live model
 evaluation is invoked explicitly through the executable or

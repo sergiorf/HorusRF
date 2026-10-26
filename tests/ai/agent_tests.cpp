@@ -1,5 +1,6 @@
 #include "test_support.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <memory>
@@ -340,7 +341,11 @@ void explicit_output_name_is_corrected_test() {
     const auto& value = completed(result);
     CHECK_EQ(value.attempt_count(), std::size_t{2});
     CHECK_EQ(value.requirement_verification().status,
-             ai::RequirementSatisfactionStatus::Satisfied);
+             ai::RequirementSatisfactionStatus::Unknown);
+    CHECK(std::ranges::any_of(value.requirement_verification().outcomes,
+        [](const auto& outcome) {
+            return outcome.code == "calibration_correction_uncheckable";
+        }));
     CHECK_EQ(provider.requests()[1].purpose,
              ai::LlmCallPurpose::RequirementCorrection);
     CHECK(request_contains(provider.requests()[1],

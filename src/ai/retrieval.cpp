@@ -975,6 +975,15 @@ RetrievalResult ExampleRetriever::retrieve(std::string_view instruction,
         return left.manifest_index < right.manifest_index;
     });
 
+    for (const auto& candidate : ranked) {
+        if (candidate.scores.total <= 0.0) continue;
+        const auto& example = corpus_.examples[candidate.manifest_index];
+        const auto bytes = context_bytes(example);
+        result.ranked_candidates.push_back(
+            {example.metadata.id, candidate.scores, candidate.rationale, bytes,
+             estimated_tokens(bytes)});
+    }
+
     std::size_t used_budget{};
     std::vector<std::size_t> selected_indexes;
     for (const auto& candidate : ranked) {

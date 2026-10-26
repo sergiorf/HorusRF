@@ -411,6 +411,20 @@ void requirement_correction_is_observable_test() {
     CHECK_EQ(stuck.cases[0].acceptance_decision.reason_codes,
              (std::vector<std::string>{"generation_not_completed",
                                        "interactive_requirements_violated"}));
+
+    ai::testing::FakeLlmProvider calibration_provider{{response(valid_source)}};
+    ai::GoldenDataset calibration_dataset{
+        "1.0.0", {golden("calibration-review", true)}};
+    calibration_dataset.cases[0].prompt =
+        "Measure power at 915 MHz and derive calibration over frequency.";
+    const auto calibration = ai::evaluate_golden_dataset(
+        calibration_dataset, calibration_provider, settings, {}, fixed_clock());
+    CHECK_EQ(calibration.cases[0].interactive_requirement_verification.status,
+             ai::RequirementSatisfactionStatus::Unknown);
+    CHECK_EQ(calibration.cases[0].acceptance_decision.verdict,
+             ai::EvaluationAcceptanceVerdict::ReviewRequired);
+    CHECK_EQ(calibration.cases[0].acceptance_decision.reason_codes,
+             (std::vector<std::string>{"interactive_requirements_unknown"}));
 }
 
 void schema_v4_diagnostics_and_differences_test() {
@@ -527,6 +541,8 @@ void structural_rag_evaluation_provenance_test() {
     CHECK(report.cases[0].attempts[0].retrieval->ok());
     CHECK_EQ(report.cases[0].attempts[0].retrieval->selected[0].id,
              "evaluation-reference");
+    CHECK_EQ(report.cases[0].attempts[0].retrieval->ranked_candidates[0].id,
+             "evaluation-reference");
     CHECK_EQ(provider.requests().size(), std::size_t{1});
     CHECK(provider.requests()[0].retrieval != nullptr);
     CHECK_EQ(report.summaries[0].retrieval_attempts, std::size_t{1});
@@ -542,6 +558,8 @@ void structural_rag_evaluation_provenance_test() {
     CHECK(json.str().find("\"ranking_id\":\"structural-rag-ranking-v1\"") !=
           std::string::npos);
     CHECK(json.str().find("\"id\":\"evaluation-reference\"") !=
+          std::string::npos);
+    CHECK(json.str().find("\"ranked_candidates\":[") !=
           std::string::npos);
     CHECK(json.str().find("\"duration_ns\":") != std::string::npos);
 
