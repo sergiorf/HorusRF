@@ -45,6 +45,18 @@ bool has_kind(const std::vector<ai::RequirementClause>& clauses,
     });
 }
 
+bool has_named_measurement(const std::vector<ai::RequirementClause>& clauses,
+                           ir::MeasurementOperation operation,
+                           std::string_view name) {
+    return std::ranges::any_of(clauses, [&](const auto& clause) {
+        return clause.kind == ai::RequirementKind::Measurement &&
+               clause.measurement &&
+               clause.measurement->operation == operation &&
+               clause.constrain_measurement_name &&
+               clause.measurement->name == name;
+    });
+}
+
 ai::RequirementVerificationResult verify(const ai::GoldenCase& golden,
                                          std::string_view source) {
     const auto facts = ai::compile_program_facts(source);
@@ -200,6 +212,55 @@ void interactive_extraction_test(const ai::GoldenDataset& dataset) {
     result = ai::verify_instruction_requirements(
         "Record the power measurement as output_power.", *facts);
     CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+
+    const auto& combined = find_case(dataset, "combined_limits_paraphrase");
+    facts = ai::compile_program_facts(combined.expected_source);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(combined.prompt, *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Satisfied);
+    auto clauses = ai::extract_requirements(combined.prompt);
+    CHECK(has_named_measurement(clauses, ir::MeasurementOperation::Power,
+                                "actual"));
+    CHECK(has_named_measurement(clauses, ir::MeasurementOperation::Evm,
+                                "quality"));
+    changed = replace_once(combined.expected_source,
+                           "measure actual = power",
+                           "measure actual_power = power");
+    changed = replace_once(std::move(changed),
+                           "derive error = actual - reference.power",
+                           "derive error = actual_power - reference.power");
+    facts = ai::compile_program_facts(changed);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(combined.prompt, *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+    CHECK(has_code(result, "measurement_missing_or_misnamed"));
+
+    const auto& chain = find_case(dataset, "derived_measurement_chain");
+    clauses = ai::extract_requirements(chain.prompt);
+    CHECK(has_named_measurement(clauses, ir::MeasurementOperation::Power,
+                                "output"));
+    facts = ai::compile_program_facts(chain.expected_source);
+    CHECK(facts.has_value());
+    CHECK(ai::verify_requirements(clauses, *facts).satisfied());
+    changed = replace_once(chain.expected_source,
+                           "measure output = power",
+                           "measure output_power = power");
+    changed = replace_once(std::move(changed),
+                           "derive output_error = output - reference.power",
+                           "derive output_error = output_power - reference.power");
+    facts = ai::compile_program_facts(changed);
+    CHECK(facts.has_value());
+    result = ai::verify_requirements(clauses, *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+
+    clauses = ai::extract_requirements(
+        "Measure power and record output as a CSV file.");
+    CHECK(!has_named_measurement(clauses, ir::MeasurementOperation::Power,
+                                 "CSV"));
+    clauses = ai::extract_requirements(
+        "Measure power and write the output as JSON.");
+    CHECK(!has_named_measurement(clauses, ir::MeasurementOperation::Power,
+                                 "JSON"));
 
     const auto& assertion = find_case(dataset, "frequency_sweep_power_assertion");
     facts = ai::compile_program_facts(assertion.expected_source);

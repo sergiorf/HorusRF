@@ -1,7 +1,10 @@
 # HorusRF M6Q.9 guardrail evaluation plan
 
-**Status:** Proposed on 2026-10-26. No product behavior or default prompt changes
-are approved by this plan.
+**Status:** Slice 1 offline evidence replay and Slice 2A acceptance observability
+plus name-fidelity coverage completed on 2026-10-26. A controlled schema-v4
+replay is next. No product Apply-gate or default-prompt change is approved by
+this plan. See the
+[Slice 1 evidence report](ai-generation-guardrail-evidence.md).
 
 ## 1. Decision to make
 
@@ -191,7 +194,9 @@ different explicit policy IDs; there is no hidden automatic default switch.
 ## 7. Review slices
 
 1. **Evidence report:** archive M6Q.8, produce failure taxonomy, offline gate and
-   cascade replay, and approve the intervention hypotheses.
+   cascade replay, and approve the intervention hypotheses. Completed on
+   2026-10-26; the replay rejects reserved correction and cascade as immediate
+   work, and keeps alternate rescue gated pending ranking observability.
 2. **Acceptance gate:** implement `g1`, report provenance, and deterministic tests;
    no generation behavior change.
 3. **Reserved correction:** implement and evaluate `g2` independently.

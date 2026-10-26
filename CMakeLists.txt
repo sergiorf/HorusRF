@@ -591,6 +591,18 @@ if(BUILD_TESTING)
     horusrf_enable_warnings(horusrf_ai_evaluation_tests)
     add_test(NAME horusrf_ai_evaluation_tests COMMAND horusrf_ai_evaluation_tests)
 
+    if(WIN32)
+        add_test(NAME horusrf_ai_evaluation_archive_tests
+            COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+                -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/ai/archive_evaluation_tests.ps1
+                -RepositoryRoot ${CMAKE_CURRENT_SOURCE_DIR}
+                -WorkDirectory ${CMAKE_CURRENT_BINARY_DIR}/ai-evaluation-archive-tests
+        )
+        set_tests_properties(horusrf_ai_evaluation_archive_tests PROPERTIES
+            LABELS unit
+        )
+    endif()
+
     add_executable(horusrf_ir_tests tests/ir/lowering_tests.cpp)
     target_compile_features(horusrf_ir_tests PRIVATE cxx_std_20)
     target_include_directories(horusrf_ir_tests PRIVATE tests)

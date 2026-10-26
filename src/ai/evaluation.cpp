@@ -291,6 +291,82 @@ std::string_view warm_cold_name(WarmColdStatus status) {
     return "unknown";
 }
 
+std::string_view acceptance_verdict_name(EvaluationAcceptanceVerdict verdict) {
+    switch (verdict) {
+    case EvaluationAcceptanceVerdict::Allow: return "allow";
+    case EvaluationAcceptanceVerdict::ReviewRequired: return "review_required";
+    case EvaluationAcceptanceVerdict::Reject: return "reject";
+    }
+    return "reject";
+}
+
+EvaluationAcceptanceDecision acceptance_decision(const CaseEvaluation& item) {
+    EvaluationAcceptanceDecision decision{EvaluationAcceptanceVerdict::Allow, {}};
+    if (item.generation_status != EvaluationGenerationStatus::Completed) {
+        decision.verdict = EvaluationAcceptanceVerdict::Reject;
+        decision.reason_codes.push_back("generation_not_completed");
+        if (!item.generated_source) return decision;
+    }
+    if (!item.final_valid) {
+        decision.verdict = EvaluationAcceptanceVerdict::Reject;
+        decision.reason_codes.push_back("compiler_invalid");
+        return decision;
+    }
+    switch (item.support_assessment.status) {
+    case SupportAssessmentStatus::Unsupported:
+        return {EvaluationAcceptanceVerdict::Reject, {"support_unsupported"}};
+    case SupportAssessmentStatus::PartiallySupported:
+        decision.verdict = EvaluationAcceptanceVerdict::ReviewRequired;
+        decision.reason_codes.push_back("support_partially_supported");
+        break;
+    case SupportAssessmentStatus::Uncertain:
+        decision.verdict = EvaluationAcceptanceVerdict::ReviewRequired;
+        decision.reason_codes.push_back("support_uncertain");
+        break;
+    case SupportAssessmentStatus::Supported: break;
+    }
+    switch (item.interactive_requirement_verification.status) {
+    case RequirementSatisfactionStatus::Satisfied:
+        decision.reason_codes.push_back("interactive_requirements_satisfied");
+        break;
+    case RequirementSatisfactionStatus::Violated:
+        decision.verdict = EvaluationAcceptanceVerdict::Reject;
+        decision.reason_codes.push_back("interactive_requirements_violated");
+        break;
+    case RequirementSatisfactionStatus::Unsupported:
+        decision.verdict = EvaluationAcceptanceVerdict::Reject;
+        decision.reason_codes.push_back("interactive_requirements_unsupported");
+        break;
+    case RequirementSatisfactionStatus::Unknown: {
+        bool high_confidence_unknown = false;
+        for (const auto& outcome :
+             item.interactive_requirement_verification.outcomes) {
+            high_confidence_unknown = high_confidence_unknown ||
+                (outcome.status == RequirementOutcomeStatus::Unknown &&
+                 outcome.confidence == RequirementConfidence::High);
+        }
+        if (high_confidence_unknown) {
+            decision.verdict = EvaluationAcceptanceVerdict::Reject;
+            decision.reason_codes.push_back(
+                "interactive_high_confidence_unknown");
+        } else {
+            if (decision.verdict != EvaluationAcceptanceVerdict::Reject) {
+                decision.verdict = EvaluationAcceptanceVerdict::ReviewRequired;
+            }
+            decision.reason_codes.push_back("interactive_requirements_unknown");
+        }
+        break;
+    }
+    case RequirementSatisfactionStatus::NotEvaluated:
+        if (decision.verdict != EvaluationAcceptanceVerdict::Reject) {
+            decision.verdict = EvaluationAcceptanceVerdict::ReviewRequired;
+        }
+        decision.reason_codes.push_back("interactive_requirements_not_evaluated");
+        break;
+    }
+    return decision;
+}
+
 std::string_view retrieval_budget_unit_name(RetrievalBudgetUnit unit) {
     switch (unit) {
     case RetrievalBudgetUnit::Utf8Bytes: return "utf8_bytes";
@@ -501,6 +577,15 @@ void write_requirement_verification(
     output << "]}";
 }
 
+void write_acceptance_decision(
+    std::ostream& output, const EvaluationAcceptanceDecision& decision) {
+    output << "{\"verdict\":"
+           << json_string(acceptance_verdict_name(decision.verdict))
+           << ",\"reason_codes\":";
+    write_strings(output, decision.reason_codes);
+    output << '}';
+}
+
 void write_support_assessment(std::ostream& output,
                               const SupportAssessment& assessment) {
     output << "{\"status\":" << json_string(support_status_name(assessment.status))
@@ -611,6 +696,22 @@ ModelEvaluationSummary summarize(std::string model,
             item.requirement_verification.status == RequirementSatisfactionStatus::NotEvaluated ? 1U : 0U;
         result.unsupported_recognized += item.unsupported_recognized ? 1U : 0U;
         result.support_assessment_matches += item.support_assessment_matches ? 1U : 0U;
+        switch (item.acceptance_decision.verdict) {
+        case EvaluationAcceptanceVerdict::Allow:
+            ++result.acceptance_allowed;
+            if (item.expected_supported &&
+                item.requirement_verification.status ==
+                    RequirementSatisfactionStatus::Satisfied) {
+                ++result.accepted_requirement_satisfied;
+            }
+            break;
+        case EvaluationAcceptanceVerdict::ReviewRequired:
+            ++result.acceptance_review_required;
+            break;
+        case EvaluationAcceptanceVerdict::Reject:
+            ++result.acceptance_rejected;
+            break;
+        }
         runs_with_repair += item.repair_attempts != 0 ? 1U : 0U;
         bool corrected_requirements = false;
         for (const auto& attempt : item.attempts) {
@@ -767,6 +868,15 @@ std::vector<CaseEvaluationTrend> build_case_trends(
             item.attempts, [](const EvaluationAttempt& attempt) {
                 return attempt.purpose == EvaluationCallPurpose::RequirementCorrection;
             }) ? 1U : 0U;
+        if (item.acceptance_decision.verdict ==
+            EvaluationAcceptanceVerdict::Allow) {
+            ++trend.acceptance_allowed;
+            if (item.expected_supported &&
+                item.requirement_verification.status ==
+                    RequirementSatisfactionStatus::Satisfied) {
+                ++trend.accepted_requirement_satisfied;
+            }
+        }
         latencies[found->second].push_back(item.total_latency);
     }
     for (std::size_t index = 0; index < result.size(); ++index) {
@@ -941,6 +1051,8 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                 }
 
                 if (proposal != nullptr) {
+                    item.interactive_requirement_verification =
+                        proposal->requirement_verification();
                     item.generated_source = proposal->candidate_source().text();
                     item.final_warnings = proposal->warnings();
                     const auto validation = validate_script(*item.generated_source);
@@ -961,6 +1073,7 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
                     item.generation_status != EvaluationGenerationStatus::Failed &&
                     item.generation_status != EvaluationGenerationStatus::Cancelled &&
                     item.support_assessment.status == item.expected_support;
+                item.acceptance_decision = acceptance_decision(item);
                 report.cases.push_back(std::move(item));
                 if (progress) {
                     progress(EvaluationProgressStage::Completed,
@@ -980,7 +1093,7 @@ EvaluationReport evaluate_golden_dataset(const GoldenDataset& dataset,
 }
 
 void write_evaluation_json(std::ostream& output, const EvaluationReport& report) {
-    output << "{\"schema\":\"horusrf.ai-evaluation\",\"version\":3"
+    output << "{\"schema\":\"horusrf.ai-evaluation\",\"version\":4"
            << ",\"dataset_version\":" << json_string(report.dataset_version)
            << ",\"comparison_version\":" << json_string(report.comparison_version)
            << ",\"requirement_schema_version\":"
@@ -1044,6 +1157,11 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"semantic_status\":" << json_string(semantic_name(item.semantic_status))
                << ",\"requirement_verification\":";
         write_requirement_verification(output, item.requirement_verification);
+        output << ",\"interactive_requirement_verification\":";
+        write_requirement_verification(
+            output, item.interactive_requirement_verification);
+        output << ",\"acceptance_decision\":";
+        write_acceptance_decision(output, item.acceptance_decision);
         output << ",\"support_assessment\":";
         write_support_assessment(output, item.support_assessment);
         output << ",\"unsupported_recognized\":" << (item.unsupported_recognized ? "true" : "false")
@@ -1180,6 +1298,9 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"runs_with_repair\":" << item.runs_with_repair
                << ",\"runs_with_requirement_correction\":"
                << item.runs_with_requirement_correction
+               << ",\"acceptance_allowed\":" << item.acceptance_allowed
+               << ",\"accepted_requirement_satisfied\":"
+               << item.accepted_requirement_satisfied
                << ",\"persistent_requirement_failure\":"
                << (item.persistent_requirement_failure ? "true" : "false")
                << ",\"latency\":{\"sample_count\":" << item.latency.sample_count
@@ -1210,6 +1331,12 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << ",\"requirement_not_evaluated\":" << item.requirement_not_evaluated
                << ",\"unsupported_recognized\":" << item.unsupported_recognized
                << ",\"support_assessment_matches\":" << item.support_assessment_matches
+               << ",\"acceptance_allowed\":" << item.acceptance_allowed
+               << ",\"acceptance_review_required\":"
+               << item.acceptance_review_required
+               << ",\"acceptance_rejected\":" << item.acceptance_rejected
+               << ",\"accepted_requirement_satisfied\":"
+               << item.accepted_requirement_satisfied
                << ",\"distinct_cases\":" << item.distinct_cases
                << ",\"repetition_count\":" << item.repetition_count
                << ",\"median_case_requirement_success_rate\":"
@@ -1264,7 +1391,13 @@ void write_evaluation_json(std::ostream& output, const EvaluationReport& report)
                << item.unsupported_cases
                << "},\"support_assessment_matches\":{\"numerator\":"
                << item.support_assessment_matches << ",\"denominator\":"
-               << item.total_cases << "}},\"failure_categories\":{";
+               << item.total_cases
+               << "},\"accepted_precision\":{\"numerator\":"
+               << item.accepted_requirement_satisfied << ",\"denominator\":"
+               << item.acceptance_allowed
+               << "},\"acceptance_coverage\":{\"numerator\":"
+               << item.acceptance_allowed << ",\"denominator\":"
+               << item.applicable_cases << "}},\"failure_categories\":{";
         for (std::size_t failure = 0; failure < item.failure_categories.size(); ++failure) {
             if (failure != 0) output << ',';
             output << json_string(item.failure_categories[failure].first) << ':'

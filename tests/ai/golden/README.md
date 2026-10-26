@@ -90,11 +90,12 @@ does not download them or start Ollama. During a run, the evaluator prints a
 starting and finished line for every model/repetition/case combination, including
 the total position, validity, requirement status, repairs, and elapsed time.
 
-Evaluation reports use `horusrf.ai-evaluation` schema version 3. They are
-write-only artifacts; the repository has no report reader, so no schema-v1
-reader is required. Version 3 retains every provider attempt, structured-response
+Evaluation reports use `horusrf.ai-evaluation` schema version 4. The evaluator
+does not maintain a C++ report reader; the history archiver accepts report schema
+versions 1 through 4. Version 4 retains every provider attempt, structured-response
 status, candidate, compiler diagnostics, strict semantic differences, clause-level
-requirement outcomes, prompt
+curated requirement outcomes, the agent's final interactive requirement outcome,
+and a deterministic allow/review/reject decision with reason codes. It also retains prompt
 UTF-8 sizes, provider telemetry, run order, cold/warm classification, and model
 digest when Ollama reports one. It additively records structural-retrieval corpus,
 ranking, budget, per-case selection, score, rationale, timing, and context-cost
@@ -114,6 +115,11 @@ median/P90 latency. Model summaries additionally report the median per-case
 requirement-success rate, variability across repetition success rates, and repair
 and correction rates. Use `-Repeat 3` through `-Repeat 5` for a trend run; a
 single repetition remains useful only as a smoke test.
+
+M6Q.9 adds acceptance counts to case trends and model summaries. Accepted
+precision uses curated requirement success among `allow` decisions; acceptance
+coverage uses `allow` decisions over applicable supported runs. The curated
+oracle scores the decision but never participates in making it.
 
 M6Q.2 prompt experiments use `-PromptConfiguration` with one of these stable IDs:
 

@@ -2,8 +2,10 @@
 
 **Status:** M6Q.0 through M6Q.6 completed on 2026-10-23; M6Q.7 implementation
 completed on 2026-10-23, with fixture review and the independent acceptance run
-pending. M6Q.8's controlled development benchmark completed on 2026-10-26;
-M6Q.9 guardrail evaluation is proposed.
+pending. M6Q.8's controlled development benchmark completed on 2026-10-26.
+M6Q.9 Slice 1 offline evidence replay and Slice 2A acceptance observability plus
+name-fidelity coverage completed on 2026-10-26. A controlled schema-v4 replay is
+next; product gating remains unapproved.
 
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  

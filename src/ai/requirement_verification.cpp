@@ -519,12 +519,25 @@ std::vector<RequirementClause> extract_requirements(std::string_view instruction
     const auto add_measurement = [&](ir::MeasurementOperation operation,
                                      std::string_view operation_text,
                                      ir::ValueType type) {
-        const auto position = lowered.find(operation_text);
+        auto position = lowered.find(operation_text);
+        auto operation_extent = operation_text.size();
+        if (operation == ir::MeasurementOperation::Power &&
+            position == std::string::npos) {
+            const std::regex output_measurement{
+                R"((?:record|measure|collect)\s+(?:the\s+)?output\b)",
+                std::regex_constants::icase};
+            std::smatch output_match;
+            if (std::regex_search(normalized.text, output_match,
+                                  output_measurement)) {
+                position = static_cast<std::size_t>(output_match.position());
+                operation_extent = static_cast<std::size_t>(output_match.length());
+            }
+        }
         if (!measurement_context || position == std::string::npos) return;
         auto clause = extracted_clause(next_id("measurement"),
                                        RequirementKind::Measurement, instruction,
                                        normalized, position,
-                                       position + operation_text.size());
+                                       position + operation_extent);
         MeasurementFact fact{"", operation, type, false};
         const std::string operation_pattern = operation == ir::MeasurementOperation::Power
             ? R"((?:power(?:\s+measurement|\s+reading)?|measured\s+result))"
@@ -537,10 +550,20 @@ std::vector<RequirementClause> extract_requirements(std::string_view instruction
         const std::regex named_result{
             R"(name\s+(?:the\s+)?(?:measured\s+result|power\s+reading)\s+([A-Za-z_][A-Za-z0-9_]*))",
             std::regex_constants::icase};
+        const std::regex named_power_output{
+            R"((?:record|measure|collect)\s+(?:the\s+)?output\s+as\s+([A-Za-z_][A-Za-z0-9_]*))",
+            std::regex_constants::icase};
         std::smatch name_match;
-        if (std::regex_search(normalized.text, name_match, named_after) ||
+        const bool found_name =
+            std::regex_search(normalized.text, name_match, named_after) ||
             (operation == ir::MeasurementOperation::Power &&
-             std::regex_search(normalized.text, name_match, named_result))) {
+             (std::regex_search(normalized.text, name_match, named_result) ||
+              std::regex_search(normalized.text, name_match,
+                                named_power_output)));
+        const std::set<std::string, std::less<>> output_format_words{
+            "a", "an", "csv", "file", "json", "report", "table", "text"};
+        if (found_name &&
+            !output_format_words.contains(lowercase(name_match[1].str()))) {
             fact.name = name_match[1].str();
             clause.constrain_measurement_name = true;
             const auto span = original_span(normalized,

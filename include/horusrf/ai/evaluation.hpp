@@ -27,6 +27,12 @@ enum class StructuredResponseStatus {
     ProviderException,
 };
 enum class WarmColdStatus { Cold, Warm, Unknown };
+enum class EvaluationAcceptanceVerdict { Allow, ReviewRequired, Reject };
+
+struct EvaluationAcceptanceDecision final {
+    EvaluationAcceptanceVerdict verdict{EvaluationAcceptanceVerdict::Reject};
+    std::vector<std::string> reason_codes;
+};
 
 struct EvaluationError final {
     AgentErrorCode code{AgentErrorCode::Internal};
@@ -95,6 +101,8 @@ struct CaseEvaluation final {
     bool final_valid{};
     SemanticComparisonStatus semantic_status{SemanticComparisonStatus::NotEvaluated};
     RequirementVerificationResult requirement_verification;
+    RequirementVerificationResult interactive_requirement_verification;
+    EvaluationAcceptanceDecision acceptance_decision;
     SupportAssessment support_assessment;
     bool unsupported_recognized{};
     bool support_assessment_matches{};
@@ -120,6 +128,8 @@ struct CaseEvaluationTrend final {
     std::size_t support_assessment_matches{};
     std::size_t runs_with_repair{};
     std::size_t runs_with_requirement_correction{};
+    std::size_t acceptance_allowed{};
+    std::size_t accepted_requirement_satisfied{};
     bool persistent_requirement_failure{};
     LatencyStatistics latency;
 };
@@ -144,6 +154,10 @@ struct ModelEvaluationSummary final {
     std::size_t requirement_not_evaluated{};
     std::size_t unsupported_recognized{};
     std::size_t support_assessment_matches{};
+    std::size_t acceptance_allowed{};
+    std::size_t acceptance_review_required{};
+    std::size_t acceptance_rejected{};
+    std::size_t accepted_requirement_satisfied{};
     std::size_t distinct_cases{};
     std::size_t repetition_count{};
     double median_case_requirement_success_rate{};

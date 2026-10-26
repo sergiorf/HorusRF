@@ -176,13 +176,28 @@ reliability claim. Its architecture, leakage boundary, benchmark controls, and
 results boundary are recorded in the
 [M6Q.8 structure-aware RAG experiment](ai-generation-rag-experiment.md).
 
-M6Q.9 is a proposed guardrail evaluation. It will separately measure verified
+M6Q.9 Slice 1 completed on 2026-10-26. The five controlled M6Q.8 reports now have
+durable history snapshots, and a deterministic offline replay separately measures
+verified completion, accepted-proposal precision, coverage, safe rejection, and
+3B-to-7B escalation. The completion proxy reached 95.8% accepted precision for
+7B K=3 but still allowed three misnamed-measurement results; the naive cascade
+regressed verified completion to 78.6%. Consequently, reserved correction and
+cascade are not immediate implementation work, and alternate rescue remains
+gated. Slice 2A completed on 2026-10-26: schema-v4 reports now retain the real
+interactive verdict and deterministic allow/review/reject reasons, accepted
+precision and coverage are explicit, and conservative explicit output-name forms
+cover the observed `actual` and `output` gaps with format-word false-positive
+controls. The archiver accepts schema v4 while preserving unavailable legacy
+acceptance values as `null`. Product Apply eligibility remains unchanged. The next
+step is a controlled schema-v4 replay before any gate is proposed for Studio. The
+overall experiment will separately measure verified
 completion, accepted-proposal precision, coverage, safe rejection, provider cost,
 and latency for an explicit acceptance gate, a reserved targeted correction,
 one alternate-retrieval fresh-start rescue, and optional 3B-to-7B escalation.
 Promotion requires a family-separated independent holdout and keeps all calls
 bounded. See the
-[M6Q.9 guardrail evaluation plan](ai-generation-guardrail-evaluation-plan.md).
+[M6Q.9 guardrail evaluation plan](ai-generation-guardrail-evaluation-plan.md) and
+[Slice 1 evidence](ai-generation-guardrail-evidence.md).
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

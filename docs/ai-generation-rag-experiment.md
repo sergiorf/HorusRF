@@ -417,9 +417,9 @@ runs remain deliberately out of scope for this slice.
 - Completed: run deterministic evaluator tests, then the full unfiltered CTest suite because
   the change crosses prompt, agent-observation, and evaluation layers.
 - Installed model digests were verified and the controlled matrix completed on
-  2026-10-26. The aggregate result favors K=3 for 7B and K=1 for 3B; durable
-  archiving and the per-case guardrail-oriented failure taxonomy are the first
-  review slice of M6Q.9.
+  2026-10-26. The aggregate result favors K=3 for 7B and K=1 for 3B. Durable
+  archiving and the per-case guardrail-oriented failure taxonomy were completed
+  by M6Q.9 Slice 1.
 
 ### Slices 5-7 - separately approved follow-ups
 

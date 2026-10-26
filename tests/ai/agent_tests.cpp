@@ -300,6 +300,53 @@ void requirement_violation_is_corrected_test() {
     CHECK(request_contains(provider.requests()[1], "reference_power_mismatch"));
 }
 
+void explicit_output_name_is_corrected_test() {
+    constexpr std::string_view wrong = R"(characterize generated {
+  reference power = -25 dBm
+  sweep frequency 2.3 GHz .. 2.5 GHz step 100 MHz
+  measure actual_power = power
+  measure quality = evm
+  derive error = actual_power - reference.power
+  assert abs(error) <= 1 dB
+  assert quality < 3 %
+  derive calibration combined_cal {
+    correction = -error
+    over frequency
+  }
+}
+)";
+    constexpr std::string_view corrected = R"(characterize generated {
+  reference power = -25 dBm
+  sweep frequency 2.3 GHz .. 2.5 GHz step 100 MHz
+  measure actual = power
+  measure quality = evm
+  derive error = actual - reference.power
+  assert abs(error) <= 1 dB
+  assert quality < 3 %
+  derive calibration combined_cal {
+    correction = -error
+    over frequency
+  }
+}
+)";
+    ai::testing::FakeLlmProvider provider{{proposal(wrong), proposal(corrected)}};
+    ai::AgentSession session{provider};
+    const auto result = session.generate({ai::NaturalLanguageInstruction{
+        "Check 2.3 to 2.5 GHz in 100 MHz increments at -25 dBm. "
+        "Record output as actual and EVM as quality. The magnitude of actual's "
+        "error must not exceed 1 dB, while quality must remain under 3 percent. "
+        "Create the frequency calibration."}});
+
+    const auto& value = completed(result);
+    CHECK_EQ(value.attempt_count(), std::size_t{2});
+    CHECK_EQ(value.requirement_verification().status,
+             ai::RequirementSatisfactionStatus::Satisfied);
+    CHECK_EQ(provider.requests()[1].purpose,
+             ai::LlmCallPurpose::RequirementCorrection);
+    CHECK(request_contains(provider.requests()[1],
+                           "measurement_missing_or_misnamed"));
+}
+
 void unchanged_requirement_violation_stops_test() {
     const std::string changed = std::string{valid_source} + "// still wrong\n";
     ai::testing::FakeLlmProvider provider{{proposal(valid_source), proposal(changed)}};
@@ -424,6 +471,7 @@ int main() {
         unchanged_invalid_candidate_stops_test();
         changed_candidate_with_unchanged_diagnostics_stops_test();
         requirement_violation_is_corrected_test();
+        explicit_output_name_is_corrected_test();
         unchanged_requirement_violation_stops_test();
         repair_and_correction_share_budget_test();
         unusable_and_provider_failures_test();

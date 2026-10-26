@@ -47,8 +47,8 @@ if (-not $OutputDirectory) {
 }
 
 $report = Get-Content -LiteralPath $resolvedReport -Raw | ConvertFrom-Json
-if ($report.schema -ne "horusrf.ai-evaluation" -or $report.version -notin @(1, 2, 3)) {
-    throw "Only horusrf.ai-evaluation schema versions 1, 2, or 3 can be archived."
+if ($report.schema -ne "horusrf.ai-evaluation" -or $report.version -notin @(1, 2, 3, 4)) {
+    throw "Only horusrf.ai-evaluation schema versions 1, 2, 3, or 4 can be archived."
 }
 if (-not $report.cases -or -not $report.summaries) {
     throw "The evaluation report has no cases or summaries."
@@ -107,6 +107,7 @@ $caseTrends = @(
             $latencies = @($items | ForEach-Object { [long]$_.total_latency_ms })
             $repairTotal = ($items | Measure-Object -Property repair_attempts -Sum).Sum
             $hasRequirementVerification = $report.version -ge 2
+            $hasAcceptanceDecision = $report.version -ge 4
             [pscustomobject][ordered]@{
                 model = $first.model
                 case_id = $first.case_id
@@ -124,6 +125,32 @@ $caseTrends = @(
                 } else { $null }
                 requirement_unknown = if ($hasRequirementVerification) {
                     Get-Count $items { $_.requirement_verification.status -eq "unknown" }
+                } else { $null }
+                interactive_requirement_satisfied = if ($hasAcceptanceDecision) {
+                    Get-Count $items { $_.interactive_requirement_verification.status -eq "satisfied" }
+                } else { $null }
+                interactive_requirement_violated = if ($hasAcceptanceDecision) {
+                    Get-Count $items { $_.interactive_requirement_verification.status -eq "violated" }
+                } else { $null }
+                interactive_requirement_unknown = if ($hasAcceptanceDecision) {
+                    Get-Count $items {
+                        $_.interactive_requirement_verification.status -in @("unknown", "not_evaluated")
+                    }
+                } else { $null }
+                acceptance_allowed = if ($hasAcceptanceDecision) {
+                    Get-Count $items { $_.acceptance_decision.verdict -eq "allow" }
+                } else { $null }
+                acceptance_review_required = if ($hasAcceptanceDecision) {
+                    Get-Count $items { $_.acceptance_decision.verdict -eq "review_required" }
+                } else { $null }
+                acceptance_rejected = if ($hasAcceptanceDecision) {
+                    Get-Count $items { $_.acceptance_decision.verdict -eq "reject" }
+                } else { $null }
+                accepted_requirement_satisfied = if ($hasAcceptanceDecision) {
+                    Get-Count $items {
+                        $_.acceptance_decision.verdict -eq "allow" -and
+                        $_.requirement_verification.status -eq "satisfied"
+                    }
                 } else { $null }
                 semantic_matches = Get-Count $items { $_.semantic_status -eq "match" }
                 unsupported_recognized = Get-Count $items { $_.unsupported_recognized }

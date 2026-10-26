@@ -135,11 +135,21 @@ void supported_and_unsupported_report_test() {
              ai::SemanticComparisonStatus::Match);
     CHECK_EQ(report.cases[0].requirement_verification.status,
              ai::RequirementSatisfactionStatus::Satisfied);
+    CHECK_EQ(report.cases[0].interactive_requirement_verification.status,
+             ai::RequirementSatisfactionStatus::NotEvaluated);
+    CHECK_EQ(report.cases[0].acceptance_decision.verdict,
+             ai::EvaluationAcceptanceVerdict::ReviewRequired);
+    CHECK_EQ(report.cases[0].acceptance_decision.reason_codes,
+             std::vector<std::string>{"interactive_requirements_not_evaluated"});
     CHECK(report.cases[1].unsupported_recognized);
     CHECK(report.cases[0].support_assessment_matches);
     CHECK(report.cases[1].support_assessment_matches);
     CHECK_EQ(report.cases[1].generation_status,
              ai::EvaluationGenerationStatus::Unsupported);
+    CHECK_EQ(report.cases[1].acceptance_decision.verdict,
+             ai::EvaluationAcceptanceVerdict::Reject);
+    CHECK_EQ(report.cases[1].acceptance_decision.reason_codes,
+             std::vector<std::string>{"generation_not_completed"});
     CHECK(report.cases[1].attempts.empty());
     CHECK_EQ(report.cases[1].support_assessment.status,
              ai::SupportAssessmentStatus::Unsupported);
@@ -158,6 +168,11 @@ void supported_and_unsupported_report_test() {
     CHECK_EQ(report.summaries[0].requirement_satisfied, std::size_t{1});
     CHECK_EQ(report.summaries[0].unsupported_recognized, std::size_t{1});
     CHECK_EQ(report.summaries[0].support_assessment_matches, std::size_t{2});
+    CHECK_EQ(report.summaries[0].acceptance_allowed, std::size_t{0});
+    CHECK_EQ(report.summaries[0].acceptance_review_required, std::size_t{1});
+    CHECK_EQ(report.summaries[0].acceptance_rejected, std::size_t{1});
+    CHECK_EQ(report.summaries[0].accepted_requirement_satisfied,
+             std::size_t{0});
     CHECK_EQ(report.summaries[0].distinct_cases, std::size_t{2});
     CHECK_EQ(report.summaries[0].repetition_count, std::size_t{1});
     CHECK_EQ(report.case_trends.size(), std::size_t{2});
@@ -183,6 +198,7 @@ void supported_and_unsupported_report_test() {
     ai::write_evaluation_json(json, report);
     CHECK(json.str().find("\"schema\":\"horusrf.ai-evaluation\"") !=
           std::string::npos);
+    CHECK(json.str().find("\"version\":4") != std::string::npos);
     CHECK(json.str().find("\"unsupported_recognized\":true") !=
           std::string::npos);
     CHECK(json.str().find("\"scoring_version\":\"evaluation-trends-v1\"") !=
@@ -191,6 +207,12 @@ void supported_and_unsupported_report_test() {
     CHECK(json.str().find("\"support_assessment\":{\"status\":\"unsupported\"") !=
           std::string::npos);
     CHECK(json.str().find("\"generated_source\":") != std::string::npos);
+    CHECK(json.str().find(
+              "\"interactive_requirement_verification\":{\"status\":\"not_evaluated\"") !=
+          std::string::npos);
+    CHECK(json.str().find(
+              "\"acceptance_decision\":{\"verdict\":\"review_required\",\"reason_codes\":[\"interactive_requirements_not_evaluated\"]}") !=
+          std::string::npos);
     CHECK(json.str().find("\"compiler_duration_ns\":100000000") !=
           std::string::npos);
     CHECK(json.str().find("\"verification_duration_ns\":100000000") !=
@@ -357,6 +379,13 @@ void requirement_correction_is_observable_test() {
              ai::EvaluationCallPurpose::RequirementCorrection);
     CHECK_EQ(report.cases[0].requirement_verification.status,
              ai::RequirementSatisfactionStatus::Satisfied);
+    CHECK_EQ(report.cases[0].interactive_requirement_verification.status,
+             ai::RequirementSatisfactionStatus::Satisfied);
+    CHECK_EQ(report.cases[0].acceptance_decision.verdict,
+             ai::EvaluationAcceptanceVerdict::Allow);
+    CHECK_EQ(report.summaries[0].acceptance_allowed, std::size_t{1});
+    CHECK_EQ(report.summaries[0].accepted_requirement_satisfied,
+             std::size_t{1});
 
     std::ostringstream json;
     ai::write_evaluation_json(json, report);
@@ -365,9 +394,26 @@ void requirement_correction_is_observable_test() {
     CHECK(json.str().find("\"candidate_hash\":") != std::string::npos);
     CHECK(json.str().find("\"diagnostic_set_changed\":") !=
           std::string::npos);
+
+    ai::testing::FakeLlmProvider stuck_provider{{response(wrong_source),
+                                                 response(wrong_source)}};
+    ai::GoldenDataset stuck_dataset{"1.0.0", {golden("stuck", true)}};
+    stuck_dataset.cases[0].prompt = "Use reference power 3 dBm.";
+    const auto stuck = ai::evaluate_golden_dataset(
+        stuck_dataset, stuck_provider, settings, {}, fixed_clock());
+    CHECK_EQ(stuck.cases[0].generation_status,
+             ai::EvaluationGenerationStatus::Failed);
+    CHECK(stuck.cases[0].final_valid);
+    CHECK_EQ(stuck.cases[0].interactive_requirement_verification.status,
+             ai::RequirementSatisfactionStatus::Violated);
+    CHECK_EQ(stuck.cases[0].acceptance_decision.verdict,
+             ai::EvaluationAcceptanceVerdict::Reject);
+    CHECK_EQ(stuck.cases[0].acceptance_decision.reason_codes,
+             (std::vector<std::string>{"generation_not_completed",
+                                       "interactive_requirements_violated"}));
 }
 
-void schema_v2_diagnostics_and_differences_test() {
+void schema_v4_diagnostics_and_differences_test() {
     const std::string different_source = R"(characterize generated {
   reference power = 4 dBm
   sweep frequency 915 MHz .. 915 MHz step 1 MHz
@@ -405,7 +451,7 @@ void schema_v2_diagnostics_and_differences_test() {
 
     std::ostringstream json;
     ai::write_evaluation_json(json, report);
-    CHECK(json.str().find("\"version\":3") != std::string::npos);
+    CHECK(json.str().find("\"version\":4") != std::string::npos);
     CHECK(json.str().find("\"prompt_configuration_id\":\"direct-dsl-v1\"") !=
           std::string::npos);
     CHECK(json.str().find("\"purpose\":\"compiler_repair\"") !=
@@ -490,7 +536,7 @@ void structural_rag_evaluation_provenance_test() {
 
     std::ostringstream json;
     ai::write_evaluation_json(json, report);
-    CHECK(json.str().find("\"version\":3") != std::string::npos);
+    CHECK(json.str().find("\"version\":4") != std::string::npos);
     CHECK(json.str().find("\"corpus_load_status\":\"loaded\"") !=
           std::string::npos);
     CHECK(json.str().find("\"ranking_id\":\"structural-rag-ranking-v1\"") !=
@@ -554,7 +600,7 @@ int main() {
         typed_support_denominator_test();
         repair_and_failure_test();
         requirement_correction_is_observable_test();
-        schema_v2_diagnostics_and_differences_test();
+        schema_v4_diagnostics_and_differences_test();
         malformed_response_and_cancellation_test();
         structural_rag_evaluation_provenance_test();
         invalid_settings_test();
