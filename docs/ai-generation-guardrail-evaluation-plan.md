@@ -4,9 +4,11 @@
 plus name-fidelity coverage completed on 2026-10-26. The controlled schema-v4
 replay completed on 2026-10-27: 7B K=3 reached 100% accepted precision and
 85.7% verified completion/coverage on the development suite, while 3B K=1
-retained a strict-limit acceptance gap. Ranked-candidate observability and the
-3B strictness gap are next; no product Apply-gate or default-prompt change is
-approved by this plan. See the
+retained a calibration-direction acceptance gap. A strict-adverb extraction
+follow-up confirmed that the accepted 3B assertions were already strict and
+that only the correction sign violated the curated oracle. Calibration
+verification policy and ranked-candidate observability are next; no product
+Apply-gate or default-prompt change is approved by this plan. See the
 [Slice 1 evidence report](ai-generation-guardrail-evidence.md).
 
 ## 1. Decision to make

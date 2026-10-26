@@ -7,8 +7,10 @@ M6Q.9 Slice 1 offline evidence replay and Slice 2A acceptance observability plus
 name-fidelity coverage completed on 2026-10-26. The controlled schema-v4 replay
 completed on 2026-10-27; 7B K=3 reached 100% accepted precision and 85.7%
 verified completion/coverage on the development suite. Product gating remains
-unapproved; ranked-candidate observability and the remaining 3B strict-limit gap
-are next.
+unapproved. A 2026-10-27 strict-adverb extraction follow-up corrected the
+remaining 3B diagnosis: its assertions were strict, but calibration correction
+had the wrong sign. Calibration verification policy and ranked-candidate
+observability are next.
 
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  

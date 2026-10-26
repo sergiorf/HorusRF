@@ -642,15 +642,21 @@ std::vector<RequirementClause> extract_requirements(std::string_view instruction
     const std::regex assertion{
         "(absolute\\s+)?(output[- ]power|power|evm|quality|carrier(?:\\s+frequency)?\\s+error|frequency\\s+error|offset)"
         "(?:\\s+error)?(?:\\s+to\\s+be)?\\s+"
-        "(within|at\\s+most|no\\s+more\\s+than|no\\s+greater\\s+than|below|less\\s+than|"
-        "at\\s+least|no\\s+less\\s+than|above|greater\\s+than)\\s+(" +
+        "(strictly\\s+below|strictly\\s+less\\s+than|strictly\\s+above|"
+        "strictly\\s+greater\\s+than|within|at\\s+most|no\\s+more\\s+than|"
+        "no\\s+greater\\s+than|below|less\\s+than|at\\s+least|"
+        "no\\s+less\\s+than|above|greater\\s+than)\\s+(" +
         number_pattern + ")\\s*(dB|%|Hz|kHz|MHz)\\b",
         std::regex_constants::icase};
     for (std::sregex_iterator match{normalized.text.begin(), normalized.text.end(),
                                     assertion}, end;
          match != end; ++match) {
         const std::string subject = lowercase((*match)[2].str());
-        const std::string comparison = lowercase((*match)[3].str());
+        std::string comparison = lowercase((*match)[3].str());
+        constexpr std::string_view strict_prefix{"strictly "};
+        if (comparison.starts_with(strict_prefix)) {
+            comparison.erase(0, strict_prefix.size());
+        }
         ir::ValueType type = ir::ValueType::PowerDelta;
         if (subject == "evm" || subject == "quality") type = ir::ValueType::Ratio;
         else if (subject.find("frequency") != std::string::npos || subject == "offset" ||

@@ -194,10 +194,13 @@ controlled schema-v4 replay completed on 2026-10-27. The real 7B K=3 gate allowe
 precision and 85.7% verified completion/coverage. The observed name gap was
 closed, but the result remains below the 90% promotion target and has no
 independent holdout. The 3B K=1 gate reached only 93.3% accepted precision because
-it allowed three inclusive limits for a strict-limit request. Product gating and
-cascade therefore remain blocked. The next work is conservative strict-limit
-extraction coverage plus ranked-candidate observability before any alternate
-rescue implementation. The overall experiment will separately measure verified
+it allowed three proposals with the wrong calibration sign. A follow-up added
+conservative `strictly below`/`above` assertion extraction, but replay proved all
+three candidates already used the correct strict operator; only calibration
+direction violated the curated oracle. Product gating and cascade therefore
+remain blocked. The next work is calibration-correction verification policy plus
+ranked-candidate observability before any alternate rescue implementation. The
+overall experiment will separately measure verified
 completion, accepted-proposal precision, coverage, safe rejection, provider cost,
 and latency for an explicit acceptance gate, a reserved targeted correction,
 one alternate-retrieval fresh-start rescue, and optional 3B-to-7B escalation.

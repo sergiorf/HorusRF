@@ -1,8 +1,9 @@
 # HorusRF M6Q.9 Slice 1 guardrail evidence
 
-**Status:** Completed on 2026-10-26 from the controlled M6Q.8 development
-reports. This is an offline replay and failure review; it makes no new live-model
-or product-quality claim.
+**Status:** Slice 1 completed on 2026-10-26 from the controlled M6Q.8
+development reports. Slice 2A and the controlled schema-v4 replay completed by
+2026-10-27. A follow-up strict-adverb extraction audit corrected the remaining
+3B failure diagnosis to calibration direction. No product gate is approved.
 
 ## 1. Inputs and reproducibility
 
@@ -162,10 +163,13 @@ oracle. The 7B gate rejects all 18 other runs: three unsupported requests and
 `calibration_sign_paraphrase`, `mixed_supported_unsupported_sweeps`,
 `ambiguous_power_range`, and `inclusive_frequency_error`.
 
-The 3B gate still unsafely allows all three `strict_power_limit` runs because
-interactive extraction treats the generated inclusive limit as satisfied while
-the curated strictness requirement rejects it. This blocks a renewed cascade
-experiment and identifies the next conservative extractor gap.
+The 3B gate still unsafely allows all three `strict_power_limit` runs. A
+candidate-level audit found that every generated assertion correctly uses the
+requested strict `<` operator; the curated violation is instead the calibration
+sign. The candidates apply `rx - reference.power`, while the curated correction
+is `reference.power - rx`. Interactive extraction checks the calibration index
+but deliberately leaves correction direction unconstrained, so the real gate
+does not see this mismatch. This blocks a renewed cascade experiment.
 
 The complete reports remain under `build/ai-evaluation/`. Reviewed immutable
 snapshots are retained as
@@ -178,9 +182,10 @@ and
 1. **Do not enable a product Apply gate yet.** The 7B development result has a
    100% accepted-precision point estimate, but verified completion is 85.7%,
    below the 90% promotion target, and no independent holdout has run.
-2. **Close the strict-comparison extraction gap before reconsidering cascade.**
-   Add conservative coverage for explicit strict limits and false-positive
-   controls, then replay the affected cases offline.
+2. **Close the calibration-correction acceptance gap before reconsidering
+   cascade.** Determine when correction direction is explicit enough to verify;
+   otherwise route the uncheckable calibration semantics to `review_required`
+   instead of silently allowing it.
 3. **Continue to reject `g2-reserved-correction`.** No 7B failure exhausted the
    shared budget; every attempted follow-up stopped on unchanged evidence.
 4. **Make ranked-candidate observability the next rescue prerequisite.** Retain
@@ -189,3 +194,18 @@ and
    `g3-alternate-rescue` behavior.
 5. **Keep `g4-cascade` blocked.** The 3B gate is not precise enough, and the
    earlier paired cascade quality regression remains unresolved.
+
+## 9. Strict-adverb extraction follow-up
+
+**Completed on 2026-10-27.** The interactive extractor now recognizes the
+unambiguous forms `strictly below`, `strictly less than`, `strictly above`, and
+`strictly greater than`, preserving `<` or `>` in the typed assertion clause.
+Deterministic tests verify the real `strict_power_limit` prompt, reject an
+inclusive `<=` candidate, and ensure `strictly within` and `strictly at most`
+do not invent strict semantics.
+
+Replaying the three retained 3B candidates showed that this improvement does not
+change their acceptance result: all three already contain the correct strict
+assertion and fail only the curated calibration-correction requirement. The
+replay therefore corrects the diagnosis rather than claiming an accepted-
+precision improvement.

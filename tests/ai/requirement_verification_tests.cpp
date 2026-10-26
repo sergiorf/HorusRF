@@ -57,6 +57,14 @@ bool has_named_measurement(const std::vector<ai::RequirementClause>& clauses,
     });
 }
 
+bool has_assertion_operator(const std::vector<ai::RequirementClause>& clauses,
+                            ir::ComparisonOperator op) {
+    return std::ranges::any_of(clauses, [op](const auto& clause) {
+        return clause.kind == ai::RequirementKind::Assertion &&
+               clause.assertion && clause.assertion->op == op;
+    });
+}
+
 ai::RequirementVerificationResult verify(const ai::GoldenCase& golden,
                                          std::string_view source) {
     const auto facts = ai::compile_program_facts(source);
@@ -271,6 +279,37 @@ void interactive_extraction_test(const ai::GoldenDataset& dataset) {
     result = ai::verify_instruction_requirements(
         "Require absolute power error below 1.5 dB.", *facts);
     CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+
+    const auto& strict = find_case(dataset, "strict_power_limit");
+    facts = ai::compile_program_facts(strict.expected_source);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(strict.prompt, *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Satisfied);
+    changed = replace_once(strict.expected_source, "< 0.75 dB", "<= 0.75 dB");
+    facts = ai::compile_program_facts(changed);
+    CHECK(facts.has_value());
+    result = ai::verify_instruction_requirements(strict.prompt, *facts);
+    CHECK_EQ(result.status, ai::RequirementSatisfactionStatus::Violated);
+    CHECK(has_code(result, "assertion_missing_or_different"));
+
+    clauses = ai::extract_requirements(
+        "Require absolute power error strictly below 1 dB.");
+    CHECK(has_assertion_operator(clauses, ir::ComparisonOperator::Less));
+    clauses = ai::extract_requirements(
+        "Require absolute power error strictly less than 1 dB.");
+    CHECK(has_assertion_operator(clauses, ir::ComparisonOperator::Less));
+    clauses = ai::extract_requirements(
+        "Require absolute power error strictly above 1 dB.");
+    CHECK(has_assertion_operator(clauses, ir::ComparisonOperator::Greater));
+    clauses = ai::extract_requirements(
+        "Require absolute power error strictly greater than 1 dB.");
+    CHECK(has_assertion_operator(clauses, ir::ComparisonOperator::Greater));
+    clauses = ai::extract_requirements(
+        "Describe whether absolute power error is strictly within 1 dB.");
+    CHECK(!has_kind(clauses, ai::RequirementKind::Assertion));
+    clauses = ai::extract_requirements(
+        "Describe whether absolute power error is strictly at most 1 dB.");
+    CHECK(!has_kind(clauses, ai::RequirementKind::Assertion));
 
     auto wrong_step = replace_once(assertion.expected_source, "step 25 MHz",
                                    "step 20 MHz");

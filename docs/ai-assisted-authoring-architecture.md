@@ -202,10 +202,12 @@ repair request. Provider warnings are preserved. After compiler success, a
 conservative interactive extractor converts explicit supported requirements to
 typed clauses, retaining source text and offsets, and verifies them against a
 read-only projection of the lowered IR. Canonical quantities accept equivalent
-unit spellings. Recognized ambiguity remains unknown rather than becoming an
-invented requirement. The immutable proposal reports requirement satisfaction
-separately from compiler validity; this is a review diagnostic and does not alter
-Apply eligibility in M6Q.3.
+unit spellings. Explicit assertion phrases include inclusive limits and strict
+`below`, `less than`, `above`, and `greater than` forms, including their
+unambiguous `strictly` variants. Recognized ambiguity remains unknown rather than
+becoming an invented requirement. The immutable proposal reports requirement
+satisfaction separately from compiler validity; this is a review diagnostic and
+does not alter Apply eligibility in M6Q.3.
 
 ## CLI compatibility
 
