@@ -1,11 +1,11 @@
 # HorusRF M6Q.8 structure-aware RAG experiment
 
-**Status:** Slices 1 through 3 and the Slice 4 evaluation/reporting integration
-are implemented. The full 35-test offline gate and a one-case 3B
-`structural-rag-v1` K=1 live smoke pass; the controlled A/B/K matrix and its
-reviewed report remain pending. The embedding and
-compiler-skeleton phases remain gated follow-up experiments, not part of the
-initial implementation.
+**Status:** Slices 1 through 4 are implemented. The full 35-test offline gate,
+one-case 3B smoke, and controlled A/B/K development matrix completed by
+2026-10-26. Structural RAG K=3 improved 7B requirement satisfaction to 69/84
+(82.1%) and strict semantic matches to 60/84 (71.4%); K=1 remained best for 3B.
+The independent acceptance benchmark, embeddings, and compiler-skeleton phases
+remain gated follow-up work and are not part of this result.
 
 **Design inspection revision:** `50b4d1bf4ed1b9f76df714221df4f99c252896fe`
 (2026-10-23). The comparison run below was produced at
@@ -416,8 +416,10 @@ runs remain deliberately out of scope for this slice.
 - Completed: add CLI/script settings and versioned report/history provenance.
 - Completed: run deterministic evaluator tests, then the full unfiltered CTest suite because
   the change crosses prompt, agent-observation, and evaluation layers.
-- Installed model digests are verified. Run the controlled matrix and publish aggregate
-  plus per-case improvement/regression analysis before any optional work.
+- Installed model digests were verified and the controlled matrix completed on
+  2026-10-26. The aggregate result favors K=3 for 7B and K=1 for 3B; durable
+  archiving and the per-case guardrail-oriented failure taxonomy are the first
+  review slice of M6Q.9.
 
 ### Slices 5-7 - separately approved follow-ups
 
@@ -450,9 +452,8 @@ prompt configuration, versioned evaluation provenance, raw and archived A/B
 results, and per-case failure analysis. Later deliverables are conditional on
 their gates.
 
-The final report must answer with measured evidence whether RAG beats
-`direct-dsl-v1`, whether structural retrieval beats
-`direct-dsl-relevant-v1`, whether either model benefits more, which error classes
-change, what happens to end-to-end latency, and whether the independent supported
-holdout exceeds 80%. It must report embeddings and skeletons as not evaluated
-unless their separate gated experiments actually run.
+The development report shows that structural RAG beats `direct-dsl-v1` and
+`direct-dsl-relevant-v1` for 7B, with K=3 reaching 82.1% requirement satisfaction;
+3B instead regresses as K grows beyond 1. The independent supported holdout has
+not run, so no unseen-request claim is made. Embeddings and skeletons remain not
+evaluated unless their separate gated experiments actually run.

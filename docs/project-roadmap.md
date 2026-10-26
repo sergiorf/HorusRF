@@ -161,19 +161,28 @@ success variability, repair/correction rates, and per-case median/P90 latency. I
 offline acceptance gate passes; independent fixture review and the opt-in 3–5
 repetition live run and report review remain before the milestone can be closed.
 
-M6Q.8 is an active, gated structure-aware retrieval experiment. Its independent
+M6Q.8 completed its controlled development benchmark on 2026-10-26. Its independent
 compiler-validated corpus, deterministic structural retriever, and opt-in
 `structural-rag-v1` prompt integration are complete. Evaluation settings and
 schema-v3 run/per-case/aggregate retrieval reporting are complete, including
-schema-v1/v2 archive compatibility; the full offline gate and a one-case 3B live
-smoke pass. The controlled A/B/K live matrix and analysis remain pending. The integration retrieves only for the
+schema-v1/v2 archive compatibility, the full offline gate, and live smoke test.
+The controlled A/B/K matrix found that 7B K=3 reached 69/84 (82.1%) requirement
+satisfaction and 60/84 (71.4%) strict semantic matches, while additional context
+regressed 3B quality. The integration retrieves only for the
 initial generation prompt, preserves local provenance outside provider payloads,
 and leaves repair, correction, the baseline, and Studio defaults unchanged. The
-experiment will compare structural retrieval
-against both the baseline and the existing feature selector before considering
-embeddings or compiler-backed skeletons. Its architecture, leakage boundary,
-benchmark controls, and stop criteria are recorded in the
+result is promising development evidence, not an independent holdout or product
+reliability claim. Its architecture, leakage boundary, benchmark controls, and
+results boundary are recorded in the
 [M6Q.8 structure-aware RAG experiment](ai-generation-rag-experiment.md).
+
+M6Q.9 is a proposed guardrail evaluation. It will separately measure verified
+completion, accepted-proposal precision, coverage, safe rejection, provider cost,
+and latency for an explicit acceptance gate, a reserved targeted correction,
+one alternate-retrieval fresh-start rescue, and optional 3B-to-7B escalation.
+Promotion requires a family-separated independent holdout and keeps all calls
+bounded. See the
+[M6Q.9 guardrail evaluation plan](ai-generation-guardrail-evaluation-plan.md).
 
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the

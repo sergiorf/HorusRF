@@ -1,13 +1,18 @@
 # HorusRF AI generation quality improvement plan
 
 **Status:** M6Q.0 through M6Q.6 completed on 2026-10-23; M6Q.7 implementation
-completed on 2026-10-23, with fixture review and the opt-in live acceptance run
-pending; M6Q.8 has a Phase 0 design pending review.
+completed on 2026-10-23, with fixture review and the independent acceptance run
+pending. M6Q.8's controlled development benchmark completed on 2026-10-26;
+M6Q.9 guardrail evaluation is proposed.
 
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
 **Reviewed baseline artifact:** `build/ai-evaluation/results-20261021-193036.json`
 from dataset 1.0.0 at revision `66e692f5d76db7e91273ca59fa8fdfa963e97c1d`
+
+The retrieval experiment and proposed next evaluation are specified separately in
+the [M6Q.8 structure-aware RAG experiment](ai-generation-rag-experiment.md) and
+[M6Q.9 guardrail evaluation plan](ai-generation-guardrail-evaluation-plan.md).
 
 ## 1. Outcome
 
