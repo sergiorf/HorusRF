@@ -1,9 +1,12 @@
 # HorusRF M6Q.9 guardrail evaluation plan
 
 **Status:** Slice 1 offline evidence replay and Slice 2A acceptance observability
-plus name-fidelity coverage completed on 2026-10-26. A controlled schema-v4
-replay is next. No product Apply-gate or default-prompt change is approved by
-this plan. See the
+plus name-fidelity coverage completed on 2026-10-26. The controlled schema-v4
+replay completed on 2026-10-27: 7B K=3 reached 100% accepted precision and
+85.7% verified completion/coverage on the development suite, while 3B K=1
+retained a strict-limit acceptance gap. Ranked-candidate observability and the
+3B strictness gap are next; no product Apply-gate or default-prompt change is
+approved by this plan. See the
 [Slice 1 evidence report](ai-generation-guardrail-evidence.md).
 
 ## 1. Decision to make

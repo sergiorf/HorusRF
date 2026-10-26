@@ -93,3 +93,14 @@ denominators. These are development results, not an independent holdout claim.
 | `m6q8-controlled-structural-rag-k2-r3.json` | 7B | 75/90 | 63/84 | 54/84 | 8.214 / 18.414 s |
 | `m6q8-controlled-structural-rag-k3-r3.json` | 3B | 42/90 | 30/84 | 24/84 | 8.166 / 14.360 s |
 | `m6q8-controlled-structural-rag-k3-r3.json` | 7B | 75/90 | 69/84 | 60/84 | 9.448 / 22.591 s |
+
+M6Q.9 adds the schema-v4 real acceptance verdict. These controlled development
+runs retain the same dataset, oracle, comparison, retrieval corpus, ranking, and
+three-repetition settings as the selected M6Q.8 controls. Accepted precision is
+curated-requirement success among `allow` decisions; coverage uses the 84
+applicable runs.
+
+| Snapshot | Model | Final valid | Requirements | Accepted precision | Coverage | Median / P90 latency |
+|---|---|---:|---:|---:|---:|---:|
+| `m6q9-controlled-schema-v4-structural-rag-k1-3b-r3.json` | 3B | 48/90 | 42/84 | 42/45 (93.3%) | 45/84 (53.6%) | 4.739 / 11.033 s |
+| `m6q9-controlled-schema-v4-structural-rag-k3-7b-r3.json` | 7B | 75/90 | 72/84 | 72/72 (100.0%) | 72/84 (85.7%) | 9.667 / 22.251 s |

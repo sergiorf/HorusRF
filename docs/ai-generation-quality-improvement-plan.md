@@ -4,8 +4,11 @@
 completed on 2026-10-23, with fixture review and the independent acceptance run
 pending. M6Q.8's controlled development benchmark completed on 2026-10-26.
 M6Q.9 Slice 1 offline evidence replay and Slice 2A acceptance observability plus
-name-fidelity coverage completed on 2026-10-26. A controlled schema-v4 replay is
-next; product gating remains unapproved.
+name-fidelity coverage completed on 2026-10-26. The controlled schema-v4 replay
+completed on 2026-10-27; 7B K=3 reached 100% accepted precision and 85.7%
+verified completion/coverage on the development suite. Product gating remains
+unapproved; ranked-candidate observability and the remaining 3B strict-limit gap
+are next.
 
 **Scope:** Local natural-language-to-HorusRF generation, validation, correction,
 evaluation, and performance  
