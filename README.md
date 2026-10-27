@@ -57,6 +57,10 @@ Studio provides editing, validation, execution, result visualization, and option
 local AI-assisted authoring through Ollama. On Windows, `scripts/run-studio.cmd`
 configures, builds, tests, and launches it.
 
+The [small-model DSL guardrail demo](docs/ai-guardrail-demo.md) documents the
+compiler-backed safety flow, controlled evaluation command, recording sequence,
+and the boundary of the published development-suite claims.
+
 To start Ollama and preload the default Qwen model on Windows, run:
 
 ```powershell
