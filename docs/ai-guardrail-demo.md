@@ -68,6 +68,14 @@ The safety properties worth showing are:
   violations are not counted as successful generation;
 - generated source is never executed automatically.
 
+Studio uses the packaged, compiler-validated structural corpus with K=3 for
+initial generation. It does not silently fall back when that corpus is missing or
+invalid. Compiler repairs receive diagnostic-specific quantity types, valid units,
+the failing source span, and a small validated syntax form; the compiler still
+decides whether the returned script is valid. A repair that merely claims to make
+a change while leaving the script or diagnostics unchanged stops as
+`no_progress`.
+
 ## Reproduce the controlled run
 
 The normal test suite is offline and does not require Ollama. The live benchmark
@@ -136,6 +144,11 @@ compiler-valid proposal for explicit human review and Apply, but the three-state
 acceptance decision is currently evaluation evidence rather than a product Apply
 gate. Applying source changes only the editor; running the experiment remains a
 separate user action.
+
+When repair fails, Studio labels the source as a **Rejected candidate**, opens the
+Validation tab, identifies explanation and warnings as untrusted model output,
+and keeps Apply disabled. This rejected source is retained for diagnosis; it is
+not a successful proposal.
 
 ## Short-form narrative
 

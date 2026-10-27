@@ -247,6 +247,12 @@ the GUI thread. Only one authoring or discovery operation may be active, and the
 service joins its worker during destruction so callbacks cannot reach destroyed
 widgets. Tests inject the provider-neutral `AssistantBackend`; production composes
 the same boundary with `OllamaProvider`, `PromptBuilder`, and `AgentSession`.
+Production Studio packages the compiler-validated structural retrieval corpus next
+to the executable, validates it once on the worker thread, and uses
+`structural-rag-v1` with K=3 for initial generation. Retrieval remains absent from
+repair and requirement-correction requests. A missing or invalid packaged corpus
+stops authoring with an explicit configuration failure before any provider call;
+Studio never silently falls back to the baseline prompt.
 
 The panel snapshots the editor source and document revision when a request starts.
 It shows an indeterminate activity indicator and live elapsed request time against
@@ -255,7 +261,10 @@ run. As the deadline approaches, the display switches to a timeout countdown. It
 then retains the completed end-to-end response time and model-attempt count.
 It displays the complete proposal, a line-oriented change view, explanation,
 warnings, compiler diagnostics, and per-clause requirement verification without
-modifying the editor. Apply is
+modifying the editor. Failed compiler repair is labeled as a rejected candidate,
+selects the Validation tab, and distinguishes untrusted model explanations and
+warnings from authoritative compiler diagnostics. A compiler-valid proposal that
+still needs requirement review is labeled separately. Apply is
 enabled only for a compiler-valid proposal whose snapshot is still current. It
 replaces the editor in one undoable edit block, does not save, and does not invoke
 `ExperimentRunner`. Discard and retry are explicit. Endpoint, installed-model
@@ -345,6 +354,8 @@ comment-free examples, and `direct-dsl-relevant-v1` with deterministic
 feature-tag selection, and opt-in `structural-rag-v1` with a validated local
 corpus and explicit ranking/budget settings. Prompt configuration is evaluation input and remains
 independent of the compiler, runtime, and Studio execution boundaries.
+Studio explicitly selects `structural-rag-v1` K=3 for authoring; the evaluator
+continues to require an explicit configuration so experiments remain reproducible.
 The evaluation-only acceptance decision rejects incomplete, invalid, unsupported,
 or interactively violated proposals; routes partial, uncertain, unknown, and
 not-evaluated outcomes to review; and allows only completed, compiler-valid,

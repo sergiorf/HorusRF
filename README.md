@@ -54,8 +54,10 @@ build/horusrf-studio
 ```
 
 Studio provides editing, validation, execution, result visualization, and optional
-local AI-assisted authoring through Ollama. On Windows, `scripts/run-studio.cmd`
-configures, builds, tests, and launches it.
+local AI-assisted authoring through Ollama. Initial generation uses a packaged,
+compiler-validated structural retrieval corpus with three bounded examples;
+compiler repair remains diagnostic-driven and every candidate is revalidated.
+On Windows, `scripts/run-studio.cmd` configures, builds, tests, and launches it.
 
 The [small-model DSL guardrail demo](docs/ai-guardrail-demo.md) documents the
 compiler-backed safety flow, controlled evaluation command, recording sequence,

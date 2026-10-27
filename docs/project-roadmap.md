@@ -214,6 +214,15 @@ bounded. See the
 [M6Q.9 guardrail evaluation plan](ai-generation-guardrail-evaluation-plan.md) and
 [Slice 1 evidence](ai-generation-guardrail-evidence.md).
 
+Demo-focused Studio hardening subsequently aligned interactive generation with
+the evaluated 7B structural-retrieval policy: Studio packages and validates the
+retrieval corpus, uses K=3 only for initial generation, and fails explicitly if
+the corpus is unavailable. Compiler repairs now receive diagnostic-specific
+quantity-unit guidance and a small validated form while retaining compiler
+revalidation and the existing no-progress stop. Rejected candidates are visibly
+separated from successful proposals and untrusted model explanations are labeled
+as such. This does not enable the evaluation-only three-state product Apply gate.
+
 The complete approved scope, sequencing, acceptance criteria, and safety
 boundaries are defined in the
 [Phase 2 local AI-assisted authoring plan](phase-2-local-ai-assisted-authoring-plan.md).

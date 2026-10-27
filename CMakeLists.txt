@@ -333,6 +333,12 @@ if(HORUSRF_BUILD_STUDIO)
             examples/tx_path_characterization.hrf
             examples/studio_qualification.hrf
     )
+    add_custom_command(TARGET horusrf_studio_ui POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/ai/retrieval"
+            "$<TARGET_FILE_DIR:horusrf_studio_ui>/ai/retrieval"
+        COMMENT "Copying the validated AI retrieval corpus for Studio"
+    )
     horusrf_enable_warnings(horusrf_studio_ui)
 
     add_executable(horusrf-studio src/studio/main.cpp)

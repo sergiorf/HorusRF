@@ -7,6 +7,7 @@
 #include "results_view.hpp"
 #include "syntax_highlighter.hpp"
 
+#include "horusrf/ai/retrieval.hpp"
 #include "horusrf/parser/lexer.hpp"
 
 #include <QAction>
@@ -14,6 +15,7 @@
 #include <QChartView>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QEventLoop>
 #include <QFileInfo>
 #include <QLabel>
@@ -36,6 +38,7 @@
 #include <QtTest>
 
 #include <condition_variable>
+#include <filesystem>
 #include <mutex>
 #include <optional>
 
@@ -89,6 +92,18 @@ QString generatedSource() {
         "}\n");
 }
 
+QString invalidGeneratedSource() {
+    return QStringLiteral(
+        "characterize thermal {\n"
+        "  reference power = -10 dBm\n"
+        "  sweep frequency 5 GHz .. 10 GHz step 1 GHz\n"
+        "  sweep temperature 20 degC .. 40 degC step 10 degC\n"
+        "  measure power\n"
+        "  derive calibration table { correction = reference.power - power "
+        "over frequency, temperature }\n"
+        "}\n");
+}
+
 class FakeAssistantBackend final : public horusrf::studio::AssistantBackend {
 public:
     explicit FakeAssistantBackend(bool blockUntilCancelled = false)
@@ -113,6 +128,22 @@ public:
                    "unsupported_sweep_dimension",
                    "power is not a compiler-supported sweep dimension", 0, 17,
                    "sweep power"}}}};
+        }
+        if (return_invalid_failure) {
+            return horusrf::ai::AgentFailure{
+                {horusrf::ai::AgentErrorCode::NoProgress,
+                 "compiler repair stopped with no progress"},
+                horusrf::ai::ScriptProposal{
+                    horusrf::ai::ScriptSource{invalidGeneratedSource().toStdString()},
+                    horusrf::ai::ValidationResult::invalid({
+                        {horusrf::ai::DiagnosticCategory::Semantic,
+                         "semantic.unexpected_quantity_type",
+                         "expected TemperatureDelta, got Temperature",
+                         {{4, 48, 179}, {4, 55, 186}}},
+                    }),
+                    "The corrected script now uses deltaC.", 2,
+                    {"fake", "test-model"},
+                    {"The calibration dimension was not recognized."}}};
         }
         if (return_valid_failure) {
             return horusrf::ai::AgentFailure{
@@ -152,6 +183,7 @@ public:
         "qwen2.5-coder:3b", "qwen2.5-coder:7b", "qwen3:14b"};
     std::string discovery_error;
     bool block_until_cancelled{};
+    bool return_invalid_failure{};
     bool return_valid_failure{};
     bool return_unsupported{};
     std::mutex mutex;
@@ -268,8 +300,52 @@ private slots:
 
         QTRY_COMPARE(proposal->toPlainText(), generatedSource());
         QCOMPARE(status->text(),
-                 QStringLiteral("requirement correction made no progress"));
+                 QStringLiteral("Review required: requirement correction made no progress"));
         QVERIFY(apply->isEnabled());
+    }
+
+    void assistantLabelsInvalidNoProgressCandidateAsRejected() {
+        auto backend = std::make_shared<FakeAssistantBackend>();
+        backend->return_invalid_failure = true;
+        horusrf::studio::MainWindow window(nullptr, runnerPath(), backend);
+        auto* instruction = window.findChild<QPlainTextEdit*>(
+            QStringLiteral("assistantInstruction"));
+        auto* generate = window.findChild<QPushButton*>(QStringLiteral("assistantGenerate"));
+        auto* proposal = window.findChild<QPlainTextEdit*>(
+            QStringLiteral("assistantProposal"));
+        auto* details = window.findChild<QPlainTextEdit*>(
+            QStringLiteral("assistantDetails"));
+        auto* previews = window.findChild<QTabWidget*>(
+            QStringLiteral("assistantPreviewTabs"));
+        auto* apply = window.findChild<QPushButton*>(QStringLiteral("assistantApply"));
+        auto* status = window.findChild<QLabel*>(QStringLiteral("assistantStatus"));
+
+        instruction->setPlainText(QStringLiteral("Sweep frequency and temperature."));
+        generate->click();
+
+        QTRY_COMPARE(proposal->toPlainText(), invalidGeneratedSource());
+        QVERIFY(!apply->isEnabled());
+        QVERIFY(status->text().startsWith(QStringLiteral("Rejected candidate:")));
+        QCOMPARE(previews->tabText(previews->indexOf(proposal)),
+                 QStringLiteral("Rejected candidate"));
+        QCOMPARE(previews->currentWidget(), details);
+        QVERIFY(details->toPlainText().contains(
+            QStringLiteral("Compiler validation: rejected.")));
+        QVERIFY(details->toPlainText().contains(
+            QStringLiteral("Model explanation (untrusted):")));
+        QVERIFY(details->toPlainText().contains(
+            QStringLiteral("Model warning (untrusted):")));
+        QVERIFY(details->toPlainText().contains(
+            QStringLiteral("expected TemperatureDelta, got Temperature")));
+    }
+
+    void studioShipsValidatedStructuralRetrievalCorpus() {
+        const auto root = std::filesystem::path{
+            QCoreApplication::applicationDirPath().toStdString()} / "ai" / "retrieval";
+        const auto corpus = horusrf::ai::load_retrieval_corpus(root);
+        QVERIFY2(corpus.ok(), root.string().c_str());
+        QCOMPARE(QString::fromStdString(corpus.corpus->corpus_id),
+                 QStringLiteral("horusrf-structural-examples"));
     }
 
     void assistantExplainsUnsupportedRequestWithoutProposal() {

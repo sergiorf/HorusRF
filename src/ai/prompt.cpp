@@ -199,6 +199,51 @@ std::string diagnostic_context(std::string_view code) {
     return output.str();
 }
 
+std::string diagnostic_span_text(std::string_view source, const SourceSpan& span) {
+    if (span.begin.offset >= source.size() || span.end.offset <= span.begin.offset) {
+        return {};
+    }
+    const auto length = std::min(span.end.offset, source.size()) - span.begin.offset;
+    return std::string{source.substr(span.begin.offset, length)};
+}
+
+std::string quantity_repair_guidance(const ValidationDiagnostic& diagnostic,
+                                     std::string_view source) {
+    if (diagnostic.code != "semantic.unexpected_quantity_type") return {};
+    constexpr std::string_view expected_prefix = "expected ";
+    constexpr std::string_view separator = ", got ";
+    if (!diagnostic.message.starts_with(expected_prefix)) return {};
+    const auto separator_position = diagnostic.message.find(separator);
+    if (separator_position == std::string::npos) return {};
+    const std::string expected_type = diagnostic.message.substr(
+        expected_prefix.size(), separator_position - expected_prefix.size());
+
+    std::vector<std::string> units;
+    for (const auto& unit : frontend::get_language_capabilities().units) {
+        if (unit.quantity_type == expected_type) units.push_back(unit.spelling);
+    }
+
+    std::ostringstream output;
+    output << "Actionable compiler-owned repair guidance:\n"
+           << "- The diagnosed expression must have type " << expected_type << ".\n";
+    if (!units.empty()) {
+        output << "- Valid units for " << expected_type << ": " << join(units) << ".\n";
+    }
+    const auto invalid_text = diagnostic_span_text(source, diagnostic.span);
+    if (!invalid_text.empty()) {
+        output << "- The invalid source span is: " << invalid_text << "\n";
+    }
+    if (expected_type == "TemperatureDelta") {
+        output << "- Temperature endpoints use degC or K; temperature steps use deltaC "
+                  "or deltaK.\n"
+               << "- Relevant compiler-validated form: sweep temperature 20 degC .. "
+                  "40 degC step 10 deltaC\n";
+    }
+    output << "Edit the script field itself at the diagnosed span. Merely describing "
+              "the correction in explanation or warnings does not repair the candidate.\n";
+    return output.str();
+}
+
 std::string nearby_lines(std::string_view source, const SourceSpan& span) {
     std::istringstream input{std::string{source}};
     std::vector<std::string> lines;
@@ -549,7 +594,9 @@ LlmRequest PromptBuilder::build_repair(const RepairPromptRequest& request) const
     result.purpose = LlmCallPurpose::CompilerRepair;
     std::ostringstream user;
     user << "Repair the candidate using the compiler diagnostics. Preserve the original "
-            "requirements; change only what is needed.\n<original_request>\n"
+            "requirements; change only what is needed. The script field is authoritative: "
+            "apply every correction to the returned script, not only to explanation or "
+            "warnings. Return the complete revised script.\n<original_request>\n"
          << request.original_instruction.text() << "\n</original_request>\n";
     if (request.original_source) {
         user << "<original_horusrf>\n" << request.original_source->text()
@@ -564,10 +611,14 @@ LlmRequest PromptBuilder::build_repair(const RepairPromptRequest& request) const
              << diagnostic.message << '\n';
         const auto context = diagnostic_context(diagnostic.code);
         if (!context.empty()) user << "Compiler context: " << context << '\n';
+        const auto guidance = quantity_repair_guidance(
+            diagnostic, request.previous_candidate.text());
+        if (!guidance.empty()) user << guidance;
         user << "Nearby candidate lines:\n"
              << nearby_lines(request.previous_candidate.text(), diagnostic.span);
     }
-    user << "</compiler_diagnostics>";
+    user << "Fix diagnostics in source order; a later diagnostic may be a consequence "
+            "of an earlier invalid declaration.\n</compiler_diagnostics>";
     result.messages.push_back({LlmRole::User, user.str()});
     return result;
 }

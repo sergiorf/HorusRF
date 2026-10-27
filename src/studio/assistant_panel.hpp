@@ -68,6 +68,7 @@ private:
     QLabel* latency_;
     QProgressBar* request_progress_;
     QLabel* stale_warning_;
+    QTabWidget* previews_;
     QTimer* latency_timer_;
     QPlainTextEdit* proposal_;
     QPlainTextEdit* changes_;

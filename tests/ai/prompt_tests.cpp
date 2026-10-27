@@ -242,7 +242,7 @@ void exact_legacy_message_regression_test() {
     CHECK_EQ(message_digest(baseline.build_modification(modification)),
              "fnv1a64:28e35ec0b353385b");
     CHECK_EQ(message_digest(baseline.build_repair(repair)),
-             "fnv1a64:261098752c88732c");
+             "fnv1a64:6e4e4b4f826e6572");
     CHECK_EQ(message_digest(baseline.build_requirement_correction(correction)),
              "fnv1a64:e3523a1224a97918");
     CHECK_EQ(message_digest(compact.build_generation(generation)),
@@ -426,6 +426,9 @@ void repair_context_test() {
     CHECK(contains(request, diagnostic.message));
     CHECK(contains(request, "1 |"));
     CHECK(contains(request, "Compiler context: Compiler quantity types:"));
+    CHECK(contains(request, "The script field is authoritative"));
+    CHECK(contains(request, "Merely describing the correction"));
+    CHECK(contains(request, "a later diagnostic may be a consequence"));
     CHECK_EQ(request.purpose, ai::LlmCallPurpose::CompilerRepair);
     CHECK(!contains(request, "Example request:"));
 
@@ -438,6 +441,33 @@ void repair_context_test() {
         threw = true;
     }
     CHECK(threw);
+}
+
+void temperature_delta_repair_guidance_test() {
+    const std::string source =
+        "characterize thermal {\n"
+        "  sweep temperature 20 degC .. 40 degC step 10 degC\n"
+        "}\n";
+    const auto invalid = source.find("10 degC");
+    const ai::ValidationDiagnostic diagnostic{
+        ai::DiagnosticCategory::Semantic,
+        "semantic.unexpected_quantity_type",
+        "expected TemperatureDelta, got Temperature",
+        {{2, 48, invalid}, {2, 55, invalid + std::string_view{"10 degC"}.size()}},
+    };
+    const ai::PromptBuilder builder;
+    const auto request = builder.build_repair({
+        ai::NaturalLanguageInstruction{"Sweep temperature from 20 to 40 degrees."},
+        ai::ScriptSource{source},
+        ai::ValidationResult::invalid({diagnostic}),
+        std::nullopt,
+    });
+
+    CHECK(contains(request, "Valid units for TemperatureDelta: deltaK, deltaC"));
+    CHECK(contains(request, "The invalid source span is: 10 degC"));
+    CHECK(contains(request, "temperature steps use deltaC or deltaK"));
+    CHECK(contains(request, "step 10 deltaC"));
+    CHECK(contains(request, "Edit the script field itself"));
 }
 
 void requirement_correction_context_test() {
@@ -543,6 +573,7 @@ int main() {
         structural_rag_fallback_test();
         modification_context_test();
         repair_context_test();
+        temperature_delta_repair_guidance_test();
         requirement_correction_context_test();
         parser_repair_context_test();
         structured_response_test();

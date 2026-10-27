@@ -209,21 +209,21 @@ AssistantPanel::AssistantPanel(DslEditor* editor, AssistantService* service,
     stale_warning_->setVisible(false);
     layout->addWidget(stale_warning_);
 
-    auto* previews = new QTabWidget(this);
-    previews->setObjectName(QStringLiteral("assistantPreviewTabs"));
-    proposal_ = new QPlainTextEdit(previews);
+    previews_ = new QTabWidget(this);
+    previews_->setObjectName(QStringLiteral("assistantPreviewTabs"));
+    proposal_ = new QPlainTextEdit(previews_);
     proposal_->setObjectName(QStringLiteral("assistantProposal"));
     proposal_->setReadOnly(true);
-    changes_ = new QPlainTextEdit(previews);
+    changes_ = new QPlainTextEdit(previews_);
     changes_->setObjectName(QStringLiteral("assistantChanges"));
     changes_->setReadOnly(true);
-    details_ = new QPlainTextEdit(previews);
+    details_ = new QPlainTextEdit(previews_);
     details_->setObjectName(QStringLiteral("assistantDetails"));
     details_->setReadOnly(true);
-    previews->addTab(proposal_, tr("Proposal"));
-    previews->addTab(changes_, tr("Changes"));
-    previews->addTab(details_, tr("Validation"));
-    layout->addWidget(previews, 1);
+    previews_->addTab(proposal_, tr("Proposal"));
+    previews_->addTab(changes_, tr("Changes"));
+    previews_->addTab(details_, tr("Validation"));
+    layout->addWidget(previews_, 1);
 
     auto* proposal_buttons = new QGridLayout;
     apply_ = new QPushButton(tr("Apply to Editor"), this);
@@ -346,6 +346,7 @@ void AssistantPanel::requestFinished() {
     const ai::ScriptProposal* proposal{};
     std::optional<std::size_t> attempt_count;
     bool completed{};
+    bool failed_candidate{};
     QStringList detail_lines;
     if (const auto* success = std::get_if<ai::ScriptProposal>(result.get())) {
         proposal = success;
@@ -357,6 +358,7 @@ void AssistantPanel::requestFinished() {
                                   fromUtf8(success->provider().model))
                              .arg(success->attempt_count()));
         appendSupportDetails(detail_lines, success->support_assessment());
+        detail_lines.append(tr("Compiler validation: succeeded."));
     } else if (const auto* unsupported =
                    std::get_if<ai::UnsupportedRequest>(result.get())) {
         status_->setText(fromUtf8(unsupported->message));
@@ -368,6 +370,17 @@ void AssistantPanel::requestFinished() {
             proposal = &*failure.proposal;
             attempt_count = failure.proposal->attempt_count();
             proposal_valid_ = failure.proposal->eligible_to_apply();
+            failed_candidate = true;
+            status_->setText(
+                proposal_valid_
+                    ? tr("Review required: %1").arg(fromUtf8(failure.error.message))
+                    : tr("Rejected candidate: %1").arg(fromUtf8(failure.error.message)));
+            detail_lines.append(
+                tr("Repair outcome: %1").arg(fromUtf8(failure.error.message)));
+            detail_lines.append(proposal_valid_
+                                    ? tr("Compiler validation: succeeded; the request "
+                                         "requirements still need review.")
+                                    : tr("Compiler validation: rejected."));
         }
     }
     finishRequestTimer(attempt_count, completed);
@@ -377,11 +390,12 @@ void AssistantPanel::requestFinished() {
         proposal_->setPlainText(source);
         changes_->setPlainText(lineDiff(request_source_, source));
         if (!proposal->explanation().empty()) {
-            detail_lines.append(tr("Explanation: %1")
+            detail_lines.append(tr("Model explanation (untrusted): %1")
                                     .arg(fromUtf8(proposal->explanation())));
         }
         for (const auto& warning : proposal->warnings()) {
-            detail_lines.append(tr("Warning: %1").arg(fromUtf8(warning)));
+            detail_lines.append(
+                tr("Model warning (untrusted): %1").arg(fromUtf8(warning)));
         }
         const auto& verification = proposal->requirement_verification();
         detail_lines.append(
@@ -409,6 +423,12 @@ void AssistantPanel::requestFinished() {
         if (detail_lines.isEmpty()) detail_lines.append(tr("Compiler validation succeeded."));
         details_->setPlainText(detail_lines.join(QLatin1Char('\n')));
         discard_->setEnabled(true);
+        if (failed_candidate) {
+            previews_->setTabText(
+                previews_->indexOf(proposal_),
+                proposal_valid_ ? tr("Review candidate") : tr("Rejected candidate"));
+            previews_->setCurrentWidget(details_);
+        }
     }
     retry_->setEnabled(true);
     updateStaleness();
@@ -575,6 +595,7 @@ void AssistantPanel::clearProposal() {
     apply_->setEnabled(false);
     discard_->setEnabled(false);
     stale_warning_->setVisible(false);
+    previews_->setTabText(previews_->indexOf(proposal_), tr("Proposal"));
 }
 
 } // namespace horusrf::studio
