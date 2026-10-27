@@ -219,6 +219,16 @@ void query_analysis_test() {
     const auto ambiguous = ai::analyze_retrieval_query("Use a power range.");
     CHECK(ambiguous.unknown_evidence_count > 0U);
     CHECK(ambiguous.operations.empty());
+
+    const auto unit_inferred = ai::analyze_retrieval_query(
+        "characterize from 3 to 5 Ghz and from 40 to 80 degress");
+    CHECK_EQ(unit_inferred.sweep_dimensions.size(), std::size_t{2});
+    CHECK_EQ(unit_inferred.sweep_dimensions[0], "frequency");
+    CHECK_EQ(unit_inferred.sweep_dimensions[1], "temperature");
+    CHECK(std::ranges::find(unit_inferred.operations, "sweep_frequency") !=
+          unit_inferred.operations.end());
+    CHECK(std::ranges::find(unit_inferred.operations, "sweep_temperature") !=
+          unit_inferred.operations.end());
 }
 
 void structural_ranking_and_paraphrase_test() {

@@ -97,6 +97,7 @@ void compiler_derived_generation_prompt_test() {
     CHECK(contains(first, "measurementStatement"));
     CHECK(contains(first, "Fixed syntax tokens: characterize, reference, power"));
     CHECK(contains(first, "temperature (endpoints Temperature, step TemperatureDelta, optional)"));
+    CHECK(contains(first, "Semicolons are not part of HorusRF syntax"));
     CHECK(contains(first, "calibration.all_sweeps_in_order"));
     CHECK(contains(first, "Power - Power -> PowerDelta"));
     CHECK(contains(first, "Unsupported features include conditionals"));
@@ -238,17 +239,17 @@ void exact_legacy_message_regression_test() {
         ai::PromptConfiguration::CapabilityRelevant}};
 
     CHECK_EQ(message_digest(baseline.build_generation(generation)),
-             "fnv1a64:62e39d223563fc6c");
+             "fnv1a64:7d481aa6de9e7731");
     CHECK_EQ(message_digest(baseline.build_modification(modification)),
-             "fnv1a64:28e35ec0b353385b");
+             "fnv1a64:21c742a4b3b65e4a");
     CHECK_EQ(message_digest(baseline.build_repair(repair)),
-             "fnv1a64:6e4e4b4f826e6572");
+             "fnv1a64:7869130f31870fcf");
     CHECK_EQ(message_digest(baseline.build_requirement_correction(correction)),
-             "fnv1a64:e3523a1224a97918");
+             "fnv1a64:12e8c392bfef3e7f");
     CHECK_EQ(message_digest(compact.build_generation(generation)),
-             "fnv1a64:5fc3105826664001");
+             "fnv1a64:8afd45805bb333de");
     CHECK_EQ(message_digest(relevant.build_generation(generation)),
-             "fnv1a64:67eaa8e54fcc30a8");
+             "fnv1a64:3f0b91e3a25de829");
 }
 
 void structural_rag_prompt_test() {
@@ -470,6 +471,36 @@ void temperature_delta_repair_guidance_test() {
     CHECK(contains(request, "Edit the script field itself"));
 }
 
+void missing_characterization_identifier_repair_guidance_test() {
+    const ai::PromptBuilder builder;
+    const std::string candidate =
+        "characterize { reference power = 0 dBm; sweep frequency 3 GHz .. 5 GHz "
+        "step 1 GHz; sweep temperature 40 degC .. 80 degC step 10 degC; }";
+    const ai::ValidationDiagnostic diagnostic{
+        ai::DiagnosticCategory::Syntax,
+        "parse.expected_identifier",
+        "expected identifier",
+        {{1, 14, 13}, {1, 15, 14}},
+    };
+
+    const auto request = builder.build_repair({
+        ai::NaturalLanguageInstruction{
+            "characterize from 3 to 5 Ghz and from 40 to 80 degress"},
+        ai::ScriptSource{candidate},
+        ai::ValidationResult::invalid({diagnostic}),
+        std::nullopt,
+    });
+
+    CHECK(contains(request, "the required characterization name is missing"));
+    CHECK(contains(request,
+                   "characterize frequency_temperature_characterization {"));
+    CHECK(contains(request, "Do not add an identifier to `sweep temperature`"));
+    CHECK(contains(request, "remove every `;`"));
+    CHECK(contains(request, "its step must use deltaC or deltaK"));
+    CHECK(contains(request, "the `..` range token is mandatory"));
+    CHECK(contains(request, "Edit the script field itself"));
+}
+
 void requirement_correction_context_test() {
     ai::RequirementOutcome violation;
     violation.requirement_id = "reference-power-1";
@@ -574,6 +605,7 @@ int main() {
         modification_context_test();
         repair_context_test();
         temperature_delta_repair_guidance_test();
+        missing_characterization_identifier_repair_guidance_test();
         requirement_correction_context_test();
         parser_repair_context_test();
         structured_response_test();

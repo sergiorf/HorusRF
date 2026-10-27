@@ -133,7 +133,11 @@ std::string language_context() {
         output << "- " << value.code << ": " << value.description << '\n';
     }
 
-    output << R"(Additional semantic rules:
+    output << R"(Mandatory source shape:
+- A file starts with exactly `characterize <identifier> {` and ends with its matching `}`. The identifier between `characterize` and `{` is required.
+- Sweep declarations do not have user-defined identifiers. Their fixed forms start `sweep frequency ...` or `sweep temperature ...`.
+- Statements have no terminator. Semicolons are not part of HorusRF syntax and must never appear.
+Additional semantic rules:
 - A file contains exactly one characterize block. Statements are resolved in source order; no forward references.
 - Frequency endpoints/steps use frequency units. Temperature endpoints use K or degC; steps use deltaK or deltaC. Absolute temperatures cannot be below 0 K.
 - Power - Power -> PowerDelta; Power + PowerDelta -> Power; PowerDelta + PowerDelta -> PowerDelta. Operand order matters. Other Power arithmetic is invalid.
@@ -240,6 +244,70 @@ std::string quantity_repair_guidance(const ValidationDiagnostic& diagnostic,
                   "40 degC step 10 deltaC\n";
     }
     output << "Edit the script field itself at the diagnosed span. Merely describing "
+              "the correction in explanation or warnings does not repair the candidate.\n";
+    return output.str();
+}
+
+std::string syntax_repair_guidance(const ValidationDiagnostic& diagnostic,
+                                   std::string_view source) {
+    if (!diagnostic.code.starts_with("parse.")) return {};
+
+    std::ostringstream output;
+    output << "Actionable compiler-owned syntax repair guidance:\n"
+           << "- An identifier is a user-defined name made from letters, digits, and "
+              "underscores; it is not a sweep dimension.\n";
+
+    const auto offset = std::min(diagnostic.span.begin.offset, source.size());
+    const auto prefix = source.substr(0, offset);
+    const auto characterize = prefix.rfind("characterize");
+    const bool missing_characterization_name =
+        diagnostic.code == "parse.expected_identifier" &&
+        characterize != std::string_view::npos &&
+        prefix.substr(characterize + std::string_view{"characterize"}.size())
+                .find_first_not_of(" \t\r\n") == std::string_view::npos &&
+        offset < source.size() && source[offset] == '{';
+
+    if (missing_characterization_name) {
+        output << "- The diagnostic points to `{` immediately after `characterize`: "
+                  "the required characterization name is missing.\n"
+               << "- Replace `characterize {` with `characterize "
+                  "frequency_temperature_characterization {`.\n"
+               << "- Do not add an identifier to `sweep temperature`; its valid fixed "
+                  "form is `sweep temperature <start> .. <end> step <delta>`.\n";
+    } else if (diagnostic.code == "parse.expected_identifier") {
+        output << "- Insert a valid identifier at the diagnosed location. The mandatory "
+                  "root form is `characterize <identifier> { ... }`.\n";
+    }
+    const auto first_brace = source.find('{');
+    if (diagnostic.code == "parse.unexpected_token" &&
+        (first_brace == std::string_view::npos || offset < first_brace)) {
+        output << "- The token is inside a malformed characterization header. Replace the "
+                  "entire header through `{` with `characterize "
+                  "frequency_temperature_characterization {`; do not turn request words "
+                  "or numeric ranges into the identifier.\n";
+    }
+    if (diagnostic.code == "parse.invalid_token") {
+        const auto invalid_text = diagnostic_span_text(source, diagnostic.span);
+        if (!invalid_text.empty()) {
+            output << "- The invalid token is `" << invalid_text
+                   << "`. Quantities require a space between the number and unit, for "
+                      "example `3 GHz`, never `3GHz`.\n";
+        }
+    }
+    if (source.find(';') != std::string_view::npos) {
+        output << "- The candidate also contains semicolons. HorusRF statements have no "
+                  "terminator, so remove every `;` in the revised script.\n";
+    }
+    if (source.find("sweep temperature") != std::string_view::npos) {
+        output << "- Recheck the complete temperature sweep while revising: endpoints use "
+                  "degC or K, but its step must use deltaC or deltaK.\n";
+    }
+    if (source.find("sweep frequency") != std::string_view::npos ||
+        source.find("sweep temperature") != std::string_view::npos) {
+        output << "- Rewrite each complete sweep in the compiler form `sweep <dimension> "
+                  "<start> .. <end> step <increment>`; the `..` range token is mandatory.\n";
+    }
+    output << "Edit the script field itself at the diagnosed location. Merely describing "
               "the correction in explanation or warnings does not repair the candidate.\n";
     return output.str();
 }
@@ -614,6 +682,9 @@ LlmRequest PromptBuilder::build_repair(const RepairPromptRequest& request) const
         const auto guidance = quantity_repair_guidance(
             diagnostic, request.previous_candidate.text());
         if (!guidance.empty()) user << guidance;
+        const auto syntax_guidance = syntax_repair_guidance(
+            diagnostic, request.previous_candidate.text());
+        if (!syntax_guidance.empty()) user << syntax_guidance;
         user << "Nearby candidate lines:\n"
              << nearby_lines(request.previous_candidate.text(), diagnostic.span);
     }

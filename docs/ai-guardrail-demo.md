@@ -70,9 +70,16 @@ The safety properties worth showing are:
 
 Studio uses the packaged, compiler-validated structural corpus with K=3 for
 initial generation. It does not silently fall back when that corpus is missing or
-invalid. Compiler repairs receive diagnostic-specific quantity types, valid units,
+invalid. Structural query analysis can infer frequency and temperature dimensions
+from units such as `GHz` and natural-language degree spellings, including the common
+`degress` typo, when a short request omits the dimension nouns. Compiler repairs
+receive diagnostic-specific quantity types, valid units,
 the failing source span, and a small validated syntax form; the compiler still
-decides whether the returned script is valid. A repair that merely claims to make
+decides whether the returned script is valid. Missing-root-name repairs explicitly
+distinguish the characterization identifier from fixed sweep dimensions and flag
+unsupported semicolons and temperature steps that require `deltaC` or `deltaK`.
+This lets one bounded repair address cascading defects already visible in the
+candidate. A repair that merely claims to make
 a change while leaving the script or diagnostics unchanged stops as
 `no_progress`.
 

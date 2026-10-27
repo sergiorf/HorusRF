@@ -859,6 +859,32 @@ RetrievalQuery analyze_retrieval_query(std::string_view instruction) {
     }
 
     const auto text = normalized_text(instruction);
+    // Short interactive requests often omit the dimension nouns and express the
+    // intent only through units (for example, "3 to 5 GHz and 40 to 80 degrees").
+    // Project that typed evidence so structural retrieval still supplies a valid
+    // multidimensional example. Keep source order when both dimensions are found.
+    const auto first_position = [&text](std::initializer_list<std::string_view> terms) {
+        auto result = std::string::npos;
+        for (const auto term : terms) result = std::min(result, text.find(term));
+        return result;
+    };
+    const auto frequency_unit = first_position({" ghz", " mhz", " khz", " hz"});
+    const auto temperature_unit = first_position(
+        {" degc", " degree", " degrees", " degress", " celsius"});
+    const auto add_inferred_dimension = [&query](std::string dimension) {
+        add_unique(query.operations, "sweep_" + dimension);
+        add_unique(query.sweep_dimensions, std::move(dimension));
+    };
+    if (frequency_unit != std::string::npos ||
+        temperature_unit != std::string::npos) {
+        if (frequency_unit < temperature_unit) {
+            if (frequency_unit != std::string::npos) add_inferred_dimension("frequency");
+            if (temperature_unit != std::string::npos) add_inferred_dimension("temperature");
+        } else {
+            if (temperature_unit != std::string::npos) add_inferred_dimension("temperature");
+            if (frequency_unit != std::string::npos) add_inferred_dimension("frequency");
+        }
+    }
     if (text.find("calibrat") != std::string::npos ||
         text.find("correction table") != std::string::npos ||
         text.find("calibration table") != std::string::npos) {
